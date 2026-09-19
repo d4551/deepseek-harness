@@ -75,8 +75,7 @@ export const name = 'client-hmr'
 /** Required services: the vendored Loader (entry governance) and the client module system (boot provide, service name `modules`). */
 export const inject = ['loader', 'modules']
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Find the loader entry whose module specifier is `id` (entry tree ids are random; the package name lives in `options.name`). */
 function findEntry(loader: Loader, id: string): Entry | undefined {

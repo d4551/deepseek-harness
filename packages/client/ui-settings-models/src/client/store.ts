@@ -15,8 +15,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace, SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
-/** Values a Promise reject arm or wire refusal may deliver. */
-export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected wire call or transport refusal.

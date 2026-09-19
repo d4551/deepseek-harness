@@ -14,8 +14,7 @@ import { publicHttpNetwork } from './network.ts'
 import type { PublicAddress } from './network.ts'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
-/** Values a Promise reject arm from resolve, fetch, or body read may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Resolved provider limits (the plugin's schemastery Config supplies defaults). */
 export interface HttpFetchLimits {

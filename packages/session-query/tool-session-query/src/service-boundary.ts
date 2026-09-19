@@ -16,8 +16,7 @@ interface ModelSafeServiceFailure {
   readonly message: string
 }
 
-/** Values a Promise reject arm from a session-query service call may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const UNPRINTABLE_SERVICE_ERROR = '[unprintable session query failure]'
 

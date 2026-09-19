@@ -42,8 +42,7 @@ const DEFAULT_WATCH_STABILITY_THRESHOLD_MS = 200
 const DEFAULT_WATCH_POLL_INTERVAL_MS = 100
 const DEFAULT_WATCH_MAX_PROJECTS = 128
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export const name = 'skill-filesystem'
 export const inject = ['skills']

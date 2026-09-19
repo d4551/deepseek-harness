@@ -14,8 +14,7 @@ import { TextDecoder } from 'node:util'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import { copyFileDaclWin32, replaceFileWin32 } from './win32.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const BINARY_SAMPLE_BYTES = 8192
 // Bound one non-abortable FileHandle.read so cancellation is observed between chunks.

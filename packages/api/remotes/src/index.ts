@@ -30,8 +30,7 @@ export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'
 
-/** Values a Promise reject arm from Host next() settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Required Host service: the Gateway owns the physical Remote stream mux. */
 export const inject = ['typertGateway']

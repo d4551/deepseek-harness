@@ -15,8 +15,7 @@
 import type { CapacityRelease } from '@deepseek-ai/dsh-capacity-gate'
 import type { SubagentRun } from './types.ts'
 
-/** Values a Promise reject arm from one-shot run settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Bind one granted concurrency slot to a published run's lifetime.

@@ -49,8 +49,7 @@ export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
 // generation is gone; timing out fails closed instead of overlapping children.
 const GENERATION_CLOSE_TIMEOUT_MS = 5_000
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected connection or close.

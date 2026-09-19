@@ -59,8 +59,7 @@ import type {
 import type { LaunchEnvironmentEntry } from '@deepseek-ai/dsh-launch-environment'
 import { renderCredentialEdit } from './document-edit.ts'
 
-/** Values a Promise reject arm from owner-only document inspection may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Basename of the credentials document inside the harness home. */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'

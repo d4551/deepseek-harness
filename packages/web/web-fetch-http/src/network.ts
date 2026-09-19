@@ -13,8 +13,7 @@ import type { Response } from 'undici'
 import ipaddr from 'ipaddr.js'
 import { WebError } from '@deepseek-ai/dsh-web'
 
-/** Values a Promise reject arm from Undici or system DNS may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One address resolved and retained for the subsequent pinned connection. */
 export interface PublicAddress {

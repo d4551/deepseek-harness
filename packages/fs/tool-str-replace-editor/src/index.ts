@@ -14,8 +14,7 @@ import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
 
-/** Values a Promise reject arm from a filesystem write may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>'
 

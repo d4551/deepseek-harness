@@ -1,7 +1,7 @@
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TeamMemberView } from '@deepseek-ai/dsh-agent-team/client'
 import { Button, PanelSection, PanelTable, PanelActions, Pill, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { Thrown } from './TeamAction.tsx'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import type { TeamKey } from './locales.ts'
 import { memberLabel } from './member-label.ts'
 

@@ -5,8 +5,7 @@
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
-/** Values a Promise reject arm from a durable write may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Dependencies and scheduling policy for one live session's write controller. */
 export interface SessionWriteBehindOptions {

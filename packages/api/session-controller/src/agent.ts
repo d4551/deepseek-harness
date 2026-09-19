@@ -67,8 +67,7 @@ export type ApiSessionAgentResult =
   | { readonly agent: Agent }
   | { readonly error: ApiSessionAgentError }
 
-/** Values a Promise reject arm from Session create-or-adopt may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type InstalledSelection = ModelSelectionRef & {
   current: AgentModelSelection

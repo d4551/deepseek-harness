@@ -10,8 +10,7 @@ import { installFetchObserver, NETWORK_TOPICS, type FetchObserver } from '../ins
 import { HostInspectorSource } from './transport.ts'
 import { InspectorWorkerLifecycle } from './lifecycle.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024
 const DEFAULT_MAX_RESPONSE_BODY_BYTES = 32 * 1024 * 1024

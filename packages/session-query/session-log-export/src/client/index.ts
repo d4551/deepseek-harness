@@ -12,8 +12,7 @@ import type { SessionLogDownloadDialogInjected } from './Dialog.tsx'
 import { SessionLogDownloadHeaderAction } from './HeaderAction.tsx'
 import { en, NS, zh, type SessionLogDownloadKey } from './locales.ts'
 
-/** Values a Promise reject arm from a command-triggered download may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

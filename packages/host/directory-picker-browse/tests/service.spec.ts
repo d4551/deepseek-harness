@@ -10,8 +10,7 @@ import type { DirectoryPickerBrowseCapability } from '@deepseek-ai/dsh-host-dire
 import BrowseDirectoryPicker, { boundedInsert, fullyQualified, raceAbort } from '../src/index.ts'
 import type { ListingCandidate } from '../src/index.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 let root: string
 let capability: DirectoryPickerBrowseCapability

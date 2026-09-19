@@ -32,7 +32,8 @@ import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import { SessionRenameDialog, type SessionRenameTarget } from './SessionRenameDialog.tsx'
-import { mutationFailureMessage, type Thrown } from '../mutation-failure.ts'
+import { mutationFailureMessage } from '../mutation-failure.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import css from './WorkspaceBrowser.module.css'
 
 /**

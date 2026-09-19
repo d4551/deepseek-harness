@@ -23,8 +23,7 @@ import { AssistantOutputFold, settleRunResult, subprocessRunHandle, toError } fr
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 
-/** Values a Promise reject arm from ACP child or protocol work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Fixed response to child permission requests: reject by default, or select the first allow option. */
 export type PermissionPolicy = 'allow' | 'reject'

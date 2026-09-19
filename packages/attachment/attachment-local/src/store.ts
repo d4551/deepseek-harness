@@ -20,8 +20,7 @@ import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
 import type { DetectedImage } from './image.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()

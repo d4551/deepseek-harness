@@ -4,8 +4,7 @@ import sharp, { type Sharp } from 'sharp'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Decoded metadata from a supported image. */
 export interface DetectedImage {

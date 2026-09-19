@@ -25,8 +25,7 @@ import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopRea
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle, toError } from '@deepseek-ai/dsh-subagent'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 
-/** Values a Promise reject arm from SDK child or protocol work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Resolved spawn spec for an SDK runtime child process (no defaults — see Config). */
 export interface SdkRunSpec {

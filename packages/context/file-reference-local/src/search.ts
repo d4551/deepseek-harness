@@ -99,8 +99,7 @@ interface SettledIndex {
   startedAt: number
 }
 
-/** Values a Promise reject arm from index or directory work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Cancellable, reusable fuzzy index over one agent's workspace roots.

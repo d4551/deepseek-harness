@@ -19,6 +19,9 @@
     },
     {
       "path": "../../util/native-command"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

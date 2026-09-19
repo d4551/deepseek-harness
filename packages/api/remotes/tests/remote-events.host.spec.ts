@@ -10,8 +10,7 @@ import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/index.ts'
 
-/** Values a Promise reject arm from Host next() settlement or stream shutdown may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const leftoverThrown: Thrown[] = [
   { tag: 'leftover-object' },

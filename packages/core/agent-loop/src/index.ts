@@ -34,8 +34,7 @@ import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 import type { RequestBudgetPolicy } from '@deepseek-ai/dsh-session/types'
 import { installRequestBudgetSettings, REQUEST_BUDGET_POLICY_SCHEMA } from './request-budget-settings.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Human text for a leftover reject-arm value. */
 function thrownMessage(reason: Thrown): string {

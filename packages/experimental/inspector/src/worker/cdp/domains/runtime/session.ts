@@ -23,8 +23,7 @@ import {
 import { RuntimeObjectTable, type RuntimeObjectObserver } from './object-table.ts'
 import type { RuntimeObjectRoute } from './object-table.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Runtime router layered over the common per-connection realm sessions. */
 export class RuntimeDomainSession {

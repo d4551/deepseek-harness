@@ -20,8 +20,7 @@ import { CONTROLLED_PROMPT } from './sanitize.ts'
 export { Config } from './config.ts'
 export type { Config as TerminalLocalConfig } from './config.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Cordis plugin name. */
 export const name = 'terminal-bash'

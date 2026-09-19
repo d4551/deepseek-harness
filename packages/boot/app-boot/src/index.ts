@@ -56,8 +56,7 @@ export {
   type ProfileTemplate,
 } from './profile.ts'
 
-/** Values a Promise reject arm from patch repair, fiber await, or fail-loud release may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected repair value that is not already an Error.

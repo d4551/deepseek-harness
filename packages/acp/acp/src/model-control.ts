@@ -5,8 +5,7 @@ import type { SessionConfigOption, SessionConfigValueId } from '@agentclientprot
 import { installModelSelection, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId, type LlmCallConfig, type LlmRuntime } from '@deepseek-ai/dsh-llm'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const MODEL_CONFIG_ID = 'model'
 const REASONING_CONFIG_ID = 'reasoning_effort'

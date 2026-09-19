@@ -38,7 +38,8 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-persistence": "workspace:^",
-    "@deepseek-ai/dsh-session-query": "workspace:^"
+    "@deepseek-ai/dsh-session-query": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -59,6 +60,7 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-persistence": "workspace:^",
     "@deepseek-ai/dsh-session-query": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@types/react": "~19.3.0",
     "react": "^19.3.0"
   },

@@ -3,8 +3,7 @@
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { pickWin32Directory } from './win32-dialog.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type DirectoryPickerRunner = NativeCommandRunner

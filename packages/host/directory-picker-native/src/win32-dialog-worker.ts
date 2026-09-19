@@ -38,8 +38,7 @@ const post = (message: Win32DialogWorkerMessage): void => {
 /* v8 ignore next 3 -- the handler exits(0), which would kill the unit lane; built-worker.e2e.ts owns the real disconnect lifecycle. */
 process.on('disconnect', () => process.exit(0))
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.stack ?? reason.message

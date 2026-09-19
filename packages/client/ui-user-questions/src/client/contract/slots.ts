@@ -25,8 +25,7 @@ type QuestionItem = AskUserQuestionItem
 /** One option the asker offered on a question. */
 type QuestionOption = NonNullable<QuestionItem['options']>[number]
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * A request narrowed to the `plan-review` presentation intent: everything the

@@ -24,8 +24,7 @@ import type {
   WorkspaceValue,
 } from './types.ts'
 
-/** Values a Promise reject arm from a serialized Workspace command may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Implements Workspace mutations against the authoritative registry. */
 export class WorkspaceCommands {

@@ -32,8 +32,7 @@ import { z } from 'zod'
 import { CredentialsController } from './credentials.ts'
 import type { AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export { CredentialsController } from './credentials.ts'
 export type { AgentPresetDirectoryOpenValue, CredentialError, CredentialErrorDetailsMap, SettingsDocumentOpenValue, SettingsError, SettingsErrorDetailsMap } from './types.ts'

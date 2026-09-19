@@ -33,8 +33,7 @@ import {
   type CodexWireFailureFacts,
 } from './wire.ts'
 
-/** Values a Promise reject arm from Codex child or wire work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Default POSIX grace between subprocess termination tiers. */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000

@@ -15,8 +15,7 @@ import { createScope, scopeOf, type Scope, type ScopeKey } from '@deepseek-ai/ds
 import { mountPreset } from './mount.ts'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 
-/** Values a Promise reject arm from composition stamp or generation retirement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** The composition file identity one standing generation was mounted from. */
 export interface CompositionStamp {

@@ -20,8 +20,7 @@ const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this comma
 const SCROLLBACK_PAGE_LINES = 1_000
 const POLL_INTERVAL_MS = 25
 
-/** Values a Promise reject arm from a serialized owner command may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface ResolvedConfig {
   dialect: PersistentShellDialect

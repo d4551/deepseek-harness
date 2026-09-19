@@ -1,8 +1,7 @@
 import type { HighlighterCore } from 'shiki/core'
 import type { LangModule } from './highlight-grammars.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type GrammarLoadState =
   | { status: 'loading'; completion: Promise<void> }

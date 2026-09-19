@@ -42,8 +42,7 @@ export type {
 } from './types.ts'
 export { TerminalBackendCleanupError } from './types.ts'
 
-/** Values a Promise reject arm from backend dispose, send settlement, or cleanup may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Opaque identity minted by {@link TerminalSessionService} for one live PTY session. */
 export type TerminalSessionId = TerminalSessionIdValue

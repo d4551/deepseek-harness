@@ -11,8 +11,7 @@ import type { DeepSeekUploadRecord } from './upload-index.ts'
 export const MAX_CHAT_IMAGE_BYTES = 32 * 1024 * 1024
 const OWNED_FILE_PREFIX = 'dsh-'
 
-/** Values a Promise reject arm from a shared upload may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Resolved file-store policy from the plugin configuration. */
 export interface DeepSeekFilePolicy {

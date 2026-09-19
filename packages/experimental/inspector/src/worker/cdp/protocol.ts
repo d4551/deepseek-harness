@@ -2,8 +2,7 @@
 
 import { isPlainObject } from '../../shared/json.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected CDP operation.

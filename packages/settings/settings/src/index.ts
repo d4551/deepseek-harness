@@ -16,8 +16,7 @@ export { redactSecrets } from './redact.ts'
 export type { RedactedSecret, RedactedValue } from './redact.ts'
 export type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
 
-/** Values a Promise reject arm from write-queue predecessors, document-updated listeners, updated listeners, or watchers may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/
 

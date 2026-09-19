@@ -42,6 +42,7 @@
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-webhook": "workspace:^"
   },
   "dependencies": {
@@ -56,6 +57,7 @@
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-webhook": "workspace:^"
   }
 }

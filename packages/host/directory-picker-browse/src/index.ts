@@ -21,8 +21,7 @@ import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
 
-/** Values a Promise reject arm or abort reason may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the

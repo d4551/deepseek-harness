@@ -21,8 +21,7 @@ import { E2BSubprocessHandle } from './process.ts'
 import { asError, signalOpts } from './remote.ts'
 import { spawnE2BTerminal } from './terminal.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Configuration for the E2B subprocess adapter. */
 export interface Config {

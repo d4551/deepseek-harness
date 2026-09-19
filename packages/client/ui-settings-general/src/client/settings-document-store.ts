@@ -14,8 +14,7 @@ export interface SettingsDocumentState {
   error: string | null
 }
 
-/** Values a Promise reject arm or native-open refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type OpenSettingsDocumentResult = Awaited<ReturnType<ClientRemote['settings']['openSettingsDocument']>>
 

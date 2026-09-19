@@ -40,8 +40,7 @@ export {
 export { LspInstance } from './instance.ts'
 export { LspConnection } from './connection.ts'
 
-/** Values a Promise reject arm from setup lookup or queue work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Cordis plugin name for loader diagnostics. */
 export const name = 'lsp-stdio'

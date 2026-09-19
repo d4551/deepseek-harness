@@ -14,7 +14,7 @@ import type { QuestionDraftAnswer, QuestionDraftProgress } from './draft-store.t
 import { PlanReviewPanel } from './PlanReviewPanel.tsx'
 import css from './QuestionComposer.module.css'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

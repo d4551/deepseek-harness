@@ -30,8 +30,7 @@ export type {
 /** Request for a human answer. */
 export interface AskUserQuestionRequest extends AskUserQuestionRequestEvent {}
 
-/** Values a Promise reject arm from the answerer waterfall may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Stable error taxonomy for user-questions failures. */
 export class UserQuestionError extends HarnessError {

@@ -3,7 +3,7 @@ import { Button, IconEditOutline16, MarkdownText } from '@deepseek-ai/dsh-client
 import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
 import css from './PlanReviewPanel.module.css'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

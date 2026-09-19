@@ -50,6 +50,7 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
@@ -67,6 +68,7 @@
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-llm-deepseek": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-timeout": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }

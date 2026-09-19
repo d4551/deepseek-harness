@@ -54,8 +54,7 @@ import { win32 } from './ffi.ts'
 import { AclSandbox, assertTempRootOutsideWorkspace } from './index.ts'
 import { tempWriteSid, workspaceWriteSid } from './workspace-sid.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected runner step.

@@ -30,8 +30,7 @@ export type {
 export type { MessageFeedbackActionProps, MessageFeedbackInjected } from './slots.ts'
 export type { MessageFeedbackKey } from './locales.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Dictionary namespace owned by this plugin. */
 const NS = 'feedback'

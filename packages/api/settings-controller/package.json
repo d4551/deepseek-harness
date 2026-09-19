@@ -60,6 +60,7 @@
     "@deepseek-ai/dsh-native-command": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-typert-protocol": "workspace:^"
   },
   "devDependencies": {
@@ -70,6 +71,7 @@
     "@deepseek-ai/dsh-native-command": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-typert-protocol": "workspace:^"
   }
 }

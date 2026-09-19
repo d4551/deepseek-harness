@@ -19,8 +19,7 @@ import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
-/** Values a Promise reject arm from an ACP update or settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** The continuable-subagent teardown used without depending on the subagent package. */
 interface ContinuableDrain {

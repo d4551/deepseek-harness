@@ -12,7 +12,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-presets/types'
 import type { SettingsDescribeFace, SettingsWireFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 
-export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** The agent-preset settings namespace on the host wire. */
 export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'

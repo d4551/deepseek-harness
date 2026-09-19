@@ -12,8 +12,7 @@ declare module '@deepseek-ai/cordis' {
 
 type TimerArguments = [delay: number] | [callback: () => void, delay: number]
 
-/** Values a Promise reject arm from Fiber-owned timer disposal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Cancel pending timer work; await the result to observe completion of owned cleanup. */
 export type TimerDisposer = () => void | Promise<void>

@@ -84,8 +84,7 @@ export function resolveDocumentSpec(config: DocumentQueueConfig, basename: strin
   }
 }
 
-/** Values a Promise reject arm or filesystem refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Whether a filesystem error means absence; every non-ENOENT failure must surface.

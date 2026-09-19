@@ -17,8 +17,7 @@ import { parse, serialize } from './format.ts'
 import type { UnitState } from './format.ts'
 import { JsonUnitLifecycle } from './unit-lifecycle.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Whether a claim-boundary value reports a missing path. */
 function isENOENT(error: unknown): boolean {

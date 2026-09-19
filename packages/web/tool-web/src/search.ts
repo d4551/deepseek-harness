@@ -12,8 +12,7 @@ import type { WebSearchResult, WebSearchSource } from '@deepseek-ai/dsh-web'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { EXTERNAL_WEB_CONTENT_NOTICE } from './trust.ts'
 
-/** Values a Promise reject arm from `ctx.web.search` may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Default upper bound on returned sources (the `searchMaxResults` config).

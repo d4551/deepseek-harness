@@ -56,8 +56,7 @@ import type { SpillPolicyExec } from './types.ts'
 
 export type { SpillPolicyExec } from './types.ts'
 
-/** Values a Promise reject arm from spill storage may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected spill save.

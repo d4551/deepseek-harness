@@ -41,8 +41,7 @@
  */
 import { notImplementedFail } from '../../notImplementedFail.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface Entry<T> {
   readonly store: T | undefined

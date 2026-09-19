@@ -18,8 +18,7 @@ import { sendClientSessionClosed } from './session.ts'
 import type { InspectorSourceEvent, InspectorSourceRegistry } from './hub.ts'
 import type { RuntimeConsoleBackendEvent } from '../../shared/cdp/console.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One connected projection of a Client realm into a synthetic CDP execution context. */
 export interface ClientRuntimeTarget {

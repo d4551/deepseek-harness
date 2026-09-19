@@ -7,7 +7,7 @@ import { FakeGenerationSource } from './fake-generation.client.ts'
 
 const FAST = { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 }
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function observeLoop(loop: Promise<void>): Promise<Thrown> {
   return loop.then(

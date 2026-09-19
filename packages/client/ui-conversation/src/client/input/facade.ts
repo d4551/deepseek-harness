@@ -99,8 +99,7 @@ function projectionContentChanged(prev: EditorProjection, next: EditorProjection
 
 const EMPTY_QUEUE: readonly QueuedMessage[] = []
 
-/** Values a throw or Promise rejection can carry. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

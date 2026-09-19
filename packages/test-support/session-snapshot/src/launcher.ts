@@ -42,8 +42,7 @@ import { resolveExampleLaunch } from '@deepseek-ai/dsh-loader-smoke'
 
 const EXIT_MARKER_GRACE_MS = 250
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Loader fields needed while rebasing authored relative module names. */
 interface ProfilePatchEntry {

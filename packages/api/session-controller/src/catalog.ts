@@ -7,8 +7,7 @@ import type {
   ModelSelection,
 } from './types.ts'
 
-/** Values a Promise reject arm from provider catalog assembly may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Build the browser model catalog without requiring a Session.

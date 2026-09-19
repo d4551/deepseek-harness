@@ -49,6 +49,9 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

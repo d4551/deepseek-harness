@@ -49,6 +49,9 @@
     },
     {
       "path": "../../workspace/workspace"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

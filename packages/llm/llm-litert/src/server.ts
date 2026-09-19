@@ -15,8 +15,7 @@ import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-sub
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { LitertImport, ResolvedLitertServerConfig } from './config.ts'
 
-/** Values a Promise reject arm from spawn start or a health probe may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Timeout code carried by an elapsed `litert-lm` budget. */
 export const LITERT_TIMEOUT_CODE = 'LITERT_TIMEOUT'

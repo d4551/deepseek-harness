@@ -21,8 +21,7 @@ import { runScheduleTransaction } from './transaction.ts'
 /** Largest delay that Node timers represent without clamping. */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647
 
-/** Values a Promise reject arm from a live timer projection may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface EveryDue {
   readonly record: EveryScheduleRecord

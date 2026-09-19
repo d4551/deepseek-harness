@@ -3,8 +3,7 @@ import { PassThrough, Writable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { JsonRpcLineTransport, JsonRpcResponseError } from '../src/index.ts'
 
-/** Values a Promise reject arm from a frame, request handler, write, or abort may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const leftoverRejects: { label: string; reason: Thrown; text: string }[] = [
   { label: 'string', reason: 'leftover-string', text: 'leftover-string' },

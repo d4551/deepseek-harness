@@ -7,8 +7,7 @@ import type { ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@d
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Raster formats shared by ACP image blocks and the core attachment vocabulary. */
 const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [

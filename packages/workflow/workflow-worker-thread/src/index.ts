@@ -17,8 +17,7 @@ import { WorkerRun } from './host.ts'
 import { validateMeta } from './meta.ts'
 import type { WorkerInit, WorkerLimits } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export { validateMeta } from './meta.ts'
 export { materializeFromRealm, MaterializeError } from './realm.ts'

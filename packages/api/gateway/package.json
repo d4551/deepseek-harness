@@ -66,6 +66,7 @@
     "@deepseek-ai/dsh-client-connection": "workspace:^",
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-typert-registry": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
@@ -74,6 +75,7 @@
     "@deepseek-ai/dsh-client-connection": "workspace:^",
     "@deepseek-ai/dsh-host-webserver": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/dsh-typert-registry": "workspace:^",
     "@deepseek-ai/dsh-util-crypto": "workspace:^",
     "@types/ws": "^8.18.1",

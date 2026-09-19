@@ -236,8 +236,7 @@ export function spawnPipedProcess(
   }
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Drain one anonymous pipe until the writer closes it.

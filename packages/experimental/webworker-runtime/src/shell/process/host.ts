@@ -21,8 +21,7 @@ import type { FilesystemOperation, FromProcessFrame, ShellStartFrame } from './p
 import { runShellProcess } from './child.ts'
 import type { ProcessScope } from './child.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected host-side promise.

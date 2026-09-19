@@ -19,8 +19,7 @@ import { close, fsync, lstat, mkdir, open, rename, rm, rmSync, writeFile } from 
 import { dirname } from 'node:path'
 import { replaceFileDurablyWin32 } from './win32.ts'
 
-/** Values a Promise reject arm from the Windows durable commit may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the

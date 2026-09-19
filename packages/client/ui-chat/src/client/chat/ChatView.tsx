@@ -115,8 +115,7 @@ function scrollPosition(list: HTMLElement, scrollport: HTMLElement): ChatScrollP
   }
 }
 
-/** Values a Promise reject arm or host file-open refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback.

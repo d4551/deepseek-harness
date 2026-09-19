@@ -22,8 +22,7 @@ import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 import { classifyRowSpecifier } from './specifier.ts'
 
-/** Values a Promise reject arm from mount inspection or cleanup may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** What one mounted subtree publishes about itself for the audit to read. */
 interface MountedTree {

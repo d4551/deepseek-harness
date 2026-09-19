@@ -41,8 +41,7 @@ export interface RetryInternals {
   random?: () => number
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type DownstreamOutcome =
   | { readonly type: 'decision'; readonly decision: RequestErrorAction }

@@ -64,8 +64,7 @@ interface StoreAxisRecord {
 /** One synchronous effect installed while an injected slot declaration is live. */
 type SlotInjectionEffect = (() => void) | Iterable<() => void, void, void>
 
-/** Values a Promise reject arm or listener refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function observeListenerInvocation(
   invoke: () => unknown,

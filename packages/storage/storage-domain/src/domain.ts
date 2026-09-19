@@ -15,8 +15,7 @@ import { DomainError } from './error.ts'
 import type { DomainSpec, DomainGlobalSpec, TableKeyOf, TableValueOf } from './spec.ts'
 import type { DomainChanged } from './events.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Handle on a domain's global singleton. */
 export interface DomainGlobal<G> {

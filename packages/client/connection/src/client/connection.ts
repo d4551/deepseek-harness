@@ -71,8 +71,7 @@ export type ConnectionGenerationSource = (
   ready: (host: ConnectionHostInfo) => void,
 ) => Promise<void>
 
-/** Values a throw or Promise rejection can carry. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Handshake settlement before sinks run. */
 type Handshake =

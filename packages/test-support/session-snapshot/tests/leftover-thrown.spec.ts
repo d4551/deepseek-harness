@@ -6,8 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { launchAcpTestAgent, type AgentUnderTest } from '../src/launcher.ts'
 
-/** Values a leftover Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const fakeAgent = fileURLToPath(new URL('./fixtures/fake-acp-agent.ts', import.meta.url))
 const AGENT: AgentUnderTest = {

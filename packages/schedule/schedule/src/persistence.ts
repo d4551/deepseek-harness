@@ -3,8 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session } from '@deepseek-ai/dsh-session'
 
-/** Values a Promise reject arm from the shared durability barrier may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Failure to prove that the current live prefix reached a persistence listener. */
 export class SchedulePersistenceError extends Error {

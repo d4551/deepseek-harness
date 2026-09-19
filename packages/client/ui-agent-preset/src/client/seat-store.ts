@@ -15,7 +15,8 @@ import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/cli
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { messageOf, presetOptions, readRoster } from './settings-store.ts'
-import type { AgentPresetOption, Thrown } from './settings-store.ts'
+import type { AgentPresetOption } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Hero-chip snapshot. */
 export interface AgentPresetSeatState {

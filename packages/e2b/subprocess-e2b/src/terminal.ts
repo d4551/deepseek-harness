@@ -27,8 +27,7 @@ import {
 } from './environment.ts'
 import { asError, commandOpts, delay, signalOpts, signalRemoteGroups } from './remote.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function ignoreRejection(_reason: Thrown): undefined {
   return undefined

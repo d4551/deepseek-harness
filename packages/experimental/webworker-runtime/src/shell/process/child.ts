@@ -13,8 +13,7 @@ import { filesystemError } from '../fs-access.ts'
 import type { ShellDirent, ShellFileSystem, ShellStats } from '../types.ts'
 import type { FilesystemOperation, FromProcessFrame, ShellStartFrame, ToProcessFrame } from './protocol.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected child-side promise.

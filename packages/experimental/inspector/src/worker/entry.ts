@@ -6,8 +6,7 @@ import { parseInspectorHostControl, parseInspectorWorkerConfig } from '../shared
 import { isPlainObject } from '../shared/json.ts'
 import { startInspectorWorker } from './server.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 if (parentPort === null) throw new Error('experimental inspector: Worker entry loaded on the main thread')
 const controlPort = parentPort

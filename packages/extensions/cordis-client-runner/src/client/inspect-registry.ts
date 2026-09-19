@@ -7,8 +7,7 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Context supplied to a Client inspect provider query. */
 export interface ClientCordisInspectQueryContext {

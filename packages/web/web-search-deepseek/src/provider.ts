@@ -22,8 +22,7 @@ import type {
   WebSearchToolResultBlock,
 } from './types.ts'
 
-/** Values a Promise reject arm from search dispatch or credential resolution may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected search, parse, or credential operation.

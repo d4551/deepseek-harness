@@ -24,8 +24,7 @@ import { assertPositiveFinite, assertServiceableShellConfig } from './executor-c
 import type { ResolvedSubprocessShellConfig, SubprocessShellConfig } from './executor-config.ts'
 import type { CollectedOutput, ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected spawn.

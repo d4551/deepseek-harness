@@ -46,8 +46,7 @@ export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
 export { foldTeam } from './fold.ts'
 
-/** Values a Promise reject arm from mailbox observation or Team recovery may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

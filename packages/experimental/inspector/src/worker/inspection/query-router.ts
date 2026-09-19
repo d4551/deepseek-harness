@@ -18,8 +18,7 @@ import type {
 import { INSPECTOR_PROTOCOL_VERSION } from '../../shared/bridge/version.ts'
 import { executeInspectorQuery } from './cordis-query.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Carrier operations owned by one Worker query peer. */
 export interface InspectorQueryPeerTransport {

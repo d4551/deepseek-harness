@@ -67,8 +67,7 @@ function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Human-readable unexpected values for logs. */
 function renderThrown(value: unknown): string {

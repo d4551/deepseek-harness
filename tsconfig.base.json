@@ -547,6 +547,8 @@
       "@deepseek-ai/dsh-terminal/invariant": ["./packages/terminal/terminal/src/invariant.ts"],
       "@deepseek-ai/dsh-terminal-bash": ["./packages/terminal/terminal-bash/src"],
       "@deepseek-ai/dsh-terminal-bash/invariant": ["./packages/terminal/terminal-bash/src/invariant.ts"],
+      "@deepseek-ai/dsh-thrown": ["./packages/util/thrown/src"],
+      "@deepseek-ai/dsh-thrown/invariant": ["./packages/util/thrown/src/invariant.ts"],
       "@deepseek-ai/dsh-time-context": ["./packages/context/time-context/src"],
       "@deepseek-ai/dsh-time-context/invariant": ["./packages/context/time-context/src/invariant.ts"],
       "@deepseek-ai/dsh-timeout": ["./packages/util/timeout/src"],

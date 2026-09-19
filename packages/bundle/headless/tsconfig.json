@@ -34,6 +34,9 @@
     },
     {
       "path": "../../boot/cmdline"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

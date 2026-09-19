@@ -49,8 +49,7 @@ export {
   parseSessionReferenceText,
 } from './uri.ts'
 
-/** Values a Promise reject arm from session-reference reads may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected session-surface read.

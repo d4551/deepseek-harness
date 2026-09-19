@@ -9,8 +9,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 import { requireParentPort, runWorkerSession } from './session.ts'
 import type { WorkerInit } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 // workerData is `any` at the node:worker_threads boundary; the engine is the
 // only spawner and always provides a WorkerInit.

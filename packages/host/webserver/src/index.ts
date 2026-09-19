@@ -74,8 +74,7 @@ const DEFAULT_COMPRESSION = 'none' as const
 const DEFAULT_COMPRESSION_LEVEL = 1
 const DEFAULT_COMPRESSION_THRESHOLD_BYTES = 1024
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected HTTP or upgrade handler.

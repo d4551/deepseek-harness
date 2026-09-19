@@ -15,8 +15,7 @@ export type {
   ApiKeyRecord, CredentialInfo, CredentialKey, CredentialRecord, CredentialRef, GrantRecord,
 } from './types.ts'
 
-/** Values a Promise reject arm from reference-updated or record-updated listeners may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 

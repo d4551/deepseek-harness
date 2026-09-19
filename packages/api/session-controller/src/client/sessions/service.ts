@@ -35,8 +35,7 @@ import type { SessionRemotes } from './remotes.ts'
 import type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot } from './manager.ts'
 import type { Session } from './session.ts'
 
-/** Values a Promise reject arm from Session scope open or drop may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Session list row projected from the host list RPC plus live stream increments. */
 export interface SessionSummary {

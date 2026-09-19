@@ -25,8 +25,7 @@ import type {
 export { CommandId } from './brand.ts'
 export type { CommandDescriptor, CommandExecution, CommandInputDescriptor, CommandResult, CommandSource, CommandSourceMap } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Image admission either yields attachments or a finished command execution. */
 type AdmissionOutcome =

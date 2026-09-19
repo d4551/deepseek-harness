@@ -25,8 +25,7 @@ import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerPayloads, WorkerToHostMessage } from './protocol.ts'
 import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected host-side promise.

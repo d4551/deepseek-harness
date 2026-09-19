@@ -35,7 +35,8 @@
     "@deepseek-ai/dsh-commands": "workspace:^",
     "@deepseek-ai/dsh-compaction": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis-plugin-include": "workspace:^",
@@ -46,6 +47,7 @@
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   }
 }

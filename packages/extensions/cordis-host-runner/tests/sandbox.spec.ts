@@ -3,8 +3,7 @@ import { sandboxDefineTool } from '../src/guard.ts'
 import { syntaxErrorContext } from '../src/sandbox.ts'
 import { AGENT_A, call, CONTENT_OUTPUT_CODE, mount, setup, text, running } from './helpers.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Human text for a leftover reject-arm value. */
 function thrownMessage(reason: Thrown): string {

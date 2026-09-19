@@ -19,6 +19,7 @@ export interface SentenceContract {
 export const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
   'packages/core/scope': 'The package is a model-agnostic registration and lifecycle primitive; model-facing consumers own any context selection.',
   'packages/util/brand': 'The package is a type-only primitive erased at compile time.',
+  'packages/util/thrown': 'The package is a type-only union erased at compile time.',
   'packages/util/home-paths': 'The package only resolves harness-owned host paths; model-facing consumers own any rendered use.',
   'packages/util/launch-environment': 'The package only resolves host environment values; model-facing consumers own any rendered use.',
   'packages/util/browser-locale': 'The package only reads the browser language preference; the surfaces that key copy on it own any rendered use.',

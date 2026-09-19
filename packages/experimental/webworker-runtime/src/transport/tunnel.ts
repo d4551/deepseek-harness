@@ -31,8 +31,7 @@ export const SYNTHETIC_HOST = '127.0.0.1'
 
 const encoder = new TextEncoder()
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

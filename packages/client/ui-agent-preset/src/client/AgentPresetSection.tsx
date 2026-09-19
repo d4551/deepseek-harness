@@ -18,7 +18,8 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { draftBlocker, type AgentPresetSectionState } from './section-store.ts'
-import { messageOf, type Thrown } from './settings-store.ts'
+import { messageOf } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'
 import css from './AgentPresetSection.module.css'
 

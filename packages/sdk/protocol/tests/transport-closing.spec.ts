@@ -2,8 +2,7 @@ import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { JsonRpcLineTransport } from '../src/transport.ts'
 
-/** Values a Promise reject arm from a late frame may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 describe('transport closing ownership', () => {
   it('joins a handler that closes synchronously and retains its later rejection', async () => {

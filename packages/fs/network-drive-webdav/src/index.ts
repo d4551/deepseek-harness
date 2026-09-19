@@ -66,8 +66,7 @@ type AuthPlan =
   | { scheme: 'token'; tokenEnv: CredentialRef }
   | { scheme: 'password' | 'digest' | 'auto'; usernameEnv: CredentialRef; passwordEnv: CredentialRef }
 
-/** Values a Promise reject arm from the WebDAV client may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected WebDAV client or credential value.

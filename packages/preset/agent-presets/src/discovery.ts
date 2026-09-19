@@ -34,8 +34,7 @@ import { readPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 import { classifyRowSpecifier, type RowSpecifier } from './specifier.ts'
 
-/** Values a Promise reject arm from discovery IO may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected filesystem operation.

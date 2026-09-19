@@ -32,8 +32,7 @@ export type { FileSearchConfig } from './search.ts'
 export { FILE_REFERENCE_PROMPT } from '@deepseek-ai/dsh-file-reference'
 export { activeAtToken, formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 
-/** Values a Promise reject arm from prompt-fiber disposal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected prompt-fiber disposal.

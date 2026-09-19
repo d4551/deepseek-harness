@@ -3,8 +3,7 @@
  * @module @deepseek-ai/dsh-lsp-stdio/outcome
  */
 
-/** Values a Promise reject arm from an LSP operation or cleanup may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Return the operation result only after all supplied cleanup outcomes succeed.

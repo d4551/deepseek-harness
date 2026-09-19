@@ -14,8 +14,7 @@ import { PiAiAdapter } from '../src/adapter.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { memoryAuth } from './auth-double.ts'
 
-/** Values a leftover Promise reject arm may deliver into the stream boundary. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const LEFTOVER_VISION = 'leftover-vision'
 const LEFTOVER_TEXT = 'leftover-text'

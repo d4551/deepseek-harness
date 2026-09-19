@@ -18,8 +18,7 @@
 import { StorageError } from '@deepseek-ai/dsh-storage'
 import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepseek-ai/dsh-storage'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One unit's medium: tables of records plus the global slot (`null` = never written). */
 export interface MemoryMedium {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
-import { thrownMessage, type TeamActionResult, type Thrown } from './TeamAction.tsx'
+import { thrownMessage, type TeamActionResult } from './TeamAction.tsx'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { Button, IconRightUpOutline16, StateDot, PanelSection, PanelTable, PanelActions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
 import { memberLabel } from './member-label.ts'

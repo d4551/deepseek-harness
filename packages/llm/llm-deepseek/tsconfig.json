@@ -55,6 +55,9 @@
     },
     {
       "path": "../../identity/anonymous-user-id"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

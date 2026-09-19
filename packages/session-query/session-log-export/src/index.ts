@@ -15,8 +15,7 @@ import {
   type SessionLogExportReady,
 } from './archive.ts'
 
-/** Values a Promise reject arm from root flush or raw-artifact read may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,

@@ -1,8 +1,7 @@
 // Host clipboard write shared by Web UI copy controls. Success feedback stays
 // with each control; this helper only reports whether the host accepted a write.
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Walk own and prototype properties and return the value as `unknown`.

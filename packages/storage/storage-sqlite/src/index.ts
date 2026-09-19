@@ -14,8 +14,7 @@ import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepsee
 import { openDatabase, recordTableName, type JournalMode } from './schema.ts'
 import { SqliteKvUnit } from './unit.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export { STORAGE_SQLITE_SCHEMA_VERSION, type JournalMode } from './schema.ts'
 

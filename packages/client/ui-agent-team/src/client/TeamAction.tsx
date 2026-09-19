@@ -15,8 +15,7 @@ import { TeamMembers } from './TeamMembers.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import { TeamMessages } from './TeamMessages.tsx'
 
-/** Values a Promise reject arm or wire refusal may deliver. */
-export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected team load, refresh, or navigation.

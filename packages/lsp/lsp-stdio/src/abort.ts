@@ -5,8 +5,7 @@
 
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 
-/** Values a Promise reject arm or abort reason may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Build an abort Error carrying the signal's reason and preserving timeout classification.

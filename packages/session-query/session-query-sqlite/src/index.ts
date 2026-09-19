@@ -82,8 +82,7 @@ export const SESSION_QUERY_SQLITE_SNIPPET_CHARS = 240
 // One transient source change gets a retry; repeated churn fails rather than monopolizing the queue.
 const STABLE_OBSERVATION_ATTEMPTS = 2
 
-/** Values a Promise reject arm from index open, serialization, observation, or disposal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** SQLite module/handle opening phase; `never` disables full-text search entirely. */
 export type OpenAt = 'startup' | 'first-search' | 'never'

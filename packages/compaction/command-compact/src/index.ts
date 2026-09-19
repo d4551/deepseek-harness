@@ -10,8 +10,7 @@ import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands
 export const name = 'command-compact'
 export const inject = ['commands', 'compaction']
 
-/** Values a Promise reject arm from compaction dispatch or teardown may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Keep a drain or observer promise from rejecting when the handler already settled. */
 function ignoreThrown(_error: Thrown): undefined {

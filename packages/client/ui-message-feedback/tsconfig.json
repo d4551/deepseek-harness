@@ -46,6 +46,9 @@
     },
     {
       "path": "../ui-slots"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

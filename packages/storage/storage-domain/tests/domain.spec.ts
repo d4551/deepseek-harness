@@ -6,6 +6,7 @@ import { apply, defineDomain, descriptorOf, DomainFacility, domainTable } from '
 import type { Config } from '../src/index.ts'
 import type { DomainChanged } from '../src/events.ts'
 import { MemoryMediaPool, MemoryStorageBackend } from './helpers/memory-backend.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const itemSchema = z.object({ label: z.string(), count: z.number().int() })
 type Item = z.infer<typeof itemSchema>
@@ -290,7 +291,6 @@ describe('durability failure', () => {
   })
 
   it('contains leftover Thrown write rejections so the next write lands', async () => {
-    type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
     const leftovers: Thrown[] = [
       { tag: 'leftover-object' },
       'leftover string',

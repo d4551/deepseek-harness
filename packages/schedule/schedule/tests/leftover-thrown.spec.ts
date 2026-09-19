@@ -11,8 +11,7 @@ import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { flushSchedulePersistence, SchedulePersistenceError } from '../src/persistence.ts'
 import { registerScheduleTools } from '../src/tools.ts'
 
-/** Values a leftover Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const leftoverSignal = new AbortController().signal
 const leftoverContexts: Context[] = []

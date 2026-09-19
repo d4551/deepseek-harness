@@ -11,8 +11,7 @@ import type { ShellExecutor } from '@deepseek-ai/dsh-shell'
 import { parseHookOutput } from './codec.ts'
 import type { CommandHook, HookOutput } from './types.ts'
 
-/** Values a Promise reject arm from the shell executor may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * The reference default per-hook timeout, in ms (10 minutes) — the value both

@@ -9,8 +9,7 @@
 import { StorageError } from '@deepseek-ai/dsh-storage'
 import type { KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Open-slot lifecycle for one opened JSON unit, whatever its layout writes. */
 export abstract class JsonUnitLifecycle {

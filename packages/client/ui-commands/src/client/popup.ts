@@ -102,8 +102,7 @@ interface OpenBinding<TCtx> {
   readonly abort: AbortController
 }
 
-/** Values a Promise reject arm or onSelect throw may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected options load or onSelect.

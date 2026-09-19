@@ -1,4 +1,4 @@
-export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Surface a rejected workspace mutation as text.

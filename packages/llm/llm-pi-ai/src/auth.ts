@@ -20,8 +20,7 @@ import type { CredentialKey, CredentialProvider, CredentialRecord } from '@deeps
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 
-/** Values a Promise reject arm from host filesystem access may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * The record scope every credential this adapter family stores is written

@@ -56,8 +56,7 @@ import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
 import { SubagentError } from './error.ts'
 import type SubagentActivationSetupRegistry from './activation-setup-registry.ts'
 
-/** Values a Promise reject arm from continuation residency, disposal, or settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Attribution for a model coordinator's follow-up to one of its children. */
 export interface CoordinatorMessageSource {

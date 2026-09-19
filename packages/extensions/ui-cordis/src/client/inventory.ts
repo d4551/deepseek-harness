@@ -21,8 +21,7 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CordisDynamicPort, CordisInventoryRow } from './dynamic-port.ts'
 import type { CordisDynamicPluginId } from '@deepseek-ai/dsh-api-remotes/client'
 
-/** Values a Promise reject arm from the inventory read may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** What the panel reads: the rows, and whether the first read has happened. */
 export interface CordisInventorySnapshot {

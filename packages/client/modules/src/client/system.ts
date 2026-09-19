@@ -10,8 +10,7 @@ import type {
   ClientModuleSystemOptions,
 } from './manifest.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Default bundle-load hook: same-origin external classic script. */
 const defaultLoadBundle = (url: string): Promise<void> => new Promise((resolve, reject: (reason: Thrown) => void) => {

@@ -422,7 +422,7 @@ describe('UiSession bindings', () => {
   })
 })
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One answerable presentation, exactly what a composer domain publishes. */
 class TestPending {

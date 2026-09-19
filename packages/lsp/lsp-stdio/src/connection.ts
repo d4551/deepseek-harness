@@ -14,8 +14,7 @@ import type { Writable } from 'node:stream'
 import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { encodeMessage, MessageDecoder } from './framing.ts'
 
-/** Values a Promise reject arm from protocol or subprocess work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** How to launch the server and answer its config requests. */
 export interface ConnectionSpec {

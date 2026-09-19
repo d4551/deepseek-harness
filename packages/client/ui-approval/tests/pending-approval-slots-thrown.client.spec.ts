@@ -3,7 +3,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { PendingApproval } from '../src/client/contract/slots.ts'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function alreadyAbortedWithoutReason(): AbortSignal {
   const controller = new AbortController()

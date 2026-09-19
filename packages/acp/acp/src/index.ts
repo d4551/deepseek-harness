@@ -55,8 +55,7 @@ import { AcpMcpConfigError } from './mcp.ts'
 import { AcpModelConfigError } from './model-control.ts'
 import { AcpSession } from './session.ts'
 
-/** Values a Promise reject arm from the ACP connection close path may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const DEFAULT_SESSION_LIST_PAGE_SIZE = 100
 

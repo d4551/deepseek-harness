@@ -21,8 +21,7 @@ export interface GitHubWebhookHandlerConfig {
   readonly maxBodyBytes: number
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Require one unambiguous non-empty request header. */
 function requiredHeader(request: IncomingMessage, name: string): string {

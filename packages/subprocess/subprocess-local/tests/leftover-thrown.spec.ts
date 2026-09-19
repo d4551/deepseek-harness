@@ -3,8 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '../src/index.ts'
 import type { SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 
-/** Values a leftover Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const LEFTOVERS: Thrown[] = [
   { tag: 'leftover-object' },

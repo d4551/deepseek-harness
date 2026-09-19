@@ -6,8 +6,7 @@ import { usePointerGrace } from './pointer-grace.ts'
 import { selectionIntersectsNode } from './selection-intersection.ts'
 import css from './HoverCard.module.css'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Render an anchor with a hover-triggered preview card.

@@ -59,8 +59,7 @@ export function waitForExit(api: Win32Bindings, process: NativePtr): number {
   return waitForProcessExit(api, process)
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One Promise settlement that keeps a Thrown reject reason. */
 type ThrownSettlement<T> =

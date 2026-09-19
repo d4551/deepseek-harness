@@ -26,8 +26,7 @@ import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
 
-/** Values a Promise reject arm from deferred title work, fallback publication, or automatic generation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected fallback or automatic title failure.

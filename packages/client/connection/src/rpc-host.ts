@@ -32,8 +32,7 @@ const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
 const CHANNEL_PATTERN = /^\/[A-Za-z0-9._~-]+$/
 const ENDPOINT_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface ConnectionRpcInterceptor {
   readonly matches: ConnectionRpcEndpointMatcher

@@ -203,8 +203,7 @@ function unattendedDiagnostic(
   return `Codex unattended decision (mode: ${mode}; request: ${request}; decision: ${decision}): ${reason}`
 }
 
-/** Values a Promise reject arm from Codex wire or transport work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrown(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))

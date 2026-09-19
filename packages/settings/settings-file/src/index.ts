@@ -28,8 +28,7 @@ export interface Config {
   debounceMs?: number
 }
 
-/** Values a Promise reject arm from exclusive document create may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Document format derived from the configured file extension. */
 type SettingsFormat = 'yaml' | 'json'

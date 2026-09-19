@@ -33,8 +33,7 @@ function reportSyncHookFault(source: string, hook: SyncHookName, fault: SyncHook
   console.error(`[ui-input-trigger] source "${source}" ${hook} failed:`, fault.message)
 }
 
-/** Values a Promise reject arm or candidate-load refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected candidate load.

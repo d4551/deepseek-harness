@@ -7,8 +7,7 @@ import type { SessionRecord } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { assertSessionHeadersCompatible } from './sources.ts'
 
-/** Values a Promise reject arm from persistence listing, inspect, or batch workers may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Detached source selected for one exact read. */
 export interface LogicalSession {

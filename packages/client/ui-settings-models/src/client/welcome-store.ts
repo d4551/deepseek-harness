@@ -12,7 +12,7 @@ import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION,
 } from '../onboarding-copy.ts'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function isJsonValue(value: unknown): value is JsonValue {
   if (value === null) return true

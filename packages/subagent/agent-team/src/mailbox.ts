@@ -23,8 +23,7 @@ import type {
   TeamMessageSnapshot,
 } from './types.ts'
 
-/** Values a Promise reject arm from mailbox dispatch may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Owns every process-local state transition for the durable Team mailbox. */
 export class TeamMailbox {

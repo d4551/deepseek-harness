@@ -33,7 +33,7 @@ import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './
 import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
 
 type SettingsFace = SettingsWireFace
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function isThenable(value: object): value is PromiseLike<Thrown> {
   return typeof Reflect.get(value, 'then') === 'function'

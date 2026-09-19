@@ -12,8 +12,7 @@ import { mkdir, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-/** Values a Promise reject arm from exclusive create may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Prefix shared by default-root creation and startup discovery. */
 export const DEFAULT_ROOT_PREFIX = 'dsh-spill-'

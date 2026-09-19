@@ -51,6 +51,10 @@
     // from the cordis-free dsh-compaction/checkpoint leaf. Composite rootDir
     // rules make that path depend on this project reference.
     { "path": "./packages/compaction/compaction" },
+    // Rejection vocabulary: client tests and client sources type-import the
+    // cordis-free dsh-thrown union; the aggregate depends on it directly so
+    // files it compiles itself resolve through the project reference.
+    { "path": "./packages/util/thrown" },
     { "path": "./packages/client/store" },
     { "path": "./packages/client/ui-slots" },
     { "path": "./packages/client/ui-attachment" },

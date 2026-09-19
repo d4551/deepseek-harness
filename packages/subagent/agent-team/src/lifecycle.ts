@@ -2,8 +2,7 @@
 
 import { TeamError } from './error.ts'
 
-/** Values a Promise reject arm from runtime settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Owns the single Team runtime cancellation fact and disposal timeout. */
 export class TeamRuntimeLifecycle {

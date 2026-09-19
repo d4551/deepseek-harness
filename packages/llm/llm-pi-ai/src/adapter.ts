@@ -62,8 +62,7 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
 import { toStreamChunks } from './stream.ts'
 
-/** Values a Promise reject arm from a pi-ai stream, conversion, or SDK teardown may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Classify a stream-boundary refusal as idle timeout, caller abort, or the original Thrown. */
 function streamBoundaryFailure(

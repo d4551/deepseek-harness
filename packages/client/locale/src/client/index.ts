@@ -97,8 +97,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * English is both the locale the UI opens in when the browser names no registered

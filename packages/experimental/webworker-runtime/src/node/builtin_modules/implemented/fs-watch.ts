@@ -7,8 +7,7 @@ import { requireActiveVfs } from '../../../storage/active.ts'
 import type { VfsBigIntStats, VfsMutation, VfsStats } from '../../../storage/types.ts'
 import { abortError } from './abort-error.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type PathArg = string | URL | Uint8Array
 type WatchListener = (eventType: 'rename' | 'change', filename: string | Buffer | null) => void

@@ -6,8 +6,7 @@
  * @module @deepseek-ai/dsh-compaction-basic/settle
  */
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * One settled outcome of a single promise. A rejection carries the values a

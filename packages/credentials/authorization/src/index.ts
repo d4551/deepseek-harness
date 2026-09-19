@@ -40,8 +40,7 @@ export type {
   AuthorizationPromptOption, AuthorizationSettlement, AuthorizationStatus,
 } from './types.ts'
 
-/** Values a Promise reject arm from flow disposal, settled listeners, prompt decline, or withdrawn-flow drain may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

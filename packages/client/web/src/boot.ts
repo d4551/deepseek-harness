@@ -15,8 +15,7 @@ import { getStaticModules } from './seed.ts'
 import { STATE_LABELS } from './loader-status.ts'
 import './base.css'
 
-/** Values a Promise reject arm from an immediate-tier prefetch may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Module transport hook replaced by jsdom tests. */
 export type BootSeams = Pick<ClientModuleCreateOptions, 'loadBundle'>

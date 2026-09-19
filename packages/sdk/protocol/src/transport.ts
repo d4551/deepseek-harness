@@ -15,8 +15,7 @@ type JsonRpcId = string | number
 type RequestHandler = (method: string, params: Record<string, unknown>) => Promise<unknown>
 type NotificationHandler = (method: string, params: Record<string, unknown>) => void | Promise<void>
 
-/** Values a Promise reject arm from a frame, request handler, write, or abort may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** A JSON-RPC error response, preserving the wire `code` and optional `data`. */
 export class JsonRpcResponseError extends Error {

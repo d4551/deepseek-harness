@@ -84,7 +84,7 @@ interface PendingInteractionEntry<T> {
   readonly delegate: () => Promise<void>
 }
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 class PendingInteractionDomain {
   private readonly values = new Map<string, PendingInteractionEntry<SessionPendingInteractionBase>>()

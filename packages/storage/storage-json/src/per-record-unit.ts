@@ -15,8 +15,7 @@ import { initializePerRecord } from './initialization.ts'
 import { assertSafeKey, SAFE_KEY_RE } from './record-key.ts'
 import { JsonUnitLifecycle } from './unit-lifecycle.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Open a lazily initialized unit whose operations own import and durable publication.

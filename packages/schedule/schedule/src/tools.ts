@@ -35,8 +35,7 @@ import type {
   ScheduleToolError,
 } from './types.ts'
 
-/** Values a Promise reject arm from a Schedule tool persistence barrier may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const SHARED_VIEW_PROPERTIES = {
   id: { type: 'string', required: true },

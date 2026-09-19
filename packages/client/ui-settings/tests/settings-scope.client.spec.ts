@@ -9,7 +9,7 @@ import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { SettingsScopeController, SettingsScopeBinder } from '../src/client/settings-scope.ts'
 import { SettingsDescribeMirror, type SettingsRemote } from '../src/client/settings-mirror.ts'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface UiTestSettings {
   preference: 'light' | 'dark' | 'system'

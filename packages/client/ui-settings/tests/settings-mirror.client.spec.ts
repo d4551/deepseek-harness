@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsDescribeMirror, type SettingsDescribeView, type SettingsRemote } from '../src/client/settings-mirror.ts'
 

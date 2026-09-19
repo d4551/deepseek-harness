@@ -10,8 +10,7 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { SkillListRequest, SkillListValue } from './types.ts'
 
-/** Values a Promise reject arm from skill catalog inspection may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

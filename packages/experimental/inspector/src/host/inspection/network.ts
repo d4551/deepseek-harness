@@ -4,8 +4,7 @@ import type { InspectorJsonValue } from '../../shared/json.ts'
 import type { InspectorPublisher } from '../../shared/bridge/publisher.ts'
 import { FETCH_TOPICS } from '../../shared/bridge/messages/network.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Observation topics published by the Host network adapter. */
 export const NETWORK_TOPICS: readonly string[] = FETCH_TOPICS

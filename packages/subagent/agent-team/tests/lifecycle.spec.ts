@@ -2,8 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { errorMessage, TeamError } from '../src/error.ts'
 import { TeamRuntimeLifecycle } from '../src/lifecycle.ts'
 
-/** Values a Promise reject arm from runtime settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const leftoverRejects: readonly Thrown[] = [
   'leftover string',

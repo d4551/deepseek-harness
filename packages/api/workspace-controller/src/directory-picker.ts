@@ -13,8 +13,7 @@ import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/ty
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { DirectoryPickerErrorDetailsMap } from './types.ts'
 
-/** Values a Promise reject arm from the composed picker seam may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const createDirectoryRequestSchema = z.object({
   path: z.string(),

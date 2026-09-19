@@ -19,8 +19,7 @@ import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import { METADATA_FILE, renderPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 
-/** Values a Promise reject arm from authoring IO may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** A preset id that cannot be used as a directory name under a root. */
 export class InvalidPresetIdError extends Error {

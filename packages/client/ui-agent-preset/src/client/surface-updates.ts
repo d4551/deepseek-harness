@@ -1,7 +1,8 @@
 /** Roster and selection work admitted by synchronous surface notifications. */
 import { AgentPresetSeatController } from './seat-store.ts'
 import type { AgentPresetSectionController } from './section-store.ts'
-import { messageOf, type AgentPresetSettingsController, type Thrown } from './settings-store.ts'
+import { messageOf, type AgentPresetSettingsController } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type SurfaceController = AgentPresetSettingsController | AgentPresetSectionController | AgentPresetSeatController
 

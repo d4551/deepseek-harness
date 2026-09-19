@@ -17,8 +17,7 @@ import { parseCallFrameEvaluation, requestScriptId } from './cdp-params.ts'
 import { debuggerEvent, scriptParsedEvent } from './projector.ts'
 import { DebuggerScriptRegistry } from './script-registry.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Owns Debugger lifecycle, shared script projection, and Host-native fallback. */
 export class DebuggerDomainSession {

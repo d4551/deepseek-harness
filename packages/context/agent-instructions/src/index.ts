@@ -41,8 +41,7 @@ export type {
 export { renderWorkspaceContext } from './render.ts'
 export type { RenderedWorkspaceContext, TruncatedInstruction } from './render.ts'
 
-/** Values a Promise reject arm from a workspace instruction projection may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function visibleBaselineSource(
   agent: Agent,

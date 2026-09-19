@@ -5,8 +5,7 @@
 
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 
-/** Values a Promise reject arm from a preparation load, reservation, or queued observation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface PreparedSource {
   readonly session: Session

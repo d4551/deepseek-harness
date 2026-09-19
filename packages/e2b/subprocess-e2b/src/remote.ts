@@ -7,8 +7,7 @@
 import { CommandExitError, e2bControlEnvs, SandboxNotFoundError } from '@deepseek-ai/dsh-e2b'
 import type { Sandbox } from '@deepseek-ai/dsh-e2b'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected remote-control or teardown value.

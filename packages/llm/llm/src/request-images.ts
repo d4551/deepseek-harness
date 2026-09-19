@@ -5,8 +5,7 @@ import type { AttachmentId, AttachmentStore, ImageAttachmentRef, ImageRequestPol
 import type { Message } from './message.ts'
 import type { ContentBlock } from './types.ts'
 
-/** Values a Promise reject arm from request-image verification may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function collectImageRefs(blocks: readonly ContentBlock[], refs: Map<string, ImageAttachmentRef>): void {
   for (const block of blocks) {

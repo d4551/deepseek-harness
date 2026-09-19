@@ -10,8 +10,7 @@ import type { DoneMessage, ReplyMessage, WorkerBootData, WorkerToHost } from './
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from './output-json.ts'
 import { decodeWorkerJson, encodeWorkerJson, snapshotCodeJsonValue } from './worker-json.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const CapturedError = Error
 const capturedObjectCreate = Object.create

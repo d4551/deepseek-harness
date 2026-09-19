@@ -17,6 +17,7 @@ const CANONICAL = '## Known Limitations and Deferred Work'
 /** Packages audited as having no limitations section, keyed by repo-relative directory. */
 const NO_LIMITATIONS: Readonly<Record<string, string>> = {
   'packages/util/brand': 'Type-only nominal-branding primitive with no runtime behavior or deferred work.',
+  'packages/util/thrown': 'Type-only rejected-value union with no runtime behavior or deferred work.',
 }
 
 /** A heading that reads as a limitations section — canonical or drifted. */
@@ -79,7 +80,7 @@ for (const pkg of scannedPackages) {
   const headingLines = new Set(headings.map(entry => entry.index))
   const end = body.findIndex(line => headingLines.has(line.index))
   const section = end === -1 ? body : body.slice(0, end)
-  if (!section.some(line => /^- /.test(line.raw))) {
+  if (!section.some(line => line.raw.startsWith('- '))) {
     failures.push(`${readme}:${heading.index}: the \`${CANONICAL}\` section has no top-level \`- \` bullet — state the limitations, or whitelist the package if there are genuinely none`)
   }
 }

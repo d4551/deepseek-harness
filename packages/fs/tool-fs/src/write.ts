@@ -16,8 +16,7 @@ import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'
 import type { FsSandboxController } from './sandbox.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Validate value constraints the schema DSL can't express: only a non-blank

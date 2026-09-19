@@ -6,8 +6,7 @@ import { resolveInspectorOptions, startInspector, type InspectorOptions } from '
 import { createInspectorService } from '../shared/service.ts'
 import { publishCordisTree } from '../shared/cordis/publisher.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export { resolveInspectorOptions, startInspector } from './bridge/controller.ts'
 export type { InspectorEndpoint, InspectorHandle, InspectorOptions, InspectorSpec } from './bridge/controller.ts'

@@ -52,8 +52,7 @@ export interface ApprovalPresentationRequest {
 /** Decisions this interactive Client presentation can return. */
 export type ApprovalDecision = 'allowed-once' | 'rejected'
 
-/** Values a Promise reject arm or abort may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Host cancellation whose abort reason is claimed as Thrown. */
 type ApprovalAbortSignal = Omit<AbortSignal, 'reason'> & {

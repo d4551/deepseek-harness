@@ -25,8 +25,7 @@ import type { SubagentDescendantListEntry, SubagentListEntry } from './control-t
 import { SubagentError } from './error.ts'
 import type { SubagentIdentityProjection } from './projection-types.ts'
 
-/** Values a Promise reject arm from a listing cold-read worker may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected listing worker.

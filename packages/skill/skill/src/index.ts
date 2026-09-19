@@ -833,8 +833,7 @@ function assertPositiveInteger(name: string, value: number, minimum = 1): void {
   }
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return promise

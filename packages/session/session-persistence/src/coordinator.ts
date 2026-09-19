@@ -37,8 +37,7 @@ export const DEFAULT_WRITE_BATCH_MAX_DELAY_MS = 200
 /** Largest write batching delay accepted by Node's timer implementation. */
 export const MAX_WRITE_BATCH_DELAY_MS = MAX_TIMER_DELAY_MS
 
-/** Values a Promise reject arm from retirement or a detached write may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected retirement or background write.

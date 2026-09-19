@@ -17,8 +17,7 @@ import {
   type SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 
-/** Values a Promise reject arm from the managed-process handle may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrown(value: unknown): Error {
   /* v8 ignore start -- the subprocess seam rejects with Error. */

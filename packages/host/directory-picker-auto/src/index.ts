@@ -19,8 +19,7 @@ import { canExecute, hasLinuxChooserBinary } from './probe.ts'
 import type { DirectoryPickerBackendKind } from './resolve.ts'
 import { resolveDirectoryPickerBackend } from './resolve.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 export { canExecute, hasLinuxChooserBinary } from './probe.ts'
 export type { DirectoryPickerBackendKind, DirectoryPickerEnv, DirectoryPickerHostFacts } from './resolve.ts'

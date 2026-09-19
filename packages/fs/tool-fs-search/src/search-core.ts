@@ -30,8 +30,7 @@ import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SaveTextSpill, SpillRef } from '@deepseek-ai/dsh-spill'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 
-/** Values a Promise reject arm from ripgrep resolution, spawn completion, or formatted-result spill may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected formatted-result spill.

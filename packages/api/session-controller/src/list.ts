@@ -19,8 +19,7 @@ import type {
   SessionSearchValue, SessionSummary,
 } from './types.ts'
 
-/** Values a Promise reject arm from cold list or search may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Default maximum artifact size eligible for one cold projection observation. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024

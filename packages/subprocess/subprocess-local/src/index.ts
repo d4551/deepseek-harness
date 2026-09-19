@@ -27,8 +27,7 @@ import { createProcessInspector } from './process-inspector.ts'
 import type { ProcessInspector } from './process-inspector.ts'
 import { LocalTerminalHandle } from './terminal.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * The extension list Windows treats as directly executable when a command

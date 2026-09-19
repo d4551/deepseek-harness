@@ -21,8 +21,7 @@ import type {
   SessionWireEvent,
 } from './types.ts'
 
-/** Values a Promise reject arm from Session observation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const DEFAULT_MAX_MESSAGES = 50
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])

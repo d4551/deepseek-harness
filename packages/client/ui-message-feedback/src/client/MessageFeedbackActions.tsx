@@ -21,8 +21,7 @@ import type { MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback/ty
 import type { MessageFeedbackActionProps } from './slots.ts'
 import css from './MessageFeedbackActions.module.css'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Safe distance kept between the panel and the viewport edges (the Menu portal margin). */
 const PANEL_MARGIN = 12

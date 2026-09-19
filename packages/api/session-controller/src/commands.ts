@@ -55,8 +55,7 @@ interface SessionReadState {
   readonly events: SessionEvent[]
 }
 
-/** Values a Promise reject arm from Session command execution may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Implements Session business commands delegated by the Session Controller Remote service. */
 export class SessionCommandController {

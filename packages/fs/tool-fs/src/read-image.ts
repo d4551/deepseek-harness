@@ -18,8 +18,7 @@ import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { resolveRegularReadTarget } from './read-target.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */
 const IMAGE_EXTENSIONS: Readonly<Record<string, ImageMediaType>> = {

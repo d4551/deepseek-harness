@@ -7,8 +7,7 @@ import { encodeFirstWithinLimit, encodingLadder, isExhaustedEncoding } from './e
 import { detectImage, encodedAlphaIsCompatible } from './image.ts'
 import type { DetectedImage } from './image.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Deployment-resolved policy for the persisted normalized attachment. */
 export interface NormalizationPolicy {

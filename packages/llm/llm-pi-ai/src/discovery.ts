@@ -27,8 +27,7 @@ import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-a
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
 
-/** Values a Promise reject arm from model-listing fetch, body read, or stream cancel may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Protocols whose model listing this module can read: the two that speak

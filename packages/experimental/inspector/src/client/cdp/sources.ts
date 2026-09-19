@@ -11,8 +11,7 @@ import type { ClientSourcesCapability } from '../../shared/bridge/messages/sourc
 import { inspectorId } from '../../shared/identity.ts'
 import type { RuntimeScriptKey } from '../../shared/cdp/ids.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const PACKAGE_ID = '@deepseek-ai/dsh-experimental-inspector'
 const CLIENT_SCRIPT_KEY = inspectorId<'RuntimeScriptKey'>('client-bundle', 'scriptKey')

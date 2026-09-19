@@ -10,8 +10,7 @@ import type { ProjectionSnapshot } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError } from './config.ts'
 
-/** Values a Promise reject arm from persistence borrow or observation mapping may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One exact immutable Session cut retained for the caller's read lifetime. */
 export interface SessionObservation extends Disposable {

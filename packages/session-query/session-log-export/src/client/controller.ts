@@ -3,8 +3,7 @@
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Values a Promise reject arm from the host download fetch or body read may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Download phases presented by the shared modal. */
 export type SessionLogDownloadStatus = 'downloading' | 'success' | 'error'

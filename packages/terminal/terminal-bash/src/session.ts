@@ -25,8 +25,7 @@ import type {
 import type { ResolvedConfig } from './config.ts'
 import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected PTY transport or send value.

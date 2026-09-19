@@ -30,8 +30,7 @@ import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import { createWindowsProcessJob } from './windows-job.ts'
 import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Node's Windows process launcher restores omitted environment entries from its parent. */
 export const LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED = process.platform !== 'win32'

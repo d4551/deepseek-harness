@@ -5,8 +5,7 @@ import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { DEFAULT_ROOT_PREFIX, isErrno } from './store.ts'
 
-/** Values a Promise reject arm from a best-effort sweep may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected filesystem operation.

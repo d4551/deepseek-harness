@@ -89,7 +89,7 @@ interface LoaderReadiness {
   await(): Promise<unknown>
 }
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function isLoaderReadiness(value: object): value is LoaderReadiness {
   return typeof Reflect.get(value, 'await') === 'function'

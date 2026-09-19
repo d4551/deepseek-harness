@@ -18,8 +18,7 @@ import type { AnthropicResponse } from '@deepseek-ai/dsh-web-search-deepseek/src
 /** Construct the provider over a fixed options value; production passes a live thunk. */
 import type { DeepSeekSearchProviderOptions } from '@deepseek-ai/dsh-web-search-deepseek'
 
-/** Values a Promise reject arm from search dispatch or credential resolution may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 type ResolveApiKey = NonNullable<DeepSeekSearchProviderOptions['resolveApiKey']>
 type RecordRequest = NonNullable<DeepSeekSearchProviderOptions['recordRequest']>
 

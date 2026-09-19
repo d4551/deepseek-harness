@@ -19,8 +19,7 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionTelemetrySink, SessionTelemetryRecord, SessionTelemetrySeverity } from './index.ts'
 
-/** Values a Promise reject arm from backend shutdown may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Whether capture follows live events or reads the canonical log only when requested. */
 export type SessionTelemetryCapture = 'live' | 'on-demand'

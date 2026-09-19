@@ -12,8 +12,7 @@ import type {
 } from '@deepseek-ai/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector, ProcessSnapshot } from './process-inspector.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))

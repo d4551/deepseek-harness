@@ -15,8 +15,7 @@ export class WebhookHttpError extends Error {
   }
 }
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Parse a decimal Content-Length or reject an ambiguous header. */
 function contentLength(request: IncomingMessage): number | undefined {

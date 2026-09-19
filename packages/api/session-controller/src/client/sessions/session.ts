@@ -40,8 +40,7 @@ import type { ProjectionsBaseline } from './projection-store.ts'
 import { resolvedClientTimeZone } from '../time-zone.ts'
 import { SessionQueueMirror } from './queue-mirror.ts'
 
-/** Values a Promise reject arm from Session Remote or stream work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Messages requested per history page. */
 export const PAGE_MESSAGES = 50

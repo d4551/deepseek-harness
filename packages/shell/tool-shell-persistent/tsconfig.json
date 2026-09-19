@@ -4,13 +4,30 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../../../vendor/cordis" },
-    { "path": "../../core/agent" },
-    { "path": "../../core/tools" },
-    { "path": "../../terminal/terminal" },
-    { "path": "../../runtime-diagnostics/invariants" },
-    { "path": "../../util/timeout" }
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../terminal/terminal"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../util/timeout"
+    },
+    {
+      "path": "../../util/thrown"
+    }
   ]
 }

@@ -105,6 +105,7 @@ describe('client bundle purity gate', () => {
   it('lets inline-safe wire layers inline', () => {
     expect(resolveId('@deepseek-ai/dsh-session/surface')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-brand')).toBeNull()
+    expect(resolveId('@deepseek-ai/dsh-thrown')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-token-meter/client')).toBeNull()
     expect(() => resolveId('@deepseek-ai/dsh-token-meter')).toThrow(/purity/)
     expect(() => resolveId('@deepseek-ai/dsh-token-meter/client/internal')).toThrow(/purity/)

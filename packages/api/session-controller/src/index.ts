@@ -86,8 +86,7 @@ export interface SessionControllerInternals {
   readonly canOpenPath?: () => boolean
 }
 
-/** Values a Promise reject arm from background activation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Host service backing the generated `ctx.remote.session` namespace. */
 export class SessionController extends TypertRemoteService {

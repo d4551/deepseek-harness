@@ -39,6 +39,9 @@
     },
     {
       "path": "../../util/browser-locale"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

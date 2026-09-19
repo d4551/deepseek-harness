@@ -15,8 +15,7 @@ import type { InspectorQueryRouter } from '../inspection/query-router.ts'
 import type { InspectorRealmRegistry } from '../inspection/realm-store.ts'
 import type { InspectorSourceRegistry, SourceConnection } from './hub.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Bound endpoint information returned to the Host controller. */
 export interface InspectorEndpointInfo {

@@ -30,8 +30,7 @@ import { ProjectionValueStore } from './projection-store.ts'
 import { Session } from './session.ts'
 import type { SessionRemotes } from './remotes.ts'
 
-/** Values a Promise reject arm from Session list or catalog work may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * List arrival lifecycle, orthogonal to the pull-activity `state` axis:

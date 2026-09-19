@@ -15,8 +15,7 @@ import { openSingleUnit } from './single-unit.ts'
 import { openPerRecordUnit } from './per-record-unit.ts'
 import { ensureDurableDirectory } from './durable-directory.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Cordis plugin name. */
 export const name = 'storage-json'

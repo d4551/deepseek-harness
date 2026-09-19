@@ -28,8 +28,7 @@ import type {
 import { materializeFromRealm, MaterializeError, renderThrown } from './realm.ts'
 import type { ChildHandle, ChildPort, WorkerLimits } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** The observers the execution reports progress through (the session posts them to the host). */
 export interface ExecutionObserver {

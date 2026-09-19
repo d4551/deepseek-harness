@@ -16,8 +16,7 @@ import type { MemoryVfs } from '../storage/memory.ts'
 import type { ModuleBody } from './module-loader.ts'
 import { join } from './posix-path.ts'
 
-/** Values a Promise reject arm from a generated `data:` import may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a leftover generated-module refusal.

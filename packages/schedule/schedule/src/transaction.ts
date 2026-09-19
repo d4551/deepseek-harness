@@ -2,8 +2,7 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
-/** Values a Promise reject arm from a queued Schedule transaction may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const tails = new WeakMap<Agent, Promise<void>>()
 

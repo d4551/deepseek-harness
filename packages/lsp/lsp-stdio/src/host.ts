@@ -4,8 +4,7 @@ import { Buffer } from 'node:buffer'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import { throwIfAborted } from './abort.ts'
 
-/** Values a Promise reject arm from a filesystem provider may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** A canonical workspace in the filesystem/subprocess execution world. */
 export interface HostWorkspace {

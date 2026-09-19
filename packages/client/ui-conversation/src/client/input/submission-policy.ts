@@ -15,8 +15,7 @@ import type { ConversationSettings } from '../../submission-settings.ts'
 
 export { DEFAULT_BUSY_ENTER_BEHAVIOR } from '../../submission-settings.ts'
 
-/** Values a throw or Promise rejection can carry. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

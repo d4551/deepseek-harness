@@ -70,8 +70,7 @@ const INITIAL_VIEW: MessageFeedbackView = Object.freeze({
   error: null,
 })
 
-/** Values a Promise reject arm or transport refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected list or mutation.

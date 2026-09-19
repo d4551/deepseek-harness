@@ -46,8 +46,7 @@ import { StandingMounts, type StandingMount } from './standing.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
 export type { AgentPresetDocument, AgentPresetError, AgentPresetErrorDetailsMap, AgentPresetRoster, AgentPresetRow } from './types.ts'
 
-/** Values a Promise reject arm from a roster Remote operation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected roster operation.

@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PlanChipInjected } from './index.ts'
 import css from './PlanModeControl.module.css'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

@@ -17,8 +17,7 @@ import type {
 /** Permission's settings namespace on the host wire. */
 export const PERMISSION_SETTINGS_NS = 'permission'
 
-/** Values a throw or Promise rejection can carry. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message

@@ -4,8 +4,7 @@
  * @module @deepseek-ai/dsh-client-ui-projection/src/pending-composer
  */
 
-/** Values a Promise reject arm or settle throw may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Report a composer settlement as a rejected promise instead of a throw, so a

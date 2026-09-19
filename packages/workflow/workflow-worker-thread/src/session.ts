@@ -26,8 +26,7 @@ import type {
   WorkerInit,
 } from './types.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** The book-keeping for one in-flight child RPC (keyed by callId). */
 interface PendingChild {

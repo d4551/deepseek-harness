@@ -21,8 +21,7 @@ import {
 } from './encoding.ts'
 import { detectImage, encodedAlphaIsCompatible, probeImage } from './image.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Transform version included in every cache and upload-index identity. */
 export const REQUEST_IMAGE_TRANSFORM_VERSION = 'request-image-v5'

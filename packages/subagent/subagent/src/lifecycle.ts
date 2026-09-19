@@ -24,8 +24,7 @@ import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentRunId } from './types.ts'
 import type { SubagentResult, SubagentRun, SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
 
-/** Values a Promise reject arm from one-shot run settlement may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * How one Activation's residency epoch ended, as both the terminal lifecycle

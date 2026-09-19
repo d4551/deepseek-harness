@@ -26,8 +26,7 @@ import { ClientBridgePublisher } from './publisher.ts'
 import { ClientBridgeRpc } from './rpc.ts'
 import { dispatchBridgeFrame } from './dispatcher.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Reconnecting Client source whose bounded queue never blocks page work. */
 export class ClientInspectorSource extends InspectorSourceConnection {
