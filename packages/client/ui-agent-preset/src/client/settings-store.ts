@@ -23,7 +23,21 @@ export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
  * @returns the message to show.
  */
 export function messageOf(reason: Thrown): string {
-  return reason instanceof Error ? reason.message : String(reason)
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 function refusalMessage(error: object): string {

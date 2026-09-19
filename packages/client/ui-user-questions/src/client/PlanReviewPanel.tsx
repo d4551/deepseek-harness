@@ -6,7 +6,21 @@ import css from './PlanReviewPanel.module.css'
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 function thrownMessage(reason: Thrown): string {
-  return reason instanceof Error ? reason.message : String(reason)
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** The panel's own props: the question domain face, the narrowed review, and the locale seat. */

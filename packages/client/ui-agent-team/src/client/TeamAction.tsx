@@ -24,7 +24,21 @@ export type Thrown = object | string | number | boolean | bigint | symbol | null
  * @returns the message to show.
  */
 export function thrownMessage(reason: Thrown): string {
-  return reason instanceof Error ? reason.message : String(reason)
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** Generated Remote result consumed directly by the Team UI. */
@@ -68,20 +82,23 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
   const refresh = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const generation = ++refreshGeneration.current
     setLoading(true)
-    const [outcome] = await Promise.allSettled([load(sessionId, signal)])
+    const opened = await load(sessionId, signal).then(
+      result => result,
+      (reason: Thrown) => {
+        if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return
+        setLoading(false)
+        setError(thrownMessage(reason))
+      },
+    )
     if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return false
+    if (opened === undefined) return false
     setLoading(false)
-    if (outcome.status === 'rejected') {
-      setError(thrownMessage(outcome.reason))
-      return false
-    }
-    const result = outcome.value
-    if (result.ok) {
-      setView(result.value)
+    if (opened.ok) {
+      setView(opened.value)
       setError(null)
       return true
     }
-    setError(`${result.error.message} (${result.error.code})`)
+    setError(`${opened.error.message} (${opened.error.code})`)
     return false
   }, [load, sessionId])
 

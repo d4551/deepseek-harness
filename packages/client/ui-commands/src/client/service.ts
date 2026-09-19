@@ -64,6 +64,37 @@ interface RankedCandidate {
   readonly score: number
 }
 
+/** Values a Promise reject arm or listener refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected detached execute.
+ * @param reason - the Thrown the execute path rejected with.
+ * @returns the message to show on the composer notice.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+/** Drop a fulfilled containment promise so only the rejection path is observed. */
+function ignoreFulfilled(): undefined {
+  return undefined
+}
+
 /** Extra weight for command-name starts and separator boundaries. */
 function boundaryBonus(name: string, index: number): number {
   return index === 0 || name.charAt(index - 1) === '-' || name.charAt(index - 1) === '_' ? 8 : 0
@@ -179,7 +210,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       return () => { contributions.delete(contribution.name) }
     }, 'command.register()')
     return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      Promise.resolve(dispose()).then(undefined, (reason: Thrown) => { this.ctx.logger.error(reason) })
     }
   }
 
@@ -199,7 +230,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       return () => { decorations.delete(decoration.name) }
     }, 'command.decorate()')
     return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      Promise.resolve(dispose()).then(undefined, (reason: Thrown) => { this.ctx.logger.error(reason) })
     }
   }
 
@@ -422,24 +453,21 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
   /** Publish the local acknowledgment without letting an observer change command admission. */
   private notifyExecuted(sessionId: SessionId, name: string, result: CommandResult): void {
     const args = ['command/executed', sessionId, name, result]
-    for (const listener of this.ctx.events.dispatch('emit', args) as Array<(...listenerArgs: unknown[]) => unknown>) {
-      try {
-        const returned = listener(sessionId, name, result)
-        if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
-            this.warnExecutedListenerFailure(name, error)
-          })
-        }
-      } catch (error) {
-        this.warnExecutedListenerFailure(name, error)
+    for (const listener of this.ctx.events.dispatch('emit', args)) {
+      if (typeof listener !== 'function') continue
+      const report = (reason: Thrown): void => {
+        this.warnExecutedListenerFailure(name, reason)
       }
+      new Promise((resolve) => {
+        resolve(listener(sessionId, name, result))
+      }).then(ignoreFulfilled, report)
     }
   }
 
   /** Log one contained `command/executed` observer failure. */
-  private warnExecutedListenerFailure(name: string, error: unknown): void {
+  private warnExecutedListenerFailure(name: string, reason: Thrown): void {
     this.ctx.logger.warn('client command: a command/executed listener for "%s" failed', name)
-    this.ctx.logger.warn(error)
+    this.ctx.logger.warn(reason)
   }
 
   /**
@@ -456,8 +484,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
         // matched:false maps to an error outcome with no logged lifecycle.
         if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? `/${desc.name} failed`)
       },
-      (error: unknown) => {
-        this.noticeFor(session.sessionId, 'error', error instanceof Error ? error.message : String(error))
+      (reason: Thrown) => {
+        this.noticeFor(session.sessionId, 'error', thrownMessage(reason))
       },
     )
   }

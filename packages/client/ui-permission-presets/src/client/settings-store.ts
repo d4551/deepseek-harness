@@ -22,7 +22,20 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
 
 function thrownMessage(reason: Thrown): string {
   if (reason instanceof Error) return reason.message
-  return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** One selectable new-session default. */

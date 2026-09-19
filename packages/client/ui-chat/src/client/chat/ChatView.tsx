@@ -124,7 +124,23 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
  * @param fallback - localized copy when Thrown text is empty.
  */
 function openFailureMessage(reason: Thrown, fallback: string): string {
-  const message = reason instanceof Error ? reason.message : String(reason)
+  let message: string
+  if (reason instanceof Error) message = reason.message
+  else {
+    switch (typeof reason) {
+      case 'string': message = reason; break
+      case 'number':
+      case 'boolean':
+      case 'bigint':
+      case 'symbol':
+      case 'function':
+        message = String(reason); break
+      case 'undefined':
+        message = 'undefined'; break
+      case 'object':
+        message = reason === null ? 'null' : Object.prototype.toString.call(reason)
+    }
+  }
   return message === '' ? fallback : message
 }
 
@@ -252,19 +268,22 @@ export function ChatView({
     const id = ++fileOpenRequest.current
     setFileOpenBusy(true)
     startFileOpen(async () => {
-      const [result] = await Promise.allSettled([openFile(path)])
+      const opened = await openFile(path).then(
+        () => true,
+        (reason: Thrown) => {
+          if (id !== fileOpenRequest.current) return false
+          setFileOpenError({
+            path,
+            message: openFailureMessage(
+              reason,
+              t(isFolderOpenPath(path) ? 'fileOpen.folderUnknown' : 'fileOpen.unknown'),
+            ),
+          })
+          return false
+        },
+      )
       if (id !== fileOpenRequest.current) return
-      if (result.status === 'fulfilled') {
-        setFileOpenError(null)
-      } else {
-        setFileOpenError({
-          path,
-          message: openFailureMessage(
-            result.reason,
-            t(isFolderOpenPath(path) ? 'fileOpen.folderUnknown' : 'fileOpen.unknown'),
-          ),
-        })
-      }
+      if (opened) setFileOpenError(null)
       setFileOpenBusy(false)
     })
   }, [openFile, startFileOpen, t])

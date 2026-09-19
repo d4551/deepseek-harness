@@ -25,7 +25,21 @@ type OpenSettingsDocumentResult = Awaited<ReturnType<ClientRemote['settings']['o
  * @returns the message to store.
  */
 function thrownMessage(reason: Thrown): string {
-  return reason instanceof Error ? reason.message : String(reason)
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** Derives local-document availability from the shared mirror and invokes the pathless Host-owned open operation. */

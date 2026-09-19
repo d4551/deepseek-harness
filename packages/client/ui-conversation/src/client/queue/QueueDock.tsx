@@ -60,7 +60,24 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
       setBusy(current => current === itemId ? null : current)
     }
     const reportFailure = (reason: QueueActionFailure): false => {
-      notify('error', `${failure}: ${reason instanceof Error ? reason.message : String(reason)}`)
+      let text: string
+      if (reason instanceof Error) text = reason.message
+      else {
+        switch (typeof reason) {
+          case 'string': text = reason; break
+          case 'number':
+          case 'boolean':
+          case 'bigint':
+          case 'symbol':
+          case 'function':
+            text = String(reason); break
+          case 'undefined':
+            text = 'undefined'; break
+          case 'object':
+            text = reason === null ? 'null' : Object.prototype.toString.call(reason)
+        }
+      }
+      notify('error', `${failure}: ${text}`)
       clearBusy()
       return false
     }
