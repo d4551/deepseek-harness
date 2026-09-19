@@ -28,6 +28,11 @@ export type { CommandDescriptor, CommandExecution, CommandInputDescriptor, Comma
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+/** Image admission either yields attachments or a finished command execution. */
+type AdmissionOutcome =
+  | { readonly kind: 'attachments'; readonly attachments: readonly ImageBlock[] }
+  | { readonly kind: 'execution'; readonly execution: CommandExecution }
+
 export const name = 'commands'
 
 const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/u
@@ -370,11 +375,11 @@ export class CommandRuntime extends TypertRemoteService {
         return settle({ kind: 'error', text: `/${parsed.name}: image attachments are unavailable because no attachment store is composed` })
       }
       const admitted = await admitEncodedImages(store, images).then(
-        refs => ({
+        (refs): AdmissionOutcome => ({
           kind: 'attachments',
           attachments: Object.freeze(refs.map(ref => Object.freeze({ type: 'image' as const, attachment: ref }))),
         }),
-        (error: Thrown) => {
+        (error: Thrown): AdmissionOutcome => {
           if (error instanceof AttachmentError) {
             return { kind: 'execution', execution: settle({ kind: 'error', text: error.message }) }
           }
