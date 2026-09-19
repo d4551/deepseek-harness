@@ -508,8 +508,7 @@ export class WorkerRun implements WorkflowRun {
    */
   private disposeChild(callId: number, record: ChildRecord): Promise<void> {
     if (record.disposal !== undefined) return record.disposal
-    record.disposal = Promise.resolve()
-      .then(() => record.run.dispose())
+    record.disposal = Promise.resolve(record.run.dispose())
       .catch((error: Thrown) => {
         this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${thrownMessage(error)}`)
       })

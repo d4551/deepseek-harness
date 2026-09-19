@@ -58,3 +58,63 @@ export function spawnSandboxedInherited(
 export function waitForExit(api: Win32Bindings, process: NativePtr): number {
   return waitForProcessExit(api, process)
 }
+
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** One Promise settlement that keeps a Thrown reject reason. */
+type ThrownSettlement<T> =
+  | { status: 'fulfilled'; value: T }
+  | { status: 'rejected'; reason: Thrown }
+
+/**
+ * Wait for one Promise without aborting siblings, keeping the Thrown reason.
+ * @param pending - the in-flight value.
+ * @returns a fulfilled or rejected settlement.
+ */
+function settleThrown<T>(pending: Promise<T>): Promise<ThrownSettlement<T>> {
+  return pending.then(
+    value => ({ status: 'fulfilled', value }),
+    (error: Thrown) => ({ status: 'rejected', reason: error }),
+  )
+}
+
+/**
+ * Rethrow one wait failure. Errors stay the wait rejection; other Thrown
+ * values become a one-member AggregateError.
+ * @param error - the Thrown the Promise rejected with.
+ */
+function throwWaitReason(error: Thrown): never {
+  if (error instanceof Error) throw error
+  throw new AggregateError([error], 'AclSandbox wait completed with 1 drain or exit failure(s)')
+}
+
+/**
+ * Drain stdout and stderr, then the exit wait, before surfacing failures.
+ * @param stdout - the stdout pipe drain.
+ * @param stderr - the stderr pipe drain.
+ * @param startExit - starts the child exit wait after both drains have settled.
+ * @returns captured stdio and the exit code.
+ */
+export async function waitPipedChildOutcome(
+  stdout: Promise<Buffer>,
+  stderr: Promise<Buffer>,
+  startExit: () => Promise<number>,
+): Promise<{ stdout: Buffer; stderr: Buffer; exitCode: number }> {
+  const [stdoutOutcome, stderrOutcome] = await Promise.all([
+    settleThrown(stdout),
+    settleThrown(stderr),
+  ])
+  const exitOutcome = await settleThrown(startExit())
+  if (stdoutOutcome.status === 'rejected' || stderrOutcome.status === 'rejected' || exitOutcome.status === 'rejected') {
+    const failures: Thrown[] = []
+    if (stdoutOutcome.status === 'rejected') failures.push(stdoutOutcome.reason)
+    if (stderrOutcome.status === 'rejected') failures.push(stderrOutcome.reason)
+    if (exitOutcome.status === 'rejected') failures.push(exitOutcome.reason)
+    for (const failure of failures) {
+      if (failures.length === 1) throwWaitReason(failure)
+    }
+    throw new AggregateError(failures, `AclSandbox wait completed with ${failures.length} drain or exit failure(s)`)
+  }
+  return { stdout: stdoutOutcome.value, stderr: stderrOutcome.value, exitCode: exitOutcome.value }
+}

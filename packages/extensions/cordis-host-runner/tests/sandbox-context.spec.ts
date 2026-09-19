@@ -1,3 +1,4 @@
+import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import { call, CONTENT_OUTPUT_CODE, dummyTool, mount, setup, text } from './helpers.ts'
 
@@ -123,6 +124,75 @@ describe('sandbox context façade — escape surface is closed', () => {
     const result = await call(harness.ctx, 'do_fetch', {})
     expect(result.isError).toBe(false)
     expect(text(result)).toBe('host-fetched')
+  })
+
+  it.each([
+    ['string', 'leftover-string', 'leftover-string'],
+    ['undefined', undefined, 'undefined'],
+    ['null', null, 'null'],
+    ['number', 7, '7'],
+    ['boolean', false, 'false'],
+    ['bigint', 1n, '1'],
+    ['symbol', Symbol.for('leftover'), 'Symbol(leftover)'],
+    ['null-prototype object', Object.create(null), '[object Object]'],
+    ['Error', new Error('boom'), 'boom'],
+  ])('claims leftover injected-service Promise reject (%s)', async (_label, reason, message) => {
+    const harness = await setup()
+    harness.ctx.plugin({
+      name: 'host-async-svc',
+      apply(c) { c.provide('hostAsync', { grab: async () => { throw reason } }) },
+    })
+    await mount(harness, `
+      return {
+        name: 'async-consumer',
+        inject: ['hostAsync', 'tools'],
+        apply(ctx) {
+          harness.registerTool(ctx, harness.defineTool({
+            name: 'do_fetch',
+            description: 'awaits the host async service',
+            parameters: {},
+            ${CONTENT_OUTPUT_CODE}
+            async execute() {
+              const value = await ctx.hostAsync.grab()
+              return [{ type: 'text', text: value }]
+            },
+          }))
+        },
+      }
+    `)
+    const result = await call(harness.ctx, 'do_fetch', {})
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain(message)
+  })
+
+  it('rethrows a leftover Context reject instead of classifying it as a service Context return', async () => {
+    const harness = await setup()
+    const leaked = new Context()
+    harness.ctx.plugin({
+      name: 'host-async-svc',
+      apply(c) { c.provide('hostAsync', { grab: async () => { throw leaked } }) },
+    })
+    await mount(harness, `
+      return {
+        name: 'async-consumer',
+        inject: ['hostAsync', 'tools'],
+        apply(ctx) {
+          harness.registerTool(ctx, harness.defineTool({
+            name: 'do_fetch',
+            description: 'awaits the host async service',
+            parameters: {},
+            ${CONTENT_OUTPUT_CODE}
+            async execute() {
+              const value = await ctx.hostAsync.grab()
+              return [{ type: 'text', text: value }]
+            },
+          }))
+        },
+      }
+    `)
+    const result = await call(harness.ctx, 'do_fetch', {})
+    expect(result.isError).toBe(true)
+    expect(text(result)).not.toContain('returned a cordis Context')
   })
 
   it('reads a symbol property as undefined and answers the `in` operator without throwing', async () => {

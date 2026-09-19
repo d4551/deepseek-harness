@@ -28,6 +28,9 @@ const SCHEMA_TYPES = new Set<unknown>(['string', 'number', 'integer', 'boolean',
 const VALID_TYPES = '\'string\' | \'number\' | \'integer\' | \'boolean\' | \'null\' | \'object\' | \'array\' | \'json\''
 const ANNOTATION_KEYS = ['description', 'title', 'default', 'examples'] as const
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type DynamicToolDefinition = ToolDefinition & { [DYNAMIC_TOOL]: true }
 type DynamicToolMarker = { [DYNAMIC_TOOL]?: unknown }
 
@@ -648,7 +651,8 @@ function denyContext(value: unknown, service: string, reportFailure: (error: Err
 /**
  * Wrap an injected service so its methods forward to the real instance but
  * their return values pass through {@link denyContext}. Non-function members
- * (plain data) pass through as-is; a returned Promise is guarded on resolve.
+ * (plain data) pass through as-is; a returned Promise is guarded on fulfill and
+ * rethrows the reject value.
  */
 function guardedService(service: object, name: string, reportFailure: (error: Error) => void): unknown {
   return new Proxy(service, {
@@ -657,7 +661,12 @@ function guardedService(service: object, name: string, reportFailure: (error: Er
       if (typeof value !== 'function') return denyContext(value, name, reportFailure)
       return (...args: unknown[]): unknown => {
         const result = Reflect.apply(value, target, args) as unknown
-        if (result instanceof Promise) return result.then(v => denyContext(v, name, reportFailure))
+        if (result instanceof Promise) {
+          return result.then(
+            v => denyContext(v, name, reportFailure),
+            (error: Thrown): never => { throw error },
+          )
+        }
         return denyContext(result, name, reportFailure)
       }
     },

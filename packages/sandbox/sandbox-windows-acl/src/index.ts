@@ -48,7 +48,7 @@ import { grantWrite, revokeWrite } from './acl.ts'
 import { allocPtrSlot, decodePtr, isNullPtr, throwLastError, win32 } from './ffi.ts'
 import type { NativePtr, Win32Bindings } from './ffi.ts'
 import { assertPrivateTempDisjoint } from './path-boundary.ts'
-import { drainPipe, spawnSandboxed, spawnSandboxedInherited, waitForExit } from './spawn.ts'
+import { drainPipe, spawnSandboxed, spawnSandboxedInherited, waitForExit, waitPipedChildOutcome } from './spawn.ts'
 import { createRestrictedToken, findLogonSid, makeWellKnownSid, openCurrentProcessToken, setTokenDefaultDaclGrant } from './token.ts'
 import * as abi from './win32-abi.ts'
 
@@ -376,12 +376,10 @@ export class AclSandbox {
     let exitCodePromise: Promise<number> | undefined
     return {
       pid: native.pid,
-      wait: async () => {
-        const stdoutBuffer = await stdout
-        const stderrBuffer = await stderr
+      wait: () => waitPipedChildOutcome(stdout, stderr, () => {
         exitCodePromise ??= Promise.resolve(waitForExit(api, native.process))
-        return { stdout: stdoutBuffer, stderr: stderrBuffer, exitCode: await exitCodePromise }
-      },
+        return exitCodePromise
+      }),
     }
   }
 

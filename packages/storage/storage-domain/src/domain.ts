@@ -134,6 +134,7 @@ interface TableHost {
 }
 
 const noop = () => {}
+const containLeftover = (_error: Thrown): void => {}
 
 /**
  * The single domain implementation behind the {@link Domain} interface. The
@@ -268,7 +269,7 @@ export class DomainImpl {
       return Promise.reject(new DomainError('closed', `domain '${this.name}' is closed`))
     }
     const result = this.chain.then(job)
-    this.chain = result.then(noop, (_error: Thrown) => {})
+    this.chain = result.then(noop, containLeftover)
     return result
   }
 
