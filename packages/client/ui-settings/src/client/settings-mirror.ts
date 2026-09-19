@@ -9,7 +9,7 @@
  * through {@link SettingsDescribeMirror.acceptView}.
  */
 
-import type { ClientRemote, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote, SettingsDescribeValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /**
@@ -37,10 +37,6 @@ function isSettingsDescribeView(value: object): value is SettingsDescribeView {
   return 'namespaces' in value && 'writable' in value && 'hasDocument' in value
 }
 
-function isThenable(value: object): value is PromiseLike<Thrown> {
-  return typeof Reflect.get(value, 'then') === 'function'
-}
-
 function describeOutcome(value: Thrown): { view: SettingsDescribeView } | { failure: string } {
   if (typeof value !== 'object' || value === null) return { failure: thrownMessage(value) }
   if (!('ok' in value)) return { failure: thrownMessage(value) }
@@ -62,14 +58,7 @@ function describeOutcome(value: Thrown): { view: SettingsDescribeView } | { fail
 }
 
 /** The full `settings.describe` answer the mirror serves. */
-export interface SettingsDescribeView {
-  /** Every namespace a live Host plugin registered, as the Host reported it. */
-  namespaces: readonly SettingsNamespaceView[]
-  /** Whether the settings provider accepts writes. */
-  writable: boolean
-  /** Whether a native settings document exists for the Host to open. */
-  hasDocument: boolean
-}
+export type SettingsDescribeView = SettingsDescribeValue
 
 /** Mirror state every derived settings surface renders from. */
 export interface SettingsMirrorSnapshot {
@@ -234,18 +223,13 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
       if (typeof describe !== 'function') {
         outcome = { failure: 'settings.describe is not a function' }
       } else {
-        const flight: Thrown = describe.call(this.api.settings)
-        if (typeof flight !== 'object' || flight === null || !isThenable(flight)) {
-          outcome = describeOutcome(flight)
-        } else {
-          const response = await Promise.resolve(flight).then(
-            (value: Thrown) => ({ kind: 'settled' as const, value }),
-            (reason: Thrown) => ({ kind: 'failed' as const, reason }),
-          )
-          outcome = response.kind === 'failed'
-            ? { failure: thrownMessage(response.reason) }
-            : describeOutcome(response.value)
-        }
+        const response = await Promise.try(() => describe.call(this.api.settings)).then(
+          (value: Thrown) => ({ kind: 'settled' as const, value }),
+          (reason: Thrown) => ({ kind: 'failed' as const, reason }),
+        )
+        outcome = response.kind === 'failed'
+          ? { failure: thrownMessage(response.reason) }
+          : describeOutcome(response.value)
       }
       // A write answer invalidates a document read before that write committed.
       if (generation !== this.generation) continue

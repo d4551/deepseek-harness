@@ -36,6 +36,32 @@ import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFac
 type SettingsFace = SettingsWireFace
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+function isThenable(value: object): value is PromiseLike<Thrown> {
+  return typeof Reflect.get(value, 'then') === 'function'
+}
+
+function isSettingsNamespaceView(value: object): value is SettingsNamespaceView {
+  return 'ns' in value
+    && 'revision' in value
+    && 'schema' in value
+    && 'value' in value
+    && 'applies' in value
+    && 'secrets' in value
+}
+
+function mutateAnswer(value: Thrown):
+  | { ok: true; value: SettingsNamespaceView }
+  | { ok: false }
+  | undefined {
+  if (typeof value !== 'object' || value === null || !('ok' in value)) return undefined
+  const ok = Reflect.get(value, 'ok')
+  if (ok === false) return { ok: false }
+  if (ok !== true) return undefined
+  const view = 'value' in value ? Reflect.get(value, 'value') : undefined
+  if (typeof view !== 'object' || view === null || !isSettingsNamespaceView(view)) return undefined
+  return { ok: true, value: view }
+}
+
 /**
  * One namespace's derived view over the shared describe mirror, plus that
  * namespace's serialized Host writes. Writes carry the latest known namespace
@@ -132,25 +158,39 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
       const revision = expectedRevision ?? this.pendingRevision ?? this.getSnapshot().revision
-      const flight = this.api.settings.mutate(this.spec.namespace, ownedOps, revision)
-      const response = await flight.then(
-        value => ({ kind: 'answered' as const, value }),
-        (_reason: Thrown) => ({ kind: 'failed' as const }),
-      )
-      if (response.kind === 'failed') {
+      const mutate = this.api.settings.mutate
+      if (typeof mutate !== 'function') {
         await this.recover(generation)
         return
       }
-      if (!response.value.ok) {
+      let flight: Thrown | undefined
+      const response = await Promise.try(() => {
+        flight = mutate.call(this.api.settings, this.spec.namespace, ownedOps, revision)
+        return flight
+      }).then(
+        (value: Thrown) => ({ kind: 'answered' as const, value }),
+        (_reason: Thrown) => ({ kind: 'failed' as const }),
+      )
+      if (
+        response.kind === 'failed'
+        || typeof flight !== 'object'
+        || flight === null
+        || !isThenable(flight)
+      ) {
+        await this.recover(generation)
+        return
+      }
+      const answer = mutateAnswer(response.value)
+      if (answer === undefined || !answer.ok) {
         await this.recover(generation)
         return
       }
       if (this.disposed) return
       if (generation === this.writeGeneration) {
         this.pendingRevision = undefined
-        this.mirror.acceptView(response.value.value)
+        this.mirror.acceptView(answer.value)
       } else {
-        this.pendingRevision = response.value.value.revision
+        this.pendingRevision = answer.value.revision
       }
     })
   }

@@ -42,7 +42,7 @@ describe('connection lifecycle', () => {
     expect(source.activeCount).toBe(0)
   })
 
-  it('lets a connected sink throw fail the loop', async () => {
+  it('lets a connected sink throw abort the generation and fail the loop', async () => {
     const source = new FakeGenerationSource()
     let connected = 0
     const controller = new ConnectionController(source.source, {
@@ -53,6 +53,25 @@ describe('connection lifecycle', () => {
     }, FAST)
     controller.start()
     await vi.waitFor(() => { expect(connected).toBe(1) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    controller.start()
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(source.activeCount).toBe(0)
+    await expect(controller.stop()).rejects.toThrow('connection loop failed')
+  })
+
+  it('lets a connected state sink throw abort the generation and fail the loop', async () => {
+    const source = new FakeGenerationSource()
+    const states: ConnectionState[] = []
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        states.push(state)
+        throw new Error('state sink bug')
+      },
+    }, FAST)
+    controller.start()
+    await vi.waitFor(() => { expect(states).toEqual(['connected']) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
     await expect(controller.stop()).rejects.toThrow('connection loop failed')
   })
 

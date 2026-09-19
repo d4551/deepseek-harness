@@ -269,6 +269,43 @@ describe('SettingsScopeController', () => {
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 2 })
   })
 
+  it('recovers the latest write when mutate throws in the write turn', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+      .mockResolvedValueOnce(described({ preference: 'system' }, 2))
+      .mockResolvedValueOnce(described({ preference: 'light' }, 3))
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+      .mockImplementationOnce(() => { throw new Error('mutate exploded') })
+    const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
+    await mirror.load()
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 3 })
+    expect(describeCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('recovers the latest write when mutate is not a function', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+      .mockResolvedValueOnce(described({ preference: 'system' }, 2))
+      .mockResolvedValueOnce(described({ preference: 'light' }, 3))
+    const { mirror, scope } = derivedScope({ describe: describeCall })
+    await mirror.load()
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 3 })
+    expect(describeCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('recovers the latest write when mutate is not thenable', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+      .mockResolvedValueOnce(described({ preference: 'system' }, 2))
+      .mockResolvedValueOnce(described({ preference: 'light' }, 3))
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+      .mockReturnValueOnce(ok(view({ preference: 'sepia' }, 99)) as never)
+    const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
+    await mirror.load()
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 3 })
+    expect(describeCall).toHaveBeenCalledTimes(2)
+  })
+
   it('recovers the latest rejected or thrown write from Host state', async () => {
     const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(described({ preference: 'system' }, 2))

@@ -90,7 +90,7 @@ function handshakeUnavailable(reason: Thrown): Handshake {
 /**
  * Opens the registered generation source, reconnecting with exponential backoff on loss.
  * State (generation/attempt) is instance-private, never in the store.
- * A sink throw fails the loop.
+ * A sink throw aborts the current generation and fails the loop.
  */
 export class ConnectionController {
   private generation = 0
@@ -222,10 +222,18 @@ export class ConnectionController {
       ])
       if (handshake.kind === 'ready' && !ac.signal.aborted) {
         this.attempt = 0
+        let sinksSettled = false
+        using _abortIfSinkThrows = {
+          [Symbol.dispose]: (): void => {
+            if (sinksSettled) return
+            if (gen === this.generation && !ac.signal.aborted) ac.abort()
+          },
+        }
         this.emitState('connected')
         if (this.isGenerationActive(ac)) {
           this.sinks.onConnected?.(handshake.host)
         }
+        sinksSettled = true
       } else if (!ac.signal.aborted) {
         ac.abort()
       }
