@@ -381,7 +381,8 @@ describe('SettingsScopeController', () => {
     await mirror.load()
     await scope.set('preference', 'dark')
     await scope.set('preference', 'system')
-    expect(published.map(section => section?.preference)).toEqual([undefined, 'system', 'light'])
+    expect(describeCall).toHaveBeenCalledTimes(3)
+    expect(published.map(section => section?.preference)).toEqual([undefined, 'system', 'light', 'light'])
   })
 
   it('does not recover superseded rejected or thrown writes', async () => {

@@ -4,7 +4,10 @@ import {
   SettingsDescribeMirror, type SettingsRemote, type SettingsWireFace,
 } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
-import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import {
+  decodeWelcomeSection, WelcomeNoticeStore, type WelcomeSection,
+} from '../src/client/welcome-store.ts'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
@@ -65,6 +68,23 @@ function buildWelcome(
   )
   return { mirror, controller: new WelcomeNoticeStore(scope) }
 }
+
+describe('decodeWelcomeSection', () => {
+  it('claims a JSON object and reads every other value as empty', () => {
+    expect(decodeWelcomeSection(null)).toEqual({})
+    expect(decodeWelcomeSection(true)).toEqual({})
+    expect(decodeWelcomeSection(1)).toEqual({})
+    expect(decodeWelcomeSection('x')).toEqual({})
+    expect(decodeWelcomeSection([])).toEqual({})
+    expect(decodeWelcomeSection([1])).toEqual({})
+    expect(decodeWelcomeSection(() => 0)).toEqual({})
+    expect(decodeWelcomeSection({ bad: () => 0 })).toEqual({})
+    expect(decodeWelcomeSection({ nested: { ok: true } })).toEqual({ nested: { ok: true } })
+    expect(decodeWelcomeSection({ [WELCOME_NOTICE_ACK_FIELD]: 1 })).toEqual({
+      [WELCOME_NOTICE_ACK_FIELD]: 1,
+    })
+  })
+})
 
 describe('WelcomeNoticeStore', () => {
   it('acknowledges in memory while Host settings persistence is disabled', async () => {
@@ -169,6 +189,61 @@ describe('WelcomeNoticeStore', () => {
       await controller.load()
       expect(controller.store.getSnapshot()).toMatchObject({ status: 'ready', acknowledged: false })
     }
+  })
+
+  it('rethrows a rejected Host write', async () => {
+    const failure = new Error('offline')
+    const scope: SettingsScope<WelcomeSection> = {
+      getSnapshot: () => ({
+        status: 'ready',
+        value: {},
+        base: undefined,
+        user: undefined,
+        revision: 1,
+        writable: true,
+        secrets: [],
+        applies: 'live',
+        mode: 'host',
+      }),
+      subscribe: () => () => {},
+      mutate: () => Promise.resolve(),
+      set: () => Promise.reject(failure),
+      unset: () => Promise.resolve(),
+    }
+    const controller = new WelcomeNoticeStore(scope)
+    await controller.load()
+    await expect(controller.acknowledge()).rejects.toBe(failure)
+  })
+
+  it('stops following the scope when disposed', async () => {
+    let listeners = 0
+    const scope: SettingsScope<WelcomeSection> = {
+      getSnapshot: () => ({
+        status: 'ready',
+        value: {},
+        base: undefined,
+        user: undefined,
+        revision: 1,
+        writable: true,
+        secrets: [],
+        applies: 'live',
+        mode: 'host',
+      }),
+      subscribe: () => {
+        listeners += 1
+        return () => { listeners -= 1 }
+      },
+      mutate: () => Promise.resolve(),
+      set: () => Promise.resolve(),
+      unset: () => Promise.resolve(),
+    }
+    const controller = new WelcomeNoticeStore(scope)
+    await controller.load()
+    expect(listeners).toBe(1)
+    controller.dispose()
+    expect(listeners).toBe(0)
+    controller.dispose()
+    expect(listeners).toBe(0)
   })
 
   it('follows a later document change without an own read', async () => {
