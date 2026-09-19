@@ -426,6 +426,18 @@ describe('LocalPtySession readiness and output', () => {
     leftoverEmulator.write = () => { throw 'emulator string' }
     leftoverTerminal.emitData('output')
     await expect(leftoverOperation.done).rejects.toThrow('emulator string')
+
+    const leftoverInspectTerminal = new FakeTerminal()
+    const leftoverInspectSession = new LocalPtySession(leftoverInspectTerminal, config())
+    const leftoverInspectOperation = leftoverInspectSession.startSend({ text: '', submit: false })
+    leftoverInspectTerminal.inspectForeground = async () => { throw 'inspect string' }
+    await Promise.resolve()
+    await Promise.resolve()
+    const leftoverInspectInternal = leftoverInspectSession as unknown as {
+      pollReadiness(operation: TerminalSendOperation): Promise<void>
+    }
+    await leftoverInspectInternal.pollReadiness(leftoverInspectOperation)
+    await expect(leftoverInspectOperation.done).rejects.toThrow('inspect string')
   })
 
   it('ignores terminal-protocol failures after closing starts and drains changing queues', async () => {
@@ -1117,8 +1129,10 @@ describe('LocalPtySession readiness and output', () => {
     const timeoutTerminal = new FakeTerminal()
     const timeout = new LocalPtySession(timeoutTerminal, config())
     const timedOut = timeout.initialize()
+    const claimedTimeout = timedOut.then(undefined, _error => undefined)
     await vi.advanceTimersByTimeAsync(100)
     await expect(timedOut).rejects.toThrow('startup timeout')
+    await claimedTimeout
   })
 
   it('preserves the caller abort reason when startup cannot resolve a foreground group', async () => {
@@ -1130,8 +1144,10 @@ describe('LocalPtySession readiness and output', () => {
     const reason = new Error('startup cancelled')
 
     const initializing = session.initialize(controller.signal)
+    const claimedAbort = initializing.then(undefined, _error => undefined)
     controller.abort(reason)
     await expect(initializing).rejects.toBe(reason)
+    await claimedAbort
   })
 
   it('waits for printable prompt text when the startup marker is split from PS1', async () => {

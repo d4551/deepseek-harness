@@ -23,14 +23,6 @@ export type { Config as TerminalLocalConfig } from './config.ts'
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
-function thrownMessage(reason: Thrown): string {
-  if (reason === undefined) return 'undefined'
-  if (typeof reason === 'object') {
-    return reason === null ? 'null' : Object.prototype.toString.call(reason)
-  }
-  return String(reason)
-}
-
 /** Cordis plugin name. */
 export const name = 'terminal-bash'
 /** Required services: PTY registry, shared confinement policy, and process substrate. */
@@ -178,9 +170,7 @@ function startupSession(
       start().then(claimFulfill, claimReject),
       ...races,
     ]).then(() => {
-      if (!startSucceeded && firstFailure !== undefined) {
-        throw firstFailure instanceof Error ? firstFailure : new Error(thrownMessage(firstFailure))
-      }
+      if (!startSucceeded && firstFailure !== undefined) throw firstFailure
     }).then(resolve, reject)
   })
   return raced.then(
