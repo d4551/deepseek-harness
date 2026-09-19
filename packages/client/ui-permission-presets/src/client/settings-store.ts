@@ -35,10 +35,67 @@ export interface PermissionSettingsState {
   revision: number
 }
 
-interface ConstChoice {
-  type: string
-  value?: unknown
-  meta?: { description?: unknown }
+/** Claimed defaultPreset enum, or the reason the descriptor cannot be shown. */
+type PermissionDefaultClaim =
+  | { readonly currentValue: string; readonly options: PermissionDefaultOption[] }
+  | { readonly error: string }
+
+/**
+ * Read the current defaultPreset string off a namespace value.
+ * @param value - redacted namespace value.
+ * @returns the preset key, or undefined when the field is absent or not a string.
+ */
+function defaultPresetOf(value: unknown): string | undefined {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  if (!('defaultPreset' in value) || typeof value.defaultPreset !== 'string') return undefined
+  return value.defaultPreset
+}
+
+/**
+ * Enumerate selectable const members of a defaultPreset schema node.
+ * @param node - rehydrated defaultPreset field.
+ * @returns the union members, or the node itself when it is not a union.
+ */
+function schemaChoicesOf(node: SchemaNode): readonly SchemaNode[] {
+  if (node.type !== 'union') return [node]
+  return node.list ?? []
+}
+
+/**
+ * Claim one const schema member as a selectable option.
+ * @param candidate - union member or standalone const node.
+ * @returns a one-element option list, or empty when the member is not a string const.
+ */
+function choiceOptionOf(candidate: SchemaNode): PermissionDefaultOption[] {
+  if (candidate.type !== 'const' || typeof candidate.value !== 'string') return []
+  const described = candidate.meta.description
+  return [{
+    id: candidate.value,
+    name: typeof described === 'string' && described.length > 0 ? described : candidate.value,
+  }]
+}
+
+/**
+ * Claim the dynamic preset enum encoded by the host's `defaultPreset` schema.
+ * @param view - permission namespace descriptor.
+ * @param schema - settings schema operations.
+ * @returns current value and options, or the reason the descriptor is unusable.
+ */
+function permissionDefaultClaim(
+  view: SettingsNamespaceView,
+  schema: SettingsSchemaService,
+): PermissionDefaultClaim {
+  const currentValue = defaultPresetOf(view.value)
+  if (currentValue === undefined) return { error: 'permission settings has no defaultPreset value' }
+  const node = schema.nodeAtPath(schema.rehydrate(view.schema), ['defaultPreset'])
+  if (node === undefined) return { error: 'permission settings schema has no defaultPreset field' }
+  const options = schemaChoicesOf(node).flatMap(choiceOptionOf)
+  if (options.length === 0 || !options.some(option => option.id === currentValue)) {
+    return { error: 'permission settings schema does not advertise its current preset' }
+  }
+  return { currentValue, options }
 }
 
 /**
@@ -51,26 +108,9 @@ export function permissionDefaultOf(view: SettingsNamespaceView, schema: Setting
   currentValue: string
   options: PermissionDefaultOption[]
 } {
-  const value = (view.value as { defaultPreset?: unknown } | null)?.defaultPreset
-  if (typeof value !== 'string') throw new Error('permission settings has no defaultPreset value')
-  const node = schema.nodeAtPath(schema.rehydrate(view.schema), ['defaultPreset'])
-  if (node === undefined) throw new Error('permission settings schema has no defaultPreset field')
-  const rawChoices = node.type === 'union'
-    ? (node.list as SchemaNode[] | undefined) ?? []
-    : [node]
-  const options = rawChoices.flatMap((candidate) => {
-    const choice = candidate as unknown as ConstChoice
-    if (choice.type !== 'const' || typeof choice.value !== 'string') return []
-    const described = choice.meta?.description
-    return [{
-      id: choice.value,
-      name: typeof described === 'string' && described.length > 0 ? described : choice.value,
-    }]
-  })
-  if (options.length === 0 || !options.some(option => option.id === value)) {
-    throw new Error('permission settings schema does not advertise its current preset')
-  }
-  return { currentValue: value, options }
+  const claimed = permissionDefaultClaim(view, schema)
+  if ('error' in claimed) throw new Error(claimed.error)
+  return { currentValue: claimed.currentValue, options: claimed.options }
 }
 
 /** Controller deriving the row from the shared mirror and writing the default through it. */
@@ -133,23 +173,23 @@ export class PermissionPresetSettingsController {
       draft.status = 'saving'
       draft.error = null
     })
-    try {
-      const response = await this.api.settings.mutate(
-        PERMISSION_SETTINGS_NS,
-        [{ op: 'set', path: ['defaultPreset'], value: preset }],
-        view.revision,
-      )
-      if (!response.ok) throw new Error(response.error.message)
-      this.saving = false
-      if (this.disposed) return
-      // The mirror publish reaches this row's own subscription, so the fold
-      // is also what republishes the accepted value here.
-      this.describeFace.acceptView(response.value)
-    } catch (error) {
-      this.saving = false
-      if (this.disposed) return
-      this.fail(error)
+    using _clearSaving = {
+      [Symbol.dispose]: (): void => {
+        this.saving = false
+      },
     }
+    const response = await this.api.settings.mutate(
+      PERMISSION_SETTINGS_NS,
+      [{ op: 'set', path: ['defaultPreset'], value: preset }],
+      view.revision,
+    )
+    if (this.disposed) return
+    if (!response.ok) {
+      this.fail(response.error.message)
+      return
+    }
+    this.saving = false
+    this.describeFace.acceptView(response.value)
   }
 
   /** Stop following the mirror; later publishes leave the snapshot alone. */
@@ -176,7 +216,7 @@ export class PermissionPresetSettingsController {
     if (mirrored.view === undefined) {
       // A held failure with no answer is a failed row; without one the read
       // is still in flight and the row keeps its loading state.
-      if (mirrored.error !== null) this.fail(new Error(mirrored.error))
+      if (mirrored.error !== null) this.fail(mirrored.error)
       return
     }
     const view = mirrored.view.namespaces.find(entry => entry.ns === PERMISSION_SETTINGS_NS)
@@ -189,26 +229,26 @@ export class PermissionPresetSettingsController {
       })
       return
     }
-    try {
-      const resolved = permissionDefaultOf(view, this.schema)
-      const { writable } = mirrored.view
-      this.store.update((state) => {
-        state.status = 'ready'
-        state.error = null
-        state.writable = writable
-        state.currentValue = resolved.currentValue
-        state.options = resolved.options
-        state.revision = view.revision
-      })
-    } catch (error) {
-      this.fail(error)
+    const claimed = permissionDefaultClaim(view, this.schema)
+    if ('error' in claimed) {
+      this.fail(claimed.error)
+      return
     }
+    const { writable } = mirrored.view
+    this.store.update((state) => {
+      state.status = 'ready'
+      state.error = null
+      state.writable = writable
+      state.currentValue = claimed.currentValue
+      state.options = claimed.options
+      state.revision = view.revision
+    })
   }
 
-  private fail(error: unknown): void {
+  private fail(message: string): void {
     this.store.update((state) => {
       state.status = 'error'
-      state.error = error instanceof Error ? error.message : String(error)
+      state.error = message
     })
   }
 }

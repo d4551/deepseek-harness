@@ -1,6 +1,9 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  SchemaNode, SettingsRemote, SettingsWireFace,
+} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import {
@@ -40,11 +43,32 @@ function ok<T>(value: T) {
   return { ok: true as const, value }
 }
 
-/** The permission controller over a real mirror and one fake wire. */
-function permissionController(api: object) {
-  const wire = { settings: api } as never
+function unusedWrite(): never {
+  throw new Error('permission settings test wire does not implement this write')
+}
+
+function permissionWire(api: Pick<SettingsRemote, 'describe' | 'mutate'>): SettingsWireFace {
+  return {
+    settings: {
+      describe: api.describe,
+      mutate: api.mutate,
+      update: unusedWrite,
+      replace: unusedWrite,
+    },
+  }
+}
+
+/** The permission controller over a real mirror and a typed settings wire. */
+function permissionController(api: Pick<SettingsRemote, 'describe' | 'mutate'>) {
+  const wire = permissionWire(api)
   const mirror = new SettingsDescribeMirror(wire)
   return { mirror, controller: new PermissionPresetSettingsController(mirror, wire, schema) }
+}
+
+class DisconnectedSchema extends SettingsSchemaService {
+  override rehydrate(_serialized: unknown): SchemaNode {
+    throw new Error('schema disconnected')
+  }
 }
 
 describe('permission settings store', () => {
@@ -103,12 +127,12 @@ describe('permission settings store', () => {
   })
 
   it('loads and writes defaultPreset with optimistic concurrency', async () => {
-    const describe = vi.fn(() => Promise.resolve(ok({
+    const describe = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true,
       hasDocument: false,
       namespaces: [view('read-only', 4)],
     })))
-    const mutate = vi.fn(() => Promise.resolve(ok(view('workspace-write', 5))))
+    const mutate = vi.fn<SettingsRemote['mutate']>(() => Promise.resolve(ok(view('workspace-write', 5))))
     const { controller } = permissionController({ describe, mutate })
     await controller.load()
     expect(controller.store.getSnapshot()).toMatchObject({
@@ -132,14 +156,20 @@ describe('permission settings store', () => {
     expect(describe).toHaveBeenCalledTimes(1)
   })
 
-  it('hides the row when the namespace is absent and contains write failures', async () => {
-    const describe = vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: [] })))
-    const { controller } = permissionController({ describe, mutate: vi.fn() })
+  it('hides the row when the namespace is absent and surfaces write failures', async () => {
+    const describe = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
+      writable: true, hasDocument: false, namespaces: [],
+    })))
+    const { controller } = permissionController({
+      describe, mutate: vi.fn<SettingsRemote['mutate']>(),
+    })
     await controller.load()
     expect(controller.store.getSnapshot().status).toBe('unavailable')
 
     const failing = permissionController({
-      describe: () => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: [view('read-only')] })),
+      describe: () => Promise.resolve(ok({
+        writable: true, hasDocument: false, namespaces: [view('read-only')],
+      })),
       mutate: () => Promise.resolve({
         ok: false as const,
         error: { code: 'settings-conflict', message: 'stale', details: {} },
@@ -150,8 +180,8 @@ describe('permission settings store', () => {
     expect(failing.store.getSnapshot()).toMatchObject({ status: 'error', error: 'stale' })
   })
 
-  it('contains read failures and no-ops without a writable view', async () => {
-    const mutate = vi.fn()
+  it('refuses writes without a writable view and surfaces read failures', async () => {
+    const mutate = vi.fn<SettingsRemote['mutate']>()
     const readOnly = permissionController({
       describe: () => Promise.resolve(ok({
         writable: false, hasDocument: false, namespaces: [view('read-only', 2)],
@@ -180,34 +210,31 @@ describe('permission settings store', () => {
     expect(mutate).not.toHaveBeenCalled()
 
     const thrown = permissionController({
-      describe: async () => { throw 'disconnected' },
+      describe: async () => { throw new Error('disconnected') },
       mutate,
     }).controller
     await thrown.load()
     expect(thrown.store.getSnapshot()).toMatchObject({ status: 'error', error: 'disconnected' })
 
-    const wire = {
-      settings: {
-        describe: () => Promise.resolve(ok({
-          writable: true, hasDocument: false, namespaces: [view('read-only')],
-        })),
-        mutate,
-      },
-    } as never
-    const mirror = new SettingsDescribeMirror(wire)
-    const malformed = new PermissionPresetSettingsController(mirror, wire, {
-      rehydrate: () => { throw 'schema disconnected' },
-    } as never)
-    await malformed.load()
-    expect(malformed.store.getSnapshot()).toMatchObject({
-      status: 'error', error: 'schema disconnected',
+    const wire = permissionWire({
+      describe: () => Promise.resolve(ok({
+        writable: true, hasDocument: false, namespaces: [view('read-only')],
+      })),
+      mutate,
     })
+    const mirror = new SettingsDescribeMirror(wire)
+    const malformed = new PermissionPresetSettingsController(
+      mirror,
+      wire,
+      new DisconnectedSchema(new Context()),
+    )
+    await expect(malformed.load()).rejects.toThrow('schema disconnected')
   })
 
   it('hides the row in a remote browser instead of loading forever', async () => {
-    const describeCall = vi.fn()
-    const mutate = vi.fn()
-    const wire = { settings: { describe: describeCall, mutate } } as never
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+    const wire = permissionWire({ describe: describeCall, mutate })
     const mirror = new SettingsDescribeMirror(wire, 'memory')
     const controller = new PermissionPresetSettingsController(mirror, wire, schema)
     await controller.load()
@@ -218,10 +245,12 @@ describe('permission settings store', () => {
   })
 
   it('follows a mirror refresh without an own read once loaded', async () => {
-    const describe = vi.fn()
+    const describe = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(ok({ writable: true, hasDocument: false, namespaces: [view('read-only', 1)] }))
       .mockResolvedValueOnce(ok({ writable: true, hasDocument: false, namespaces: [view('workspace-write', 2)] }))
-    const { mirror, controller } = permissionController({ describe, mutate: vi.fn() })
+    const { mirror, controller } = permissionController({
+      describe, mutate: vi.fn<SettingsRemote['mutate']>(),
+    })
     await controller.load()
     expect(controller.store.getSnapshot()).toMatchObject({ currentValue: 'read-only' })
 
@@ -230,26 +259,27 @@ describe('permission settings store', () => {
     expect(controller.store.getSnapshot()).toMatchObject({ currentValue: 'workspace-write', revision: 2 })
   })
 
-  it('disposal stops deriving and suppresses in-flight writes', async () => {
-    const neverRead = vi.fn()
-    const { controller: neverLoaded } = permissionController({ describe: neverRead, mutate: vi.fn() })
+  it('disposal stops deriving and rejects in-flight writes', async () => {
+    const neverRead = vi.fn<SettingsRemote['describe']>()
+    const { controller: neverLoaded } = permissionController({
+      describe: neverRead, mutate: vi.fn<SettingsRemote['mutate']>(),
+    })
     neverLoaded.dispose()
     await neverLoaded.load()
     expect(neverLoaded.store.getSnapshot().status).toBe('idle')
     expect(neverRead).not.toHaveBeenCalled()
 
-    const read = Promise.withResolvers<ReturnType<typeof ok<{
-      writable: boolean
-      namespaces: SettingsNamespaceView[]
-    }>>>()
-    const { mirror, controller: idle } = permissionController({ describe: () => read.promise, mutate: vi.fn() })
+    const read = Promise.withResolvers<Awaited<ReturnType<SettingsRemote['describe']>>>()
+    const { mirror, controller: idle } = permissionController({
+      describe: () => read.promise, mutate: vi.fn<SettingsRemote['mutate']>(),
+    })
     const loading = idle.load()
     idle.dispose()
     read.resolve(ok({ writable: true, hasDocument: false, namespaces: [view('read-only')] }))
     await Promise.all([loading, mirror.load()])
     expect(idle.store.getSnapshot().status).toBe('loading')
 
-    const mutation = Promise.withResolvers<ReturnType<typeof ok<SettingsNamespaceView>>>()
+    const mutation = Promise.withResolvers<Awaited<ReturnType<SettingsRemote['mutate']>>>()
     const { controller: active } = permissionController({
       describe: () => Promise.resolve(ok({
         writable: true,
@@ -265,7 +295,7 @@ describe('permission settings store', () => {
     await saving
     expect(active.store.getSnapshot().status).toBe('saving')
 
-    const rejectedMutation = Promise.withResolvers<ReturnType<typeof ok<SettingsNamespaceView>>>()
+    const rejectedMutation = Promise.withResolvers<Awaited<ReturnType<SettingsRemote['mutate']>>>()
     const { controller: disposedWrite } = permissionController({
       describe: () => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: [view('read-only')] })),
       mutate: () => rejectedMutation.promise,
@@ -274,7 +304,7 @@ describe('permission settings store', () => {
     const writing = disposedWrite.select('workspace-write')
     disposedWrite.dispose()
     rejectedMutation.reject(new Error('late write'))
-    await writing
+    await expect(writing).rejects.toThrow('late write')
     expect(disposedWrite.store.getSnapshot().status).toBe('saving')
   })
 })
