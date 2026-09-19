@@ -19,9 +19,12 @@ import {
 } from '@agentclientprotocol/sdk'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
+import { AssistantOutputFold, settleRunResult, subprocessRunHandle, toError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+
+/** Values a Promise reject arm from ACP child or protocol work may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Fixed response to child permission requests: reject by default, or select the first allow option. */
 export type PermissionPolicy = 'allow' | 'reject'
@@ -214,7 +217,7 @@ export async function disposeAcpChild(child: SubprocessHandle, eofGraceMs: numbe
   // A spawn failure has no process to tear down; observe the rejection so
   // disposal in a finally block cannot surface it as unhandled.
   if (child.pid <= 0) {
-    await child.done.catch(() => {})
+    await child.done.catch((_error: Thrown) => {})
     return
   }
   child.stdin?.end()
@@ -271,15 +274,6 @@ export function toAcpPrompt(prompt: ContentBlock[]): AcpContentBlock[] {
     if (block.type === 'text') blocks.push({ type: 'text', text: block.text })
   }
   return blocks
-}
-
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
-  // The catch only sees rejections from the ACP SDK RPCs and the spawn `error`
-  // event, which are always `Error`s; the `String(value)` arm is a defensive
-  // fallback for a non-Error throw that the typed APIs cannot produce.
-  /* v8 ignore next */
-  return value instanceof Error ? value : new Error(String(value))
 }
 
 /** Report an original Host failure without letting the observation sink replace it. */
@@ -366,7 +360,7 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
       graceMs: spec.disposeGraceMs,
       env: spec.env,
     })
-  } catch (error: unknown) {
+  } catch (error) {
     reportFailure(spec, error)
     throw new AcpRunFailure({ stage: 'process', category: 'process-start' }, error)
   }
@@ -388,9 +382,11 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
   const spawnFailed: Promise<never> = processDone.then(
     /* v8 ignore next -- the success arm's never-settling executor is intentionally empty. */
     () => new Promise<never>(() => {}),
-    (err: unknown) => Promise.reject(toError(err)),
+    (error: Thrown) => {
+      throw toError(error)
+    },
   )
-  spawnFailed.catch(() => { /* observed by the startup race; never unhandled */ })
+  spawnFailed.catch((_error: Thrown) => { /* observed by the startup race; never unhandled */ })
 
   const observeProcessOutcome = async (signal?: AbortSignal): Promise<SubprocessOutcome | undefined> => {
     if (processOutcome !== undefined || child.pid <= 0) return processOutcome
@@ -402,15 +398,16 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
     bound.addEventListener('abort', onObservationAbort, { once: true })
     /* v8 ignore next -- closes the event-loop race between listener registration and the preceding derived-signal check. */
     if (bound.aborted) onObservationAbort()
-    try {
-      return await Promise.race([processDone, aborted.promise])
-    } catch {
-      // The active protocol failure remains authoritative when exit observation fails.
-      /* v8 ignore next -- a published child.done cannot reject; spawn rejection is consumed before publication. */
-      return processOutcome
-    } finally {
-      bound.removeEventListener('abort', onObservationAbort)
-    }
+    const outcome = await Promise.race([processDone, aborted.promise]).then(
+      undefined,
+      (_error: Thrown) => {
+        // The active protocol failure remains authoritative when exit observation fails.
+        /* v8 ignore next -- a published child.done cannot reject; spawn rejection is consumed before publication. */
+        return processOutcome
+      },
+    )
+    bound.removeEventListener('abort', onObservationAbort)
+    return outcome
   }
 
   // Startup rollback and the published handle share one process teardown.
@@ -475,7 +472,7 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
     // Best-effort ACP cancel; process teardown remains authoritative.
     /* v8 ignore next */
     if (sessionId !== undefined) {
-      agent.notify(methods.agent.session.cancel, { sessionId }).catch(() => { /* child gone / no session */ })
+      agent.notify(methods.agent.session.cancel, { sessionId }).catch((_error: Thrown) => { /* child gone / no session */ })
     }
   }
   const onAbort = (): void => { requestCancel() }
@@ -486,56 +483,54 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
 
   // Establish the remote session before publishing a handle. Any failure owns
   // the still-private process and therefore reaps it before rejecting.
-  try {
-    await Promise.race([
-      (async (): Promise<void> => {
-        const initialized = await agent.request(methods.agent.initialize, {
-          protocolVersion: PROTOCOL_VERSION,
-          // Advertise NO optional client capabilities (no fs, no terminal): the
-          // child self-serves in its own process.
-          clientCapabilities: {},
-        })
-        startupStage = 'new-session'
-        // `additionalDirectories` is negotiated. An agent that does not
-        // advertise it may ignore the unknown field, which would run the child
-        // in a narrower workspace than the parent believes it gave — so refuse
-        // the delegation here, the earliest point the advertisement is known,
-        // rather than let the narrowing pass silently.
-        if (spec.workspaceRoots.length > 0 && !advertisesAdditionalDirectories(initialized)) {
-          throw new AcpRunFailure(
-            { stage: 'new-session', category: 'configuration' },
-            new Error(
-              `subagent-acp: the configured ACP agent "${spec.command}" does not advertise `
-              + 'session capability "additionalDirectories", so it cannot take the delegating '
-              + `session's additional workspace roots: ${spec.workspaceRoots.join(', ')}`,
-            ),
-          )
-        }
-        // An empty list is protocol-equivalent to omitting the key, so a
-        // single-root parent leaves `session/new` exactly as it was — and needs
-        // no advertisement, because it asks the agent for nothing extra.
-        const session = await agent.request(methods.agent.session.new, {
-          cwd: spec.cwd,
-          mcpServers: [],
-          ...spec.workspaceRoots.length === 0
-            ? {}
-            : { additionalDirectories: [...spec.workspaceRoots] },
-        })
-        const returnedSessionId: unknown = Reflect.get(session, 'sessionId')
-        if (typeof returnedSessionId !== 'string') {
-          throw new AcpRunFailure(
-            { stage: 'new-session', category: 'protocol' },
-            new Error('ACP child published without a session id'),
-          )
-        }
-        sessionId = returnedSessionId
-        /* v8 ignore next -- cancelSettled wins the startup race before this post-response guard can settle it. */
-        if (flags.cancelled) throw new Error('subagent cancelled before the ACP session started')
-      })(),
-      spawnFailed,
-      cancelSettled.then((): never => { throw new Error('subagent cancelled before the ACP session started') }),
-    ])
-  } catch (error: unknown) {
+  await Promise.race([
+    (async (): Promise<void> => {
+      const initialized = await agent.request(methods.agent.initialize, {
+        protocolVersion: PROTOCOL_VERSION,
+        // Advertise NO optional client capabilities (no fs, no terminal): the
+        // child self-serves in its own process.
+        clientCapabilities: {},
+      })
+      startupStage = 'new-session'
+      // `additionalDirectories` is negotiated. An agent that does not
+      // advertise it may ignore the unknown field, which would run the child
+      // in a narrower workspace than the parent believes it gave — so refuse
+      // the delegation here, the earliest point the advertisement is known,
+      // rather than let the narrowing pass silently.
+      if (spec.workspaceRoots.length > 0 && !advertisesAdditionalDirectories(initialized)) {
+        throw new AcpRunFailure(
+          { stage: 'new-session', category: 'configuration' },
+          new Error(
+            `subagent-acp: the configured ACP agent "${spec.command}" does not advertise `
+            + 'session capability "additionalDirectories", so it cannot take the delegating '
+            + `session's additional workspace roots: ${spec.workspaceRoots.join(', ')}`,
+          ),
+        )
+      }
+      // An empty list is protocol-equivalent to omitting the key, so a
+      // single-root parent leaves `session/new` exactly as it was — and needs
+      // no advertisement, because it asks the agent for nothing extra.
+      const session = await agent.request(methods.agent.session.new, {
+        cwd: spec.cwd,
+        mcpServers: [],
+        ...spec.workspaceRoots.length === 0
+          ? {}
+          : { additionalDirectories: [...spec.workspaceRoots] },
+      })
+      const returnedSessionId: unknown = Reflect.get(session, 'sessionId')
+      if (typeof returnedSessionId !== 'string') {
+        throw new AcpRunFailure(
+          { stage: 'new-session', category: 'protocol' },
+          new Error('ACP child published without a session id'),
+        )
+      }
+      sessionId = returnedSessionId
+      /* v8 ignore next -- cancelSettled wins the startup race before this post-response guard can settle it. */
+      if (flags.cancelled) throw new Error('subagent cancelled before the ACP session started')
+    })(),
+    spawnFailed,
+    cancelSettled.then((): never => { throw new Error('subagent cancelled before the ACP session started') }),
+  ]).then(undefined, async (error: Thrown): Promise<never> => {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = flags.cancelled
     // A child closing its protocol stream can precede whole-tree exit
@@ -557,28 +552,29 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
         ? error.cause
         : error)
     }
-    try {
-      await disposeProcess()
-    } catch (cleanupError: unknown) {
-      reportFailure(spec, cleanupError)
-      const cleanupFailure = new AcpRunFailure({
-        stage: 'teardown',
-        category: processOutcome === undefined ? 'unknown' : 'process-exit',
-        ...(processOutcome === undefined ? {} : { outcome: processOutcome }),
-      }, cleanupError)
-      if (startup.kind === 'cancelled') {
-        throw new AggregateError([cleanupFailure], cleanupFailure.message)
-      }
-      throw new AggregateError(
-        [startup.failure, cleanupFailure],
-        `${startup.failure.message}; ${cleanupFailure.message}`,
-      )
-    }
+    await disposeProcess().then(
+      undefined,
+      (cleanupError: Thrown) => {
+        reportFailure(spec, cleanupError)
+        const cleanupFailure = new AcpRunFailure({
+          stage: 'teardown',
+          category: processOutcome === undefined ? 'unknown' : 'process-exit',
+          ...(processOutcome === undefined ? {} : { outcome: processOutcome }),
+        }, cleanupError)
+        if (startup.kind === 'cancelled') {
+          throw new AggregateError([cleanupFailure], cleanupFailure.message)
+        }
+        throw new AggregateError(
+          [startup.failure, cleanupFailure],
+          `${startup.failure.message}; ${cleanupFailure.message}`,
+        )
+      },
+    )
     if (startup.kind === 'cancelled') {
       throw new Error('subagent request was aborted before the ACP child started')
     }
     throw startup.failure
-  }
+  })
   // The startup transaction validates the returned id before it can fulfill.
   // This assertion carries that cross-closure invariant into TypeScript.
   /* v8 ignore next */
@@ -587,15 +583,14 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
 
   let diagnostic: string | undefined
   const result: Promise<SubagentResult> = settleRunResult({
-    attempt: async (): Promise<SubagentResult> => {
-      try {
-        const promptResult = await Promise.race([
-          agent.request(methods.agent.session.prompt, {
-            sessionId: remoteSessionId,
-            prompt: toAcpPrompt(request.prompt),
-          }),
-          cancelSettled.then((): never => { throw new Error('subagent cancelled while the ACP prompt was running') }),
-        ])
+    attempt: () => Promise.race([
+      agent.request(methods.agent.session.prompt, {
+        sessionId: remoteSessionId,
+        prompt: toAcpPrompt(request.prompt),
+      }),
+      cancelSettled.then((): never => { throw new Error('subagent cancelled while the ACP prompt was running') }),
+    ]).then(
+      (promptResult) => {
         const stopReason = acpStopReason(promptResult.stopReason)
         diagnostic = terminalFailure(promptResult.stopReason, latestPermission)
         return {
@@ -603,7 +598,8 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
           ...(diagnostic === undefined ? {} : { diagnostic }),
           stopReason,
         }
-      } catch (error: unknown) {
+      },
+      async (error: Thrown) => {
         if (!flags.cancelled) {
           const outcome = await observeProcessOutcome(request.signal)
           /* v8 ignore next -- Windows anonymous pipes cannot expose a live-child prompt transport failure. */
@@ -613,8 +609,8 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
           diagnostic = diagnosticText(facts, latestPermission)
         }
         throw error
-      }
-    },
+      },
+    ),
     collectOutput,
     collectDiagnostic: () => diagnostic,
     cancelled: () => flags.cancelled,
@@ -629,19 +625,20 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
     signal: request.signal,
     onAbort,
     requestCancel,
-    teardown: async () => {
-      try {
-        // ACP normally quiesces from stdin EOF, including the final flush, so
-        // this backend uses a wider EOF grace before process termination.
-        await disposeProcess()
-      } catch (error: unknown) {
-        reportFailure(spec, error)
-        throw new AcpRunFailure({
-          stage: 'teardown',
-          category: processOutcome === undefined ? 'unknown' : 'process-exit',
-          ...(processOutcome === undefined ? {} : { outcome: processOutcome }),
-        }, error)
-      }
+    teardown: () => {
+      // ACP normally quiesces from stdin EOF, including the final flush, so
+      // this backend uses a wider EOF grace before process termination.
+      return disposeProcess().then(
+        undefined,
+        (error: Thrown) => {
+          reportFailure(spec, error)
+          throw new AcpRunFailure({
+            stage: 'teardown',
+            category: processOutcome === undefined ? 'unknown' : 'process-exit',
+            ...(processOutcome === undefined ? {} : { outcome: processOutcome }),
+          }, error)
+        },
+      )
     },
   })
 }

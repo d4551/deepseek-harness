@@ -22,8 +22,11 @@ import {
 import type { ContentBlock, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
-import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
+import { AssistantOutputFold, settleRunResult, subprocessRunHandle, toError } from '@deepseek-ai/dsh-subagent'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+
+/** Values a Promise reject arm from SDK child or protocol work may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Resolved spawn spec for an SDK runtime child process (no defaults — see Config). */
 export interface SdkRunSpec {
@@ -188,15 +191,6 @@ export function sdkChildOutcome(
   }
 }
 
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
-function toError(value: unknown): Error {
-  // The catch only sees rejections from the SDK client, which are always
-  // `Error`s; the `String(value)` arm is a defensive fallback for a non-Error
-  // throw that the typed surfaces cannot produce.
-  /* v8 ignore next */
-  return value instanceof Error ? value : new Error(String(value))
-}
-
 /** Report an original Host failure without letting the observation sink replace it. */
 function reportFailure(spec: SdkRunSpec, error: unknown): void {
   try {
@@ -278,32 +272,36 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
 
   // Establish the child handshake before publishing a handle. Any failure
   // owns the still-private process and reaps it before rejecting.
-  try {
-    await Promise.race([
-      harness.start(),
-      cancelSettled.then((): never => { throw cancelledStartup }),
-    ])
-    // Defensive: an abort() is a macrotask and no user callback runs inside
-    // the microtask drain between handshake fulfillment and this continuation,
-    // so current callback ordering cannot schedule the recheck; it guards future reentrancy.
-    /* v8 ignore next */
-    if (flags.cancelled) throw cancelledStartup
-  } catch (error: unknown) {
+  const rejectStartup = async (error: Thrown): Promise<never> => {
     request.signal.removeEventListener('abort', onAbort)
     if (error !== cancelledStartup) {
       throw sdkStartupFailure(spec, error)
     }
-    try {
-      await harness.close()
-    } catch (cleanupError: unknown) {
-      reportFailure(spec, cleanupError)
-      const cleanupFailure = new SdkRunFailure({ stage: 'shutdown', category: 'unknown' }, cleanupError)
-      // Preserve failed cleanup as a failed Job; settleStart treats only an
-      // aborted non-AggregateError rejection as a cleanly killed startup.
-      throw new AggregateError([cleanupFailure], cleanupFailure.message)
-    }
+    await harness.close().then(
+      undefined,
+      (cleanupError: Thrown) => {
+        reportFailure(spec, cleanupError)
+        const cleanupFailure = new SdkRunFailure({ stage: 'shutdown', category: 'unknown' }, cleanupError)
+        // Preserve failed cleanup as a failed Job; settleStart treats only an
+        // aborted non-AggregateError rejection as a cleanly killed startup.
+        throw new AggregateError([cleanupFailure], cleanupFailure.message)
+      },
+    )
     throw new Error('subagent request was aborted before the SDK child started')
   }
+  await Promise.race([
+    harness.start(),
+    cancelSettled.then((): never => { throw cancelledStartup }),
+  ]).then(
+    () => {
+      // Defensive: an abort() is a macrotask and no user callback runs inside
+      // the microtask drain between handshake fulfillment and this continuation,
+      // so current callback ordering cannot schedule the recheck; it guards future reentrancy.
+      /* v8 ignore next */
+      if (flags.cancelled) return rejectStartup(cancelledStartup)
+    },
+    rejectStartup,
+  )
 
   const childSessionId = `session-${randomUUID().replaceAll('-', '')}`
   // The child's final answer under the seam's canonical selection rule
@@ -314,25 +312,23 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     fold.push(notification.params.event as SessionEvent)
   }
   const collectOutput = (): ContentBlock[] => fold.collect() ?? []
-  const teardown = async (): Promise<void> => {
-    try {
-      await harness.close()
-    } catch (error: unknown) {
+  const teardown = (): Promise<void> => harness.close().then(
+    undefined,
+    (error: Thrown) => {
       reportFailure(spec, error)
       throw new SdkRunFailure({ stage: 'shutdown', category: 'unknown' }, error)
-    }
-  }
+    },
+  )
 
   // Race the child turn against local cancellation; the shared settlement
   // flattens failures under the seam's never-reject contract.
   let diagnostic: string | undefined
   const result: Promise<SubagentResult> = settleRunResult({
-    attempt: async () => {
-      try {
-        const turn = await Promise.race([
-          harness.session(childSessionId).run(request.prompt, { onNotification: observe }),
-          cancelSettled.then(() => 'cancelled' as const),
-        ])
+    attempt: () => Promise.race([
+      harness.session(childSessionId).run(request.prompt, { onNotification: observe }),
+      cancelSettled.then(() => 'cancelled' as const),
+    ]).then(
+      (turn) => {
         if (turn === 'cancelled') return { output: collectOutput(), stopReason: 'aborted' }
         const lastEnd = turn.events.findLast(
           (event): event is Extract<SessionEvent, { type: 'turn/end' }> => event.type === 'turn/end',
@@ -343,11 +339,12 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
           output: collectOutput(),
           ...outcome,
         }
-      } catch (error: unknown) {
+      },
+      (error: Thrown) => {
         diagnostic = failureDiagnostic(sdkFailure(error, 'session-run').facts)
         throw error
-      }
-    },
+      },
+    ),
     collectOutput,
     collectDiagnostic: () => diagnostic,
     cancelled: () => flags.cancelled,
