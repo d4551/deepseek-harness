@@ -161,6 +161,29 @@ const DELETE_DESCRIPTION =
   'Delete one active reminder in the current session by the exact id returned by schedule_create '
   + 'or schedule_list. Unknown or already-finished ids return deleted false.'
 
+/** Render a claim-boundary value for process-local diagnostics only. */
+function renderThrown(value: unknown): string {
+  if (value instanceof Error) {
+    if (value.message !== '') return value.message
+    const line = value.stack?.split('\n', 1)[0]
+    return line !== undefined && line !== '' ? line : value.name
+  }
+  switch (typeof value) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(value)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (value === null) return 'null'
+      return Object.prototype.toString.call(value)
+  }
+}
+
 /** Deterministic model content for every canonical Schedule value. */
 function renderValue(_args: unknown, value: unknown): ContentBlock[] {
   // The ToolRuntime has already validated the value against the lossless-JSON output schema.
@@ -222,7 +245,7 @@ function inputError(error: ScheduleInputError): ScheduleToolError {
 function foldForTool(agent: Agent): ReturnType<typeof foldScheduleEvents> | ScheduleToolError {
   try {
     return foldScheduleEvents(agent.session.events, agent.session.header.seedLength ?? 0)
-  } catch (error: unknown) {
+  } catch (error) {
     return error instanceof ScheduleLogError ? corruptLogError() : internalError()
   }
 }
@@ -308,8 +331,8 @@ export function registerScheduleTools(
   const notifyDurableChange = (): void => {
     try {
       onDurableChange()
-    } catch (error: unknown) {
-      rootCtx.logger.warn(`schedule: durable-change observer failed: ${error instanceof Error ? error.message : String(error)}`)
+    } catch (error) {
+      rootCtx.logger.warn(`schedule: durable-change observer failed: ${renderThrown(error)}`)
     }
   }
 
@@ -373,7 +396,7 @@ export function registerScheduleTools(
                 Date.now(),
               )
             }
-          } catch (error: unknown) {
+          } catch (error) {
             return error instanceof ScheduleInputError ? inputError(error) : internalError()
           }
           const cancelledBeforeAppend = cancellationPlaceholder(exec.signal)

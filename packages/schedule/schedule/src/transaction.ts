@@ -2,6 +2,9 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
+/** Values a Promise reject arm from a queued Schedule transaction may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const tails = new WeakMap<Agent, Promise<void>>()
 
 /**
@@ -13,7 +16,7 @@ const tails = new WeakMap<Agent, Promise<void>>()
 export async function runScheduleTransaction<T>(agent: Agent, operation: () => Promise<T>): Promise<T> {
   const prior = tails.get(agent) ?? Promise.resolve()
   const run = prior.then(operation)
-  const tail = run.then(() => undefined, () => undefined)
+  const tail = run.then(() => undefined, (_error: Thrown) => {})
   tails.set(agent, tail)
   try {
     return await run

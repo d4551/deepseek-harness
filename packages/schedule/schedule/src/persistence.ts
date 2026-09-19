@@ -24,7 +24,7 @@ export class SchedulePersistenceError extends Error {
 export async function flushSchedulePersistence(ctx: Context, session: Session): Promise<void> {
   try {
     if (!await ctx.sessions.flush(session)) throw new SchedulePersistenceError()
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof SchedulePersistenceError) throw error
     throw new SchedulePersistenceError(error)
   }

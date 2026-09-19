@@ -73,9 +73,13 @@ function dueDecision(folded: FoldedSchedules, now: number): DueDecision {
 
 /** Render a claim-boundary or Thrown value for process-local diagnostics only. */
 function renderThrown(value: unknown): string {
-  if (value instanceof Error) return value.message
+  if (value instanceof Error) {
+    if (value.message !== '') return value.message
+    const line = value.stack?.split('\n', 1)[0]
+    return line !== undefined && line !== '' ? line : value.name
+  }
   switch (typeof value) {
-    case 'string': return value
+    case 'string':
     case 'number':
     case 'boolean':
     case 'bigint':
@@ -125,7 +129,7 @@ export class ScheduleRuntime {
     let run: Promise<void>
     try {
       run = this.ctx.agents.withoutInitiator(() => this.runRequested())
-    } catch (error: unknown) {
+    } catch (error) {
       if (this.isLive()) {
         this.ctx.logger.warn(`schedule: could not start runtime for agent "${this.agent.id}": ${renderThrown(error)}`)
       }
@@ -226,7 +230,7 @@ export class ScheduleRuntime {
         this.agent.session.events,
         this.agent.session.header.seedLength ?? 0,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       this.faulted = true
       const detail = error instanceof ScheduleLogError ? error.message : renderThrown(error)
       this.ctx.logger.warn(`schedule: corrupt schedule log for agent "${this.agent.id}": ${detail}`)
@@ -238,7 +242,7 @@ export class ScheduleRuntime {
   private decide(folded: FoldedSchedules, now: number): DueDecision | undefined {
     try {
       return dueDecision(folded, now)
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`schedule: fixed-rate decision failed for agent "${this.agent.id}": ${renderThrown(error)}`)
       return undefined
     }
@@ -283,7 +287,7 @@ export class ScheduleRuntime {
                 source: { kind: 'plugin', plugin: 'schedule' },
               })
               this.agent.followup(message)
-            } catch (error: unknown) {
+            } catch (error) {
               if (this.isLive()) {
                 this.ctx.logger.warn(`schedule: framing or followup failed for agent "${this.agent.id}": ${renderThrown(error)}`)
               }
@@ -306,7 +310,7 @@ export class ScheduleRuntime {
                   })
                 }
               }
-            } catch (error: unknown) {
+            } catch (error) {
               this.faulted = true
               this.clearTimer()
               this.ctx.logger.warn(`schedule: dispatch append failed for agent "${this.agent.id}": ${renderThrown(error)}`)
@@ -314,7 +318,7 @@ export class ScheduleRuntime {
             }
             return Promise.resolve(true)
           })
-        } catch (_busy: unknown) {
+        } catch (_busy) {
           // `runMaintenance` rejects synchronously only while another agent activity owns the idle phase.
           if (this.isLive()) this.waitForIdle()
           return
