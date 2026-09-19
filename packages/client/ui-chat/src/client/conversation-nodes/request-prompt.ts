@@ -1,8 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
-import {
-  requireConversationPromptSnapshot,
-  type ConversationMatch, type ConversationNodeContext, type ConversationNodeDefinition,
-  type RequestPromptInspector,
+import type {
+  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition,
+  ConversationPromptSnapshotReader, RequestPromptInspector,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { chatNode } from './common.ts'
 
@@ -24,10 +23,13 @@ function isRecord(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-function previousRequestPrompt(value: unknown): RequestPromptState | undefined {
+function previousRequestPrompt(
+  value: unknown,
+  readPrompt: ConversationPromptSnapshotReader,
+): RequestPromptState | undefined {
   if (value === undefined) return undefined
   if (!isRecord(value)) throw new TypeError('request-prompt predecessor State is not an object')
-  const prompt = requireConversationPromptSnapshot(Reflect.get(value, 'prompt'))
+  const prompt = readPrompt(Reflect.get(value, 'prompt'))
   const anchorSeq: unknown = Reflect.get(value, 'anchorSeq')
   const showsPrompt: unknown = Reflect.get(value, 'showsPrompt')
   if (typeof anchorSeq !== 'number' || !Number.isSafeInteger(anchorSeq)
@@ -77,11 +79,14 @@ function stableRequestPromptAnchor(
 
 /**
  * Request-header prompt Definition for the Chat target.
- * @param inspect - the shared prompt interpretation, supplied by the
- * uiConversation service (a client bundle cannot value-import it).
+ * @param inspect - request-header prompt interpretation.
+ * @param readPrompt - claim a stored prompt snapshot.
  * @returns the Chat request-prompt Definition.
  */
-export function requestPromptDefinition(inspect: RequestPromptInspector): ConversationNodeDefinition<RequestPromptState> {
+export function requestPromptDefinition(
+  inspect: RequestPromptInspector,
+  readPrompt: ConversationPromptSnapshotReader,
+): ConversationNodeDefinition<RequestPromptState> {
   return {
     kind: 'request-prompt',
     target: 'chat',
@@ -92,7 +97,7 @@ export function requestPromptDefinition(inspect: RequestPromptInspector): Conver
       if (match.event.type !== 'request/header') {
         throw new Error('request-prompt start requires request/header')
       }
-      const previous = previousRequestPrompt(reader.previous('request-prompt')?.state)
+      const previous = previousRequestPrompt(reader.previous('request-prompt')?.state, readPrompt)
       const location = match.location.kind === 'step'
         ? { turn: match.location.turn.turn, step: match.location.step.step }
         : {}
@@ -130,5 +135,6 @@ export function requestPromptDefinition(inspect: RequestPromptInspector): Conver
 export function registerRequestPromptConversationNode(ctx: Context): void {
   ctx.uiConversation.events.register(requestPromptDefinition(
     (previous, event) => ctx.uiConversation.inspectRequestPrompt(previous, event),
+    value => ctx.uiConversation.requireConversationPromptSnapshot(value),
   ))
 }

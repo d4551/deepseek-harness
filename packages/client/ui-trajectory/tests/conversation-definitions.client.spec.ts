@@ -9,7 +9,9 @@ import type {
 import type {
   ConversationNodeDefinition, ConversationViewDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ConversationNodeAssembler, inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  ConversationNodeAssembler, inspectRequestPrompt, requireConversationPromptSnapshot,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isChunkRow, packChunkRuns, type ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { registerTrajectoryAssistantDefinition } from '../src/client/trajectory-assistant-definition.ts'
@@ -32,6 +34,7 @@ const registrationContext = {
       },
     },
     inspectRequestPrompt,
+    requireConversationPromptSnapshot,
   },
 } as unknown as Context
 

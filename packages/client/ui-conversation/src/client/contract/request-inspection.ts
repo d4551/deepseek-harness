@@ -38,15 +38,14 @@ export interface RequestPromptInspection {
   change?: RequestPromptChange
 }
 
-/**
- * The {@link inspectRequestPrompt} signature as a value seam: Chat and
- * Trajectory Definitions receive it from the uiConversation service because a
- * client bundle cannot value-import another plugin's module.
- */
+/** Signature of {@link inspectRequestPrompt}. */
 export type RequestPromptInspector = (
   previous: ConversationPromptSnapshot | undefined,
   event: SessionEvent<'request/header'>,
 ) => RequestPromptInspection
+
+/** Claim a stored prompt snapshot. */
+export type ConversationPromptSnapshotReader = (value: unknown) => ConversationPromptSnapshot
 
 /**
  * Canonicalize one request header and classify its model-visible prompt change.
@@ -131,6 +130,7 @@ function requireAssistantRequestConfig(value: unknown): AssistantRequestConfig {
  * Claim a model-visible request-header snapshot.
  * @param value - untyped predecessor or stored prompt payload.
  * @returns the snapshot.
+ * @throws {TypeError} when the payload is not a ConversationPromptSnapshot.
  */
 export function requireConversationPromptSnapshot(value: unknown): ConversationPromptSnapshot {
   if (!isRecord(value)) throw new TypeError('conversation prompt snapshot is not an object')

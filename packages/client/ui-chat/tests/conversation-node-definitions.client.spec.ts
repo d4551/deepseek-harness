@@ -28,7 +28,9 @@ import { compactionDefinition } from '../src/client/conversation-nodes/compactio
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
 import { nextStepInboxDefinition, nextTurnInboxDefinition } from '../src/client/conversation-nodes/inbox.ts'
 import { messageDefinition } from '../src/client/conversation-nodes/message.ts'
-import { inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  inspectRequestPrompt, requireConversationPromptSnapshot,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { requestPromptDefinition } from '../src/client/conversation-nodes/request-prompt.ts'
 import { retryDefinition } from '../src/client/conversation-nodes/retry.ts'
 import { toolDefinition } from '../src/client/conversation-nodes/tool.ts'
@@ -44,7 +46,7 @@ const DEFINITIONS: readonly ConversationNodeDefinition[] = [
   nextTurnInboxDefinition,
   nextStepInboxDefinition,
   messageDefinition,
-  requestPromptDefinition(inspectRequestPrompt),
+  requestPromptDefinition(inspectRequestPrompt, requireConversationPromptSnapshot),
   assistantDefinition,
   turnProcessDefinition,
   toolDefinition,
@@ -216,7 +218,11 @@ describe('built-in conversation node Definitions', () => {
       location: { kind: 'session' as const },
     }
 
-    expect(() => requestPromptDefinition(inspectRequestPrompt).start({} as never, invalidStart, {} as never))
+    const start = requestPromptDefinition(
+      inspectRequestPrompt,
+      requireConversationPromptSnapshot,
+    ).start
+    expect(() => start({} as never, invalidStart, {} as never))
       .toThrow('request-prompt start requires request/header')
   })
 
