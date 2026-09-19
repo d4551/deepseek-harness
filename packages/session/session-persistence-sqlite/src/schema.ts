@@ -17,6 +17,7 @@ import {
   SessionId,
   type SessionHeader,
 } from '@deepseek-ai/dsh-session'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { sql } from './sql.ts'
 
 /** Current physical-record schema with packed and compressed event rows. */
@@ -137,7 +138,7 @@ function configureDatabase(
       /* v8 ignore next 5 -- retain the original ownership failure if rollback fails too. */
       try {
         db.exec(sql('rollback'))
-      } catch {
+      } catch (_error: Thrown) {
         // The original database-ownership failure remains actionable.
       }
     }

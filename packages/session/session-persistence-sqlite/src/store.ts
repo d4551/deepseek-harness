@@ -23,6 +23,7 @@ import {
   type StoredPrefix,
   type StoredSuffix,
 } from '@deepseek-ai/dsh-session-persistence'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import {
   MAX_PACKED_ROW_MEMBERS,
   packChunkRuns,
@@ -357,7 +358,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       try {
         const last = decodeRow(predecessor).at(-1)
         if (last !== undefined && storedEventSeq(last) >= fromSeq) base = Math.min(base, predecessor.seq)
-      } catch {
+      } catch (_error: Thrown) {
         // A malformed bounded predecessor may cover fromSeq; include it so the scanner fails closed.
         base = Math.min(base, predecessor.seq)
       }
