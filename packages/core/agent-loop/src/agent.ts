@@ -34,6 +34,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
 import { executeToolCalls } from './tool-calls.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type Phase =
   | { kind: 'idle'; lastTurn: number }
   | {
@@ -200,7 +203,10 @@ export class ReactLoopAgent implements Agent {
       wakeRequested: false,
     }
     this.setPhase(phase)
-    this.loopCtx.agents.withInitiator(this, () => this.kick(phase)).then(driver.resolve, driver.reject)
+    this.loopCtx.agents.withInitiator(this, () => this.kick(phase)).then(
+      driver.resolve,
+      (error: Thrown) => { driver.reject(error) },
+    )
   }
 
   async whenIdle(): Promise<void> {
@@ -260,7 +266,7 @@ export class ReactLoopAgent implements Agent {
     const turn = phase.turn + 1
     try {
       this.session.append('turn/start', { turn })
-    } catch (error: unknown) {
+    } catch (error) {
       this.throwError(error)
     }
     phase.turn = turn
@@ -268,7 +274,7 @@ export class ReactLoopAgent implements Agent {
     try {
       outcome = await this.runSteps(phase)
       signal.throwIfAborted()
-    } catch (error: unknown) {
+    } catch (error) {
       if (signal.aborted) {
         outcome = { kind: 'failed', reason: { kind: 'aborted', reason: signal.reason as AgentCancelCause }, error, report: false }
       } else if (error instanceof RequestBudgetExhausted) {
@@ -297,7 +303,7 @@ export class ReactLoopAgent implements Agent {
     } finally {
       try {
         this.session.append('turn/end', { turn, reason: outcome.reason })
-      } catch (error: unknown) {
+      } catch (error) {
         this.throwError(error)
       }
     }
@@ -375,7 +381,7 @@ export class ReactLoopAgent implements Agent {
           assembler.push(chunk)
         }
         signal.throwIfAborted()
-      } catch (error: unknown) {
+      } catch (error) {
         if (signal.aborted) {
           const content = assembler.interruptedBlocks()
           if (content.length > 0) {
@@ -498,7 +504,7 @@ export class ReactLoopAgent implements Agent {
     try {
       preparedCall = await this.loopCtx.llm.prepareCall(proposedConfig, signal)
       config = preparedCall.config
-    } catch (error: unknown) {
+    } catch (error) {
       // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
       if (!(error instanceof LlmError) || error.code !== 'NO_ADAPTER') throw error
       config = proposedConfig

@@ -9,7 +9,7 @@ import { Context, FiberState, Service } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import {
-  emitAgentEvent, observeListenerInvocation, observeReturnedThenable, renderListenerFailure,
+  emitAgentEvent, observeListenerInvocation, observeReturnedThenable,
 } from '@deepseek-ai/dsh-agent'
 import type { ListenerFailure } from '@deepseek-ai/dsh-agent'
 import type {
@@ -33,6 +33,28 @@ import { ReactLoopAgent } from './agent.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 import type { RequestBudgetPolicy } from '@deepseek-ai/dsh-session/types'
 import { installRequestBudgetSettings, REQUEST_BUDGET_POLICY_SCHEMA } from './request-budget-settings.ts'
+
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Human text for a leftover reject-arm value. */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** Fiber states that cannot own or serve a new lifecycle. */
 const INACTIVE_STATES: ReadonlySet<FiberState> = new Set([
@@ -69,13 +91,13 @@ class FactoryOwnership {
   /** Join config startup work that begins before an agent exists. */
   trackStartup(job: Promise<void>): void {
     this.startupTasks.add(job)
-    const forget = () => { this.startupTasks.delete(job) }
-    job.then(forget, forget)
+    const forget = (): void => { this.startupTasks.delete(job) }
+    job.then(forget, (_error: Thrown) => { forget() })
   }
 
   /** Join one public create/resume continuation; factory dispose awaits its settlement. */
   trackWrapper(job: Promise<unknown>): void {
-    this.trackStartup(job.then(() => undefined, () => undefined))
+    this.trackStartup(job.then(() => undefined, (_error: Thrown) => {}))
   }
 
   /** Resolve `task`, or stop waiting when factory teardown begins. */
@@ -87,10 +109,18 @@ class FactoryOwnership {
     this.accepting = false
     this.teardown.abort(new Error('agent loop is not active'))
     this.inactive.resolve()
-    await Promise.all([
+    let firstFailure: { error: Thrown } | undefined
+    const pending = [
       ...[...this.liveAgents].map(dispose => dispose()),
       ...this.startupTasks,
-    ])
+    ]
+    await Promise.all(pending.map(job => job.then(
+      () => undefined,
+      (error: Thrown) => {
+        firstFailure ??= { error }
+      },
+    )))
+    if (firstFailure !== undefined) throw firstFailure.error
   }
 }
 
@@ -112,8 +142,8 @@ async function raceAbort<T>(operation: PromiseLike<T> | T, signal: AbortSignal, 
 }
 
 /** Log a rejected abandoned operation after abort without a catch-callback binding. */
-function reportAbandonedRejection(reason: ListenerFailure): void {
-  console.error('abandoned agent-loop operation rejected after abort:', renderListenerFailure(reason))
+function reportAbandonedRejection(reason: Thrown): void {
+  console.error('abandoned agent-loop operation rejected after abort:', thrownMessage(reason))
 }
 
 /** Start an abortable operation and release a value that arrives after cancellation. */
