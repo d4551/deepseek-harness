@@ -31,6 +31,27 @@ export const SYNTHETIC_HOST = '127.0.0.1'
 
 const encoder = new TextEncoder()
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Render a failure with everything nested inside it.
  *
@@ -267,8 +288,8 @@ export class TunnelServer {
 
   private dispatchFrame(frame: QueuedFrame): void {
     const serving = frame.t === 'stream-open' ? this.serveStream(frame) : this.serveRequest(frame)
-    serving.then(undefined, (error: unknown) => {
-      console.error('webworker tunnel: response delivery failed', error)
+    serving.then(undefined, (reason: Thrown) => {
+      console.error('webworker tunnel: response delivery failed', reason)
     })
   }
 
@@ -372,8 +393,8 @@ export class TunnelServer {
     this.whenListener().then((resolved) => {
       // A page that gave up while the server was still binding has nothing to answer.
       if (!exchange.aborted) resolved(exchange.req, exchange.res)
-    }, (reason: unknown) => {
-      sink.fail(reason instanceof Error ? reason.message : String(reason))
+    }, (reason: Thrown) => {
+      sink.fail(thrownMessage(reason))
     })
     return exchange
   }

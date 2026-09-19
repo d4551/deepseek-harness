@@ -41,6 +41,9 @@
  */
 import { notImplementedFail } from '../../notImplementedFail.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 interface Entry<T> {
   readonly store: T | undefined
 }
@@ -144,8 +147,8 @@ export class AsyncLocalStorage<T> {
       // `then.call` on the caller's own promise: no species construction, and the
       // rejection stays the caller's to observe (both handlers are attached, so
       // this observation never becomes an unhandled rejection itself).
-      nativeThen.call(result, removeBoundary, removeBoundary).then(undefined, (error: unknown) => {
-        console.error('webworker async context: boundary release failed', error)
+      nativeThen.call(result, removeBoundary, removeBoundary).then(undefined, (reason: Thrown) => {
+        console.error('webworker async context: boundary release failed', reason)
       })
     } catch {
       // A branded promise may expose a failing @@species; the boundary then ends
