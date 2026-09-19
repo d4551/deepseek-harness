@@ -111,6 +111,7 @@ class StubPtySession implements TerminalBackendSession {
   pendingText = ''
   historyTruncated = false
   throwOnSend = false
+  throwOnClose = false
 
   constructor(mode: StubMode) {
     this.mode = mode
@@ -265,6 +266,7 @@ class StubPtySession implements TerminalBackendSession {
   async close(reason: string) {
     this.closed.push(reason)
     this.statusValue = { kind: 'exited', exitCode: 0, signal: null }
+    if (this.throwOnClose) throw new Error('stub close failed')
   }
 
   private result(viewport: string, waitReason: TerminalWaitReason) {
@@ -574,6 +576,18 @@ describe('tool-shell-persistent: the bash dialect', () => {
     await spawnAborted.promise
     expect((await running).isError).toBe(true)
     expect(ctx.terminals.list(owner)).toEqual([])
+  })
+
+  it('finishes every live close during dispose when one close fails', async () => {
+    const { ctx, owner, stub, fiber } = await setup()
+    expect(text(await call(ctx, owner, 'warm up'))).toBe('hello from stub')
+    const second = agent(ctx, '/workspace')
+    expect(text(await call(ctx, second, 'warm up'))).toBe('hello from stub')
+    stub.sessions[0]!.throwOnClose = true
+    stub.sessions[1]!.throwOnClose = true
+    await fiber.dispose()
+    expect(stub.sessions[0]?.closed).toContain('tool-shell-persistent disposed')
+    expect(stub.sessions[1]?.closed).toContain('tool-shell-persistent disposed')
   })
 
   it('rejects invalid config and invalid calls', async () => {

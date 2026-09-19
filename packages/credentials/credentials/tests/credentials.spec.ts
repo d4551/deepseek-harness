@@ -1,8 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { credentialRef, isCredentialKeySegment } from '../src/index.ts'
-import type { CredentialRef } from '../src/index.ts'
+import {
+  credentialKey, credentialKeyId, credentialKeyScope, credentialRef, isCredentialKeySegment,
+  parseCredentialKey,
+} from '../src/index.ts'
+import type { CredentialKey, CredentialRef } from '../src/index.ts'
 import { MemoryCredentials } from './memory.ts'
+
+/** Test provider that publishes through the seam's contained fan-out. */
+class AnnouncingCredentials extends MemoryCredentials {
+  announceRef(ref: CredentialRef): void {
+    this.notifyUpdated(ref)
+  }
+
+  announceRecord(key: CredentialKey): void {
+    this.notifyRecordUpdated(key)
+  }
+}
 
 const REF = credentialRef('DEEPSEEK_API_KEY')
 
@@ -36,6 +50,58 @@ describe('isCredentialKeySegment', () => {
     for (const invalid of ['', 'My_Proxy', 'z.ai', 'UPPER', '9leading', 'a/b']) {
       expect(isCredentialKeySegment(invalid)).toBe(false)
     }
+  })
+})
+
+describe('credentialKey', () => {
+  it('brands two lowercase hyphenated segments and refuses any other shape', () => {
+    const key = credentialKey('llm-pi-ai', 'openai-codex')
+    expect(key).toBe('llm-pi-ai/openai-codex')
+    expect(credentialKeyScope(key)).toBe('llm-pi-ai')
+    expect(credentialKeyId(key)).toBe('openai-codex')
+    expect(parseCredentialKey('llm-pi-ai/openai-codex')).toBe(key)
+    expect(() => credentialKey('llm-pi-ai', 'OpenAI')).toThrow(TypeError)
+    expect(() => parseCredentialKey('openai-codex')).toThrow(/must be "<scope>\/<id>"/)
+    expect(() => parseCredentialKey('a/b/c')).toThrow(/must be "<scope>\/<id>"/)
+  })
+})
+
+describe('the contained update fan-out', () => {
+  it('keeps a throwing listener from changing a commit, and later listeners still run', () => {
+    const ctx = new Context()
+    const credentials = new AnnouncingCredentials(ctx)
+    ctx.on('credentials/reference-updated', () => {
+      throw new Error('observer boom')
+    })
+    const second = vi.fn<(ref: CredentialRef) => void>()
+    ctx.on('credentials/reference-updated', second)
+
+    expect(() => { credentials.announceRef(REF) }).not.toThrow()
+    expect(second).toHaveBeenCalledWith(REF)
+  })
+
+  it('contains an async listener rejection', async () => {
+    const ctx = new Context()
+    const credentials = new AnnouncingCredentials(ctx)
+    const boom = (): Promise<never> => Promise.reject(new Error('async observer boom'))
+    ctx.on('credentials/reference-updated', boom)
+
+    expect(() => { credentials.announceRef(REF) }).not.toThrow()
+    await new Promise(resolve => setTimeout(resolve, 10))
+  })
+
+  it('rethrows an invariant-coded listener failure after the remaining listeners', () => {
+    const ctx = new Context()
+    const credentials = new AnnouncingCredentials(ctx)
+    ctx.on('credentials/record-updated', () => {
+      throw Object.assign(new Error('forged relation'), { code: 'INVARIANT' })
+    })
+    const second = vi.fn<(key: CredentialKey) => void>()
+    ctx.on('credentials/record-updated', second)
+    const key = credentialKey('llm-pi-ai', 'openai-codex')
+
+    expect(() => { credentials.announceRecord(key) }).toThrow(/forged relation/)
+    expect(second).toHaveBeenCalledWith(key)
   })
 })
 

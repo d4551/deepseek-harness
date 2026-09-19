@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { credentialKey } from '@deepseek-ai/dsh-credentials'
+import { credentialKey, type CredentialKey } from '@deepseek-ai/dsh-credentials'
 import AuthorizationService, {
   AuthorizationDeclinedError,
   type AuthorizationFlow,
   type AuthorizationInteraction,
   type AuthorizationSession,
+  type AuthorizationSettlement,
 } from '@deepseek-ai/dsh-authorization'
 import { MemoryCredentials } from './memory.ts'
 
@@ -77,6 +78,22 @@ describe('AuthorizationService registry', () => {
     expect(ctx.authorization.describe(KEY)).toBeUndefined()
   })
 
+  it('logs a rejected flow disposer without throwing from the returned disposer', async () => {
+    const ctx = await harness()
+    const error = vi.spyOn(ctx.logger, 'error')
+    const effect = ctx.effect.bind(ctx)
+    vi.spyOn(ctx, 'effect').mockImplementation((execute, label) => {
+      const dispose = effect(execute, label)
+      return Object.assign(() => Promise.reject(new Error('effect teardown failed')), dispose)
+    })
+
+    const dispose = ctx.authorization.registerFlow(committingFlow(ctx))
+    expect(() => { dispose() }).not.toThrow()
+    await vi.waitFor(() => {
+      expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'effect teardown failed' }))
+    })
+  })
+
   it('refuses a second flow for the same key', async () => {
     const ctx = await harness()
     ctx.authorization.registerFlow(committingFlow(ctx))
@@ -109,7 +126,7 @@ describe('AuthorizationService.begin', () => {
   it('runs the flow, confirms the committed record, and reports the settlement', async () => {
     const ctx = await harness()
     ctx.authorization.registerFlow(committingFlow(ctx))
-    const settled = vi.fn()
+    const settled = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', settled)
 
     await expect(ctx.authorization.begin({ key: KEY, interaction: surface() }))
@@ -193,8 +210,8 @@ describe('AuthorizationService.begin', () => {
 
   it('never starts a flow whose caller withdrew before begin', async () => {
     const ctx = await harness()
-    const ran = vi.fn()
-    const settled = vi.fn()
+    const ran = vi.fn<() => void>()
+    const settled = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', settled)
     ctx.authorization.registerFlow(committingFlow(ctx, KEY, () => {
       ran()
@@ -282,7 +299,7 @@ describe('AuthorizationService.begin', () => {
     const ctx = await harness()
     ctx.authorization.registerFlow(committingFlow(ctx, KEY, () =>
       Promise.reject(new Error('the token endpoint said no'))))
-    const settled = vi.fn()
+    const settled = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', settled)
 
     await expect(ctx.authorization.begin({ key: KEY, interaction: surface() }))
@@ -350,7 +367,7 @@ describe('declined prompts', () => {
     ctx.authorization.registerFlow(committingFlow(ctx, KEY, async (session) => {
       await session.prompt({ kind: 'text', message: 'Paste the code' })
     }))
-    const settled = vi.fn()
+    const settled = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', settled)
     const declining: AuthorizationInteraction = {
       notify: () => undefined,
@@ -385,7 +402,7 @@ describe('declined prompts', () => {
     ctx.authorization.registerFlow(committingFlow(ctx, KEY, async (session) => {
       await session.prompt({ kind: 'text', message: 'Paste the code' })
     }))
-    const settled = vi.fn()
+    const settled = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', settled)
     const broken: AuthorizationInteraction = {
       notify: () => undefined,
@@ -425,7 +442,7 @@ describe('the settled fan-out', () => {
     ctx.on('authorization/settled', () => {
       throw new Error('watcher boom')
     })
-    const second = vi.fn()
+    const second = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', second)
 
     await expect(ctx.authorization.begin({ key: KEY, interaction: surface() }))
@@ -453,7 +470,7 @@ describe('the settled fan-out', () => {
     ctx.on('authorization/settled', () => {
       throw Object.assign(new Error('forged relation'), { code: 'INVARIANT' })
     })
-    const second = vi.fn()
+    const second = vi.fn<(key: CredentialKey, settlement: AuthorizationSettlement) => void>()
     ctx.on('authorization/settled', second)
 
     await expect(ctx.authorization.begin({ key: KEY, interaction: surface() }))

@@ -408,6 +408,28 @@ describe('LlmRuntime', () => {
     })
   })
 
+  it('returns cancellation after readiness when the request signal aborts during the barrier', async () => {
+    const controller = new AbortController()
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['test'], new ThrowingAdapter(new Error('stopped')))
+    ctx.on('llm/request-ready', () => {
+      controller.abort('cancelled during ready')
+    })
+
+    const chunks = await collect(ctx.llm.stream({
+      provider: 'test',
+      model: 'test',
+      messages: [],
+      signal: controller.signal,
+    }))
+
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'finish',
+      reason: { kind: 'aborted', failure: { message: 'cancelled during ready', code: 'ABORTED' } },
+    })
+  })
+
   it('returns cancellation before dispatch when the request signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort('cancelled')
