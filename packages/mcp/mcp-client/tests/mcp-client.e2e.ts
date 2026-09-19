@@ -28,6 +28,32 @@ import { apply } from '@deepseek-ai/dsh-mcp-client/src/index.ts'
 import { publicToolName } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
 import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected in-process HTTP MCP request.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const testToolSignal = new AbortController().signal
 
 const fixtureServerPath = fileURLToPath(new URL('./fixture-server.ts', import.meta.url))
@@ -502,8 +528,8 @@ describe('streamable-http — in-process MCP server', () => {
 
   beforeAll(async () => {
     httpServer = createServer((req, res) => {
-      handleMcpRequest(req, res).catch((error: unknown) => {
-        res.writeHead(500).end(String(error))
+      handleMcpRequest(req, res).catch((error: Thrown) => {
+        res.writeHead(500).end(thrownMessage(error))
       })
     })
     const listening: PromiseWithResolvers<void> = Promise.withResolvers()

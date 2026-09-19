@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -203,6 +204,17 @@ describe('FileSystemSkillProvider', () => {
     const noGit = await tempDir('skill-no-git')
     await writeSkill(join(noGit, '.dsh/skills'), 'fallback-root', 'Fallback root')
     expect((await ctx.skills.list({ cwd: noGit })).map(skill => skill.name)).toContain('fallback-root')
+  })
+
+  it('ignores a non-file non-directory native skill root entry', async () => {
+    const home = await tempDir('skill-fifo-home')
+    const root = join(home, '.dsh/skills')
+    await mkdir(root, { recursive: true })
+    const fifo = join(root, 'fifo-skill')
+    const created = spawnSync('mkfifo', [fifo])
+    if (created.status !== 0) throw new Error(created.stderr.toString() || 'mkfifo failed')
+    const ctx = await setupLocal(home)
+    expect(await ctx.skills.list()).toEqual([])
   })
 
   it('lets project skills override runtime while runtime overrides custom and user skills', async () => {
@@ -741,6 +753,31 @@ describe('FileSystemSkillProvider', () => {
     })
     await noWatch.skills.list({ cwd: first })
     await noWatch.skills.list({ cwd: second })
+  })
+
+  it('contains concurrent overflow eviction of the same project watch set', async () => {
+    const home = await tempDir('skill-watch-concurrent-home')
+    const projects = await Promise.all([
+      tempDir('skill-watch-concurrent-a'),
+      tempDir('skill-watch-concurrent-b'),
+      tempDir('skill-watch-concurrent-c'),
+    ])
+    await Promise.all(projects.map(async (project, index) => {
+      await mkdir(join(project, '.git'), { recursive: true })
+      await writeSkill(join(project, '.agents/skills'), `project-${String(index)}`, `Project ${String(index)}`)
+    }))
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: false,
+      watchMaxProjects: 1,
+    })
+    await Promise.all(projects.map(project => ctx.skills.list({ cwd: project })))
+    const names = (await ctx.skills.list({ cwd: projects[0], additionalRoots: projects.slice(1) })).map(skill => skill.name)
+    expect(names).toEqual(['project-0', 'project-1', 'project-2'])
+    await fiber.dispose()
   })
 
   it('contains repeated disposal and late first-party observations', async () => {

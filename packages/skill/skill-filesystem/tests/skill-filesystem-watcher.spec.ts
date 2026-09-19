@@ -28,9 +28,13 @@ const watcherHarness = vi.hoisted(() => ({
   watchers: [] as FakeWatcherControl[],
   startupErrors: [] as Error[],
   closeErrors: 0,
+  closeRejections: [] as Array<object | string | number | boolean | bigint | symbol | null | undefined>,
+  closeGates: [] as FakeStatGate[],
   deferredReady: 0,
   watchFiles: [] as FakeWatchFileControl[],
   statGates: [] as FakeStatGate[],
+  statFailures: [] as Array<object | string | number | boolean | bigint | symbol | null | undefined>,
+  statAbsentAll: false,
 }))
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -52,6 +56,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return {
     ...actual,
     async stat(...args: Parameters<typeof actual.stat>) {
+      if (watcherHarness.statAbsentAll) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      const failure = watcherHarness.statFailures.shift()
+      if (failure !== undefined) throw failure
       const gate = watcherHarness.statGates.shift()
       if (gate !== undefined) {
         gate.started.resolve(undefined)
@@ -69,6 +78,13 @@ vi.mock('chokidar', () => ({
       const control: FakeWatcherControl = { emitter, closeCalls: 0, options, path: String(path) }
       emitter.close = async () => {
         control.closeCalls += 1
+        const gate = watcherHarness.closeGates.shift()
+        if (gate !== undefined) {
+          gate.started.resolve(undefined)
+          await gate.release.promise
+        }
+        const rejection = watcherHarness.closeRejections.shift()
+        if (rejection !== undefined) throw rejection
         if (watcherHarness.closeErrors > 0) {
           watcherHarness.closeErrors -= 1
           throw new Error('close failed')
@@ -109,9 +125,13 @@ beforeEach(() => {
   watcherHarness.watchers.length = 0
   watcherHarness.startupErrors.length = 0
   watcherHarness.closeErrors = 0
+  watcherHarness.closeRejections.length = 0
+  watcherHarness.closeGates.length = 0
   watcherHarness.deferredReady = 0
   watcherHarness.watchFiles.length = 0
   watcherHarness.statGates.length = 0
+  watcherHarness.statFailures.length = 0
+  watcherHarness.statAbsentAll = false
 })
 
 describe('skill-filesystem watcher failures', () => {
@@ -440,5 +460,275 @@ describe('skill-filesystem watcher failures', () => {
     await expect(discovery).rejects.toThrow('opening failed during disposal')
     await disposal
     disposeProvider()
+  })
+
+  it('contains a mode re-probe rejection after the native watcher handle opens', async () => {
+    const home = await tempDir('skill-watch-reprobe-reject')
+    const root = join(home, 'skills')
+    await writeSkill(root, 'reprobe-skill')
+    watcherHarness.deferredReady = 1
+    const ctx = new Context()
+    const warnings: string[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      includeDefaultRoots: false,
+      customSkillDirs: [root],
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    const discovery = ctx.skills.snapshot()
+    await vi.waitFor(() => { expect(watcherHarness.watchers).toHaveLength(1) })
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected an opening root watcher')
+    watcherHarness.statFailures.push(Object.assign(new Error('reprobe denied'), { code: 'EACCES' }))
+    first.emitter.emit('ready')
+    expect(await discovery).toMatchObject({
+      skills: [{ name: 'reprobe-skill' }],
+      complete: false,
+    })
+    expect(warnings.some(message => message.includes('reprobe denied'))).toBe(true)
+    await fiber.dispose()
+  })
+
+  it('treats an unexpected ancestor probe failure as a watcher error', async () => {
+    const home = await tempDir('skill-watch-ancestor-reject')
+    const ctx = new Context()
+    const warnings: string[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect(await ctx.skills.snapshot()).toEqual({ skills: [], complete: true })
+    expect(watcherHarness.watchFiles.length).toBeGreaterThan(0)
+    watcherHarness.statFailures.push(Object.assign(new Error('ancestor denied'), { code: 'EACCES' }))
+    const probe = watcherHarness.watchFiles[0]
+    if (probe === undefined) throw new Error('expected an ancestor probe')
+    probe.listener({} as Stats, {} as Stats)
+    await settle()
+    expect(warnings.some(message => message.includes('ancestor denied'))).toBe(true)
+    await fiber.dispose()
+  })
+
+  it.each([
+    ['string', 'boom-string', 'boom-string'],
+    ['number', 42, '42'],
+    ['boolean', false, 'false'],
+    ['bigint', 7n, '7'],
+    ['symbol', Symbol.for('skill-watch-thrown'), 'Symbol(skill-watch-thrown)'],
+    ['null', null, 'null'],
+    ['undefined', undefined, 'undefined'],
+    ['plain object', Object.create(null), '[object Object]'],
+    ['function', function thrownWatcher() {}, 'function thrownWatcher'],
+  ] as const)('renders a %s runtime watcher failure', async (_kind, thrown, text) => {
+    const home = await tempDir(`skill-watch-thrown-${String(_kind).replaceAll(' ', '-')}`)
+    const root = join(home, '.dsh/skills')
+    await writeSkill(root, 'thrown-skill')
+    const ctx = new Context()
+    const warnings: string[] = []
+    ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['thrown-skill'])
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected a root watcher')
+    first.emitter.emit('error', thrown)
+    await settle()
+    expect(warnings.some(message => message.includes(text))).toBe(true)
+    await fiber.dispose()
+  })
+
+  it('contains a scheduled rewatch and queued invalidation when disposal wins the next turn', async () => {
+    const home = await tempDir('skill-watch-dispose-rewatch')
+    const root = join(home, '.dsh/skills')
+    await writeSkill(root, 'dispose-rewatch')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['dispose-rewatch'])
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected a root watcher')
+    first.emitter.emit('change', join(first.path, 'dispose-rewatch/SKILL.md'))
+    first.emitter.emit('error', new Error('rewatch after dispose'))
+    await fiber.dispose()
+  })
+
+  it('drains every watcher close when a close warning rejects', async () => {
+    const home = await tempDir('skill-watch-drain-close')
+    const root = join(home, 'skills')
+    await writeSkill(root, 'drain-close')
+    const ctx = new Context()
+    const warnings: string[] = []
+    ctx.logger.warn = ((message: unknown) => {
+      warnings.push(String(message))
+      throw message
+    }) as typeof ctx.logger.warn
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      includeDefaultRoots: false,
+      customSkillDirs: [root],
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['drain-close'])
+    watcherHarness.closeRejections.push('close-primitive')
+    await fiber.dispose()
+    expect(watcherHarness.watchers.every(control => control.closeCalls > 0)).toBe(true)
+    expect(warnings.some(message => message.includes('close-primitive'))).toBe(true)
+  })
+
+  it('replaces a watcher whose root disappears between open and re-probe', async () => {
+    const home = await tempDir('skill-watch-mode-shift')
+    const root = join(home, 'skills')
+    await writeSkill(root, 'shift-skill')
+    watcherHarness.deferredReady = 1
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      includeDefaultRoots: false,
+      customSkillDirs: [root],
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    const discovery = ctx.skills.snapshot()
+    await vi.waitFor(() => { expect(watcherHarness.watchers).toHaveLength(1) })
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected an opening root watcher')
+    await rm(root, { recursive: true })
+    first.emitter.emit('ready')
+    expect((await discovery).skills).toEqual([])
+    await vi.waitFor(() => {
+      expect(watcherHarness.watchFiles.some(control => control.path === first.path)).toBe(true)
+    })
+    expect(first.closeCalls).toBeGreaterThan(0)
+    await fiber.dispose()
+  })
+
+  it('abandons an opening replacement when disposal wins the previous close', async () => {
+    const home = await tempDir('skill-watch-replace-abort')
+    const root = join(home, 'skills')
+    await writeSkill(root, 'replace-abort')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      includeDefaultRoots: false,
+      customSkillDirs: [root],
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect((await ctx.skills.list()).map(skill => skill.name)).toEqual(['replace-abort'])
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected a root watcher')
+    const closeGate: FakeStatGate = {
+      started: Promise.withResolvers<undefined>(),
+      release: Promise.withResolvers<undefined>(),
+    }
+    watcherHarness.closeGates.push(closeGate)
+    first.emitter.emit('unlinkDir', first.path)
+    await closeGate.started.promise
+    const disposal = fiber.dispose()
+    closeGate.release.resolve(undefined)
+    await disposal
+    expect(first.closeCalls).toBeGreaterThan(0)
+  })
+
+  it('contains a late ancestor probe after disposal', async () => {
+    const home = await tempDir('skill-watch-late-ancestor')
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      dshHome: join(home, '.dsh'),
+      agentsHome: join(home, '.agents'),
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect(await ctx.skills.snapshot()).toEqual({ skills: [], complete: true })
+    const probe = watcherHarness.watchFiles[0]
+    if (probe === undefined) throw new Error('expected an ancestor probe')
+    await fiber.dispose()
+    watcherHarness.statFailures.push(Object.assign(new Error('late ancestor'), { code: 'EACCES' }))
+    probe.listener({} as Stats, {} as Stats)
+    await settle()
+  })
+
+  it('drops a queued invalidation when disposal wins the microtask', async () => {
+    const home = await tempDir('skill-watch-invalidation-abort')
+    const root = join(home, 'skills')
+    await writeSkill(root, 'queued-skill')
+    const ctx = new Context()
+    let invalidations = 0
+    ctx.on('skills/change', () => { invalidations += 1 })
+    await ctx.plugin(SkillRegistry)
+    let provider!: InstanceType<typeof SkillFileSystem.FileSystemSkillProvider>
+    const disposeProvider = ctx.skills.registerProvider((control) => {
+      provider = new SkillFileSystem.FileSystemSkillProvider(ctx, control, {
+        includeDefaultRoots: false,
+        customSkillDirs: [root],
+        watch: true,
+        watchPollIntervalMs: 10,
+      })
+      return provider
+    })
+    const listed = await provider.list({})
+    expect((Array.isArray(listed) ? listed : listed.candidates).map(skill => skill.name)).toEqual(['queued-skill'])
+    const before = invalidations
+    const first = watcherHarness.watchers[0]
+    if (first === undefined) throw new Error('expected a root watcher')
+    first.emitter.emit('change', join(first.path, 'queued-skill/SKILL.md'))
+    await provider.dispose()
+    expect(invalidations).toBe(before)
+    disposeProvider()
+  })
+
+  it('observes a rejected provider dispose from the registration abort listener', async () => {
+    const home = await tempDir('skill-watch-abort-dispose')
+    const ctx = new Context()
+    const errors: unknown[] = []
+    ctx.logger.error = ((error: unknown) => { errors.push(error) }) as typeof ctx.logger.error
+    await ctx.plugin(SkillRegistry)
+    let provider!: InstanceType<typeof SkillFileSystem.FileSystemSkillProvider>
+    const disposeProvider = ctx.skills.registerProvider((control) => {
+      provider = new SkillFileSystem.FileSystemSkillProvider(ctx, control, {
+        includeDefaultRoots: false,
+        customSkillDirs: [home],
+        watch: false,
+      })
+      return provider
+    })
+    provider.dispose = () => Promise.reject('dispose-failed')
+    disposeProvider()
+    await settle()
+    expect(errors).toContain('dispose-failed')
+  })
+
+  it('walks to the filesystem root when every watch-mode probe is absent', async () => {
+    const home = await tempDir('skill-watch-absent-all')
+    const root = join(home, 'skills')
+    watcherHarness.statAbsentAll = true
+    const ctx = new Context()
+    await ctx.plugin(SkillRegistry)
+    const fiber = await ctx.plugin(SkillFileSystem, {
+      includeDefaultRoots: false,
+      customSkillDirs: [root],
+      watch: true,
+      watchPollIntervalMs: 10,
+    })
+    expect(await ctx.skills.snapshot()).toEqual({ skills: [], complete: true })
+    expect(watcherHarness.watchFiles.length).toBeGreaterThan(0)
+    await fiber.dispose()
   })
 })

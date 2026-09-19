@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  apply, createClientModuleSystem, parseBootManifest,
+  apply, ClientModuleSystem, createClientModuleSystem, parseBootManifest,
   type BootModuleRow, type ClientBundleRegistration, type ClientModuleCreateOptions,
   type ClientModuleLoader, type ClientModuleLoaderTarget, type DshWindow,
 } from '../src/client/index.ts'
@@ -97,14 +97,23 @@ function bench(
     }
   }
   const bootstrapEntries = entries.filter(entry => entry.initialUrl === BOOTSTRAP_URL).map(entry => entry.id)
-  const applicationEntries = entries.filter(entry => entry.initialUrl === APPLICATION_URL).map(entry => entry.id)
+  const applicationGroups = new Map<string, string[]>()
+  for (const entry of entries) {
+    if (entry.initialUrl === BOOTSTRAP_URL) continue
+    const group = applicationGroups.get(entry.initialUrl)
+    if (group === undefined) applicationGroups.set(entry.initialUrl, [entry.id])
+    else group.push(entry.id)
+  }
   const batches = [
     ...(bootstrapEntries.length === 0 ? [] : [{
       phase: 'bootstrap' as const, url: BOOTSTRAP_URL, rev: 'bootstrap', entries: bootstrapEntries,
     }]),
-    ...(applicationEntries.length === 0 ? [] : [{
-      phase: 'application' as const, url: APPLICATION_URL, rev: 'application', entries: applicationEntries,
-    }]),
+    ...[...applicationGroups].map(([url, ids]) => ({
+      phase: 'application' as const,
+      url,
+      rev: url === APPLICATION_URL ? 'application' : '0',
+      entries: ids,
+    })),
   ]
   const loader = target.create({
     boot: {
@@ -218,6 +227,13 @@ describe('lazy CJS arrival', () => {
     await b.loader.prefetch('a')
     expect(b.fetched).toHaveLength(1)
   })
+
+  it('prefetch after materialization is a no-op', async () => {
+    const b = bench([row('a')], { a: () => ({}) })
+    await b.loader.import('a', '', {})
+    await b.loader.prefetch('a')
+    expect(b.fetched).toHaveLength(1)
+  })
 })
 
 describe('require resolution', () => {
@@ -325,6 +341,23 @@ describe('failure modes', () => {
     await expect(b.loader.import('nope', '', {})).rejects.toThrow('cannot resolve "nope"')
   })
 
+  it('imports a live-registered factory that has no graph row', async () => {
+    const b = bench([])
+    win.__ModuleLoader__?.load({ id: 'loose', factory: () => ({ marker: 'loose' }) })
+    const exports = await b.loader.import('loose', '', {})
+    expect((exports as { marker: string }).marker).toBe('loose')
+    expect(b.fetched).toEqual([])
+  })
+
+  it('arrives a row whose declared requests name no graph row', async () => {
+    const b = bench([
+      row('a', { external: ['ghost/client'], inject: ['missing'] }),
+    ], { a: () => ({ marker: 'solo' }) })
+    const exports = await b.loader.import('a', '', {})
+    expect((exports as { marker: string }).marker).toBe('solo')
+    expect(b.fetched).toEqual([APPLICATION_URL])
+  })
+
   it('an unknown prefetch id is loud', async () => {
     const b = bench([])
     await expect(b.loader.prefetch('nope')).rejects.toThrow('prefetch("nope") — not a graph entry')
@@ -334,12 +367,49 @@ describe('failure modes', () => {
     expect(() => bench([row('a'), row('a')])).toThrow('duplicate graph entry "a"')
   })
 
+  it('a duplicate module table row is loud when the system is constructed over a parsed manifest', () => {
+    const target = registrationTarget()
+    const moduleRow = {
+      id: 'a',
+      url: comboUrl(['a'], '0'),
+      initialUrl: APPLICATION_URL,
+      rev: '0',
+      inject: [],
+      external: [],
+    }
+    expect(() => new ClientModuleSystem({
+      manifest: { rev: 'graph', modules: [moduleRow, moduleRow], plugins: [] },
+      staticModules: {},
+      registrationTarget: target,
+      bootstrapModule: { id: MODULES_ID, exports: bootstrapExports },
+    })).toThrow('duplicate graph entry "a"')
+  })
+
   it('a module arrival cycle is loud even if a malformed host graph reaches the browser', async () => {
     const b = bench([
       row('a', { external: ['b'] }),
       row('b', { external: ['a'] }),
     ])
     await expect(b.loader.prefetch('a')).rejects.toThrow('module arrival cycle a -> b -> a')
+  })
+
+  it('drains sibling dependency arrivals before surfacing the first refusal', async () => {
+    const xUrl = comboUrl(['x'], 'x')
+    const yUrl = comboUrl(['y'], 'y')
+    const b = bench([
+      row('consumer', { external: ['x', 'y'] }),
+      row('x', { initialUrl: xUrl }),
+      row('y', { initialUrl: yUrl }),
+    ], { x: null, y: null }, { gated: [xUrl, yUrl] })
+    const pending = b.loader.prefetch('consumer')
+    await vi.waitFor(() => {
+      expect(b.gates.has(xUrl)).toBe(true)
+      expect(b.gates.has(yUrl)).toBe(true)
+    })
+    b.gates.get(xUrl)?.()
+    b.gates.get(yUrl)?.()
+    await expect(pending).rejects.toThrow('without registering "x"')
+    expect(b.fetched).toEqual([xUrl, yUrl])
   })
 
   it('double boot is loud', () => {
@@ -495,6 +565,26 @@ describe('HMR reset', () => {
     b.loader.invalidate('a')
     await b.loader.prefetch('a')
     expect(b.fetched).toEqual([APPLICATION_URL, comboUrl(['a'], '0')])
+  })
+
+  it('refuses to rewrite a bundle URL that carries no revision', async () => {
+    const b = bench([row('a', { url: '/plugins/??a/client.js' })], { a: () => ({}) })
+    await b.loader.import('a', '', {})
+    expect(() => { b.loader.invalidate('a', '1') }).toThrow('bundle URL /plugins/??a/client.js has no revision')
+  })
+
+  it('leaves the bootstrap module materialized across invalidate', async () => {
+    const b = bench([row(MODULES_ID)])
+    b.loader.invalidate(MODULES_ID, 'next')
+    expect(b.loader.loadCache.has(MODULES_ID)).toBe(true)
+    expect(await b.loader.import(MODULES_ID, '', {})).toBe(bootstrapExports)
+    expect(b.fetched).toEqual([])
+  })
+
+  it('drops a page-local reload URL when invalidating an unknown id', () => {
+    const b = bench([])
+    b.loader.invalidate('ghost')
+    expect(b.loader.loadCache.has('ghost')).toBe(false)
   })
 })
 

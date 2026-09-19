@@ -5,6 +5,32 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected HTTP fixture request.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Running HTTP fixture and the request headers it observed. */
 export interface HttpMcpFixture {
   url: string
@@ -33,8 +59,8 @@ export async function startHttpMcpFixture(): Promise<HttpMcpFixture> {
     await transport.handleRequest(request, response)
   }
   const server = createServer((request, response) => {
-    handleRequest(request, response).catch((error: unknown) => {
-      response.writeHead(500).end(String(error))
+    handleRequest(request, response).catch((error: Thrown) => {
+      response.writeHead(500).end(thrownMessage(error))
     })
   })
   const listening: PromiseWithResolvers<void> = Promise.withResolvers()
