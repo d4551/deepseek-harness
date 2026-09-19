@@ -15,6 +15,12 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace, SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /**
  * Any route key walks a dict schema to the same profile node, so the lookup
  * names one that cannot collide with a configured route.
@@ -173,6 +179,9 @@ export class ModelsSettingsStore {
     status: 'idle', error: null, credentialError: null, writable: false, rows: [], namespaces: new Map(),
   })
 
+  /** Latest load settlement. */
+  flight: Promise<void> = Promise.resolve()
+
   /** Latest load wins; an older response never overwrites a newer one. */
   private generation = 0
 
@@ -194,7 +203,12 @@ export class ModelsSettingsStore {
    * refresh reuses the mirror's held view.
    * @returns nothing; the snapshot carries the outcome.
    */
-  async load(): Promise<void> {
+  load(): Promise<void> {
+    this.flight = this.pull()
+    return this.flight
+  }
+
+  private async pull(): Promise<void> {
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'loading'; s.error = null })
     const directory = await Promise.all([
@@ -202,28 +216,38 @@ export class ModelsSettingsStore {
       this.api.llm.listConfigurableProviders(),
       this.describeFace.ensure(),
     ]).then(([registered, declared]) => {
-      if (!registered.ok) throw new Error(registered.error.message)
-      if (!declared.ok) throw new Error(declared.error.message)
+      if (!registered.ok) {
+        const message = registered.error.message
+        return {
+          kind: 'failed' as const,
+          failure: typeof message === 'string' ? message : thrownMessage(registered.error),
+        }
+      }
+      if (!declared.ok) {
+        const message = declared.error.message
+        return {
+          kind: 'failed' as const,
+          failure: typeof message === 'string' ? message : thrownMessage(declared.error),
+        }
+      }
       const mirrored = this.describeFace.getSnapshot()
       if (mirrored.view === undefined) {
         if (mirrored.error === null) {
-          throw new TypeError('settings describe returned no view and no error')
+          return { kind: 'failed' as const, failure: 'settings describe returned no view and no error' }
         }
-        throw new Error(mirrored.error)
+        return { kind: 'failed' as const, failure: mirrored.error }
       }
       return {
+        kind: 'ready' as const,
         providers: joinProviderDirectory(registered.value, declared.value),
         writable: mirrored.view.writable,
         views: mirrored.view.namespaces,
       }
     }).then(
       value => value,
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('models directory load rejected with a non-Error')
-        return { failure: reason.message }
-      },
+      (reason: Thrown) => ({ kind: 'failed' as const, failure: thrownMessage(reason) }),
     )
-    if ('failure' in directory) {
+    if (directory.kind === 'failed') {
       if (generation !== this.generation) return
       this.store.update((s) => {
         s.status = 'error'
@@ -257,10 +281,10 @@ export class ModelsSettingsStore {
         response => response.ok
           ? { credentials: response.value, credentialError: null }
           : { credentials: emptyCredentials, credentialError: response.error.message },
-        (reason: unknown) => {
-          if (!(reason instanceof Error)) throw new TypeError('credential describe rejected with a non-Error')
-          return { credentials: emptyCredentials, credentialError: reason.message }
-        },
+        (reason: Thrown) => ({
+          credentials: emptyCredentials,
+          credentialError: thrownMessage(reason),
+        }),
       )
     if (generation !== this.generation) return
     this.store.update((s) => {

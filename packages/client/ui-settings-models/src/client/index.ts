@@ -117,9 +117,8 @@ export function apply(ctx: ClientContext): void {
   // mirror refresh before this store joins that refresh. The welcome notice
   // follows its settings scope, so it needs no subscription here.
   ctx.effect(() => {
-    const modelsRefresh: { flight: Promise<void> } = { flight: Promise.resolve() }
     const refreshModels = (): void => {
-      modelsRefresh.flight = refreshIfLoaded(controller)
+      controller.flight = refreshIfLoaded(controller)
     }
     const disposers = [
       ctx.remote.$on('settings/document-updated', () => { refreshModels() }),

@@ -159,12 +159,16 @@ describe('ModelsSettingsStore', () => {
     })
   })
 
-  it('refuses a non-Error credential transport rejection', async () => {
+  it('surfaces a non-Error credential transport rejection', async () => {
     const { face, mirror } = api({
       describeCredentials: async () => { throw 'credential transport refusal' },
     })
     const store = new ModelsSettingsStore(face, settingsSchema, mirror)
-    await expect(store.load()).rejects.toBeInstanceOf(TypeError)
+    await expect(store.load()).resolves.toBeUndefined()
+    expect(store.store.getSnapshot()).toMatchObject({
+      status: 'ready',
+      credentialError: 'credential transport refusal',
+    })
   })
 
   it('surfaces a directory failure and keeps the last good rows', async () => {
@@ -313,10 +317,14 @@ describe('edge joins', () => {
     expect(store.store.getSnapshot().rows).toHaveLength(4)
   })
 
-  it('refuses a non-Error load failure', async () => {
+  it('surfaces a non-Error directory load failure', async () => {
     const { face, mirror } = api({ providers: async () => { throw 'plain refusal' } })
     const store = new ModelsSettingsStore(face, settingsSchema, mirror)
-    await expect(store.load()).rejects.toBeInstanceOf(TypeError)
+    await expect(store.load()).resolves.toBeUndefined()
+    expect(store.store.getSnapshot()).toMatchObject({
+      status: 'error',
+      error: 'plain refusal',
+    })
   })
 
   it('drops a stale successful response after a newer load finished', async () => {
