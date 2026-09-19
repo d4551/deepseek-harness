@@ -85,12 +85,7 @@ export class SettingsDocumentStore {
       state.opening = true
       state.error = null
     })
-    using _opening = {
-      [Symbol.dispose]: () => {
-        this.store.update((state) => { state.opening = false })
-      },
-    }
-    const opened = await new Promise<OpenSettingsDocumentResult>((resolve) => {
+    return new Promise<OpenSettingsDocumentResult>((resolve) => {
       resolve(this.remote.settings.openSettingsDocument())
     }).then(
       result => result,
@@ -98,11 +93,14 @@ export class SettingsDocumentStore {
         this.store.update((state) => { state.error = thrownMessage(reason) })
         return undefined
       },
-    )
-    if (opened === undefined) return
-    if (!opened.ok) {
-      this.store.update((state) => { state.error = opened.error.message })
-    }
+    ).then((opened) => {
+      if (opened === undefined) return
+      if (!opened.ok) {
+        this.store.update((state) => { state.error = opened.error.message })
+      }
+    }).finally(() => {
+      this.store.update((state) => { state.opening = false })
+    })
   }
 
   /** Stop following the mirror. */

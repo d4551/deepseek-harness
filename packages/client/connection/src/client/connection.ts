@@ -160,20 +160,20 @@ export class ConnectionController {
 
   private async loop(run: AbortSignal): Promise<void> {
     const sources = new Set<Promise<void>>()
-    await using _waitSources = {
-      async [Symbol.asyncDispose](): Promise<void> {
-        const outcomes = await Promise.all([...sources].map(source => source.then(
-          () => ({ kind: 'fulfilled' as const }),
-          (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
-        )))
-        const failures = outcomes.filter((outcome): outcome is { readonly kind: 'rejected'; readonly reason: Thrown } =>
-          outcome.kind === 'rejected')
-        if (failures.length > 0) {
-          throw new AggregateError(failures.map(outcome => outcome.reason), 'connection generation sources failed')
-        }
-      },
+    const pumping = await this.pump(run, sources).then(
+      () => ({ kind: 'fulfilled' as const }),
+      (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+    )
+    const outcomes = await Promise.all([...sources].map(source => source.then(
+      () => ({ kind: 'fulfilled' as const }),
+      (reason: Thrown) => ({ kind: 'rejected' as const, reason }),
+    )))
+    const failures = [pumping, ...outcomes].filter(
+      (outcome): outcome is { readonly kind: 'rejected'; readonly reason: Thrown } => outcome.kind === 'rejected',
+    )
+    if (failures.length > 0) {
+      throw new AggregateError(failures.map(outcome => outcome.reason), 'connection generation sources failed')
     }
-    await this.pump(run, sources)
   }
 
   private async pump(run: AbortSignal, sources: Set<Promise<void>>): Promise<void> {
@@ -240,18 +240,16 @@ export class ConnectionController {
       ])
       if (handshake.kind === 'ready' && !ac.signal.aborted) {
         this.attempt = 0
-        let sinksSettled = false
-        using _abortIfSinkThrows = {
-          [Symbol.dispose]: (): void => {
-            if (sinksSettled) return
-            if (gen === this.generation && !ac.signal.aborted) ac.abort()
-          },
-        }
-        this.emitState('connected')
-        if (this.isGenerationActive(ac)) {
-          this.sinks.onConnected?.(handshake.host)
-        }
-        sinksSettled = true
+        await new Promise<void>((resolve) => {
+          this.emitState('connected')
+          if (this.isGenerationActive(ac)) {
+            this.sinks.onConnected?.(handshake.host)
+          }
+          resolve()
+        }).then(undefined, (reason: Thrown) => {
+          if (this.isGenerationActive(ac)) ac.abort()
+          throw new Error('connection sink failed', { cause: reason })
+        })
       } else if (!ac.signal.aborted) {
         ac.abort()
       }
@@ -284,11 +282,8 @@ export async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, sign
   }
   signal.addEventListener('abort', aborted, { once: true })
   if (signal.aborted) aborted()
-  using _clearReadyWait = {
-    [Symbol.dispose]: (): void => {
-      clearTimeout(timeout)
-      signal.removeEventListener('abort', aborted)
-    },
-  }
-  return await Promise.race([ready, deadline.promise])
+  return Promise.race([ready, deadline.promise]).finally(() => {
+    clearTimeout(timeout)
+    signal.removeEventListener('abort', aborted)
+  })
 }

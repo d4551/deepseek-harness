@@ -47,7 +47,6 @@ export function HoverCard({
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const copyHeightRef = useRef<number | null>(null)
   const copyEpochRef = useRef(0)
-  const copyingRef = useRef(false)
   const mountedRef = useRef(true)
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
@@ -135,9 +134,7 @@ export function HoverCard({
   }, [open, pos])
 
   const copy = async (text: string): Promise<void> => {
-    if (copied || copyingRef.current) return
-    copyingRef.current = true
-    using _copying = { [Symbol.dispose]: () => { copyingRef.current = false } }
+    if (copied) return
     const copyEpoch = copyEpochRef.current
     const accepted = await writeClipboard(text)
     const card = cardRef.current

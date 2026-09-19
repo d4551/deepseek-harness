@@ -218,50 +218,53 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
     // false (and on abrupt exit). A promise `.finally()` runs one microtask
     // later, and a `load()` landing in that gap would mark a rerun nobody
     // reads, losing the read.
-    using _clearFlight = {
-      [Symbol.dispose]: (): void => {
-        this.inFlight = undefined
-      },
-    }
     do {
-      const before = this.store.getSnapshot()
-      if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
-      // Cleared immediately before the wire read goes out: a load() marked
-      // earlier (including one reentering from the loading publish above)
-      // is covered by this very read, while one landing after needs the
-      // rerun.
-      this.rerun = false
-      const generation = ++this.generation
-      const describe = this.api.settings.describe
-      let outcome: { view: SettingsDescribeView } | { failure: string }
-      if (typeof describe !== 'function') {
-        outcome = { failure: 'settings.describe is not a function' }
-      } else {
-        const response = await new Promise<Thrown>((resolve) => {
-          resolve(describe.call(this.api.settings))
-        }).then(
-          (value: Thrown) => ({ kind: 'settled' as const, value }),
-          (reason: Thrown) => ({ kind: 'failed' as const, reason }),
-        )
-        outcome = response.kind === 'failed'
-          ? { failure: thrownMessage(response.reason) }
-          : describeOutcome(response.value)
-      }
-      // A write answer invalidates a document read before that write committed.
-      if (generation !== this.generation) continue
-      if ('view' in outcome) {
-        this.store.set({ status: 'ready', view: outcome.view, error: null })
-      } else {
-        const held = this.store.getSnapshot()
-        // No answer yet: fall back to idle so `ensure` retries; with one, the
-        // held view keeps serving and only the error field reports the miss.
-        this.store.set({
-          status: held.view === undefined ? 'idle' : 'ready',
-          view: held.view,
-          error: outcome.failure,
-        })
-      }
+      await this.refresh().then(undefined, (reason: Thrown) => {
+        this.inFlight = undefined
+        throw reason instanceof Error ? reason : new Error('settings refresh failed', { cause: reason })
+      })
     } while (this.shouldRerun())
+    this.inFlight = undefined
+  }
+
+  private async refresh(): Promise<void> {
+    const before = this.store.getSnapshot()
+    if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
+    // Cleared immediately before the wire read goes out: a load() marked
+    // earlier (including one reentering from the loading publish above)
+    // is covered by this very read, while one landing after needs the
+    // rerun.
+    this.rerun = false
+    const generation = ++this.generation
+    const describe = this.api.settings.describe
+    let outcome: { view: SettingsDescribeView } | { failure: string }
+    if (typeof describe !== 'function') {
+      outcome = { failure: 'settings.describe is not a function' }
+    } else {
+      const response = await new Promise<Thrown>((resolve) => {
+        resolve(describe.call(this.api.settings))
+      }).then(
+        (value: Thrown) => ({ kind: 'settled' as const, value }),
+        (reason: Thrown) => ({ kind: 'failed' as const, reason }),
+      )
+      outcome = response.kind === 'failed'
+        ? { failure: thrownMessage(response.reason) }
+        : describeOutcome(response.value)
+    }
+    // A write answer invalidates a document read before that write committed.
+    if (generation !== this.generation) return
+    if ('view' in outcome) {
+      this.store.set({ status: 'ready', view: outcome.view, error: null })
+    } else {
+      const held = this.store.getSnapshot()
+      // No answer yet: fall back to idle so `ensure` retries; with one, the
+      // held view keeps serving and only the error field reports the miss.
+      this.store.set({
+        status: held.view === undefined ? 'idle' : 'ready',
+        view: held.view,
+        error: outcome.failure,
+      })
+    }
   }
 
   private shouldRerun(): boolean {

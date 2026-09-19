@@ -132,6 +132,7 @@ const REFERENCE_PLACEHOLDER_RE = /[\uE100-\uE11D\uFFFC]/gu
 
 /** Undo merge window for contiguous typing, in ms (the old machine's mergeWindowMs). */
 const HISTORY_MERGE_DELAY_MS = 1000
+const FAILED_DRAFT_RESTORE_TAG = 'dsh-restore-failed-drafts'
 
 /** Editor and attachment snapshot owned by one detached default send. */
 interface DetachedDraft {
@@ -182,7 +183,6 @@ export class SessionInputShell implements SessionInput {
   private readonly failedDetached = new Map<number, DetachedDraft>()
   /** Revision of the last automatic failure restoration. */
   private failedRestoreRev: number | undefined
-  private restoringFailures = false
   private imageFlightSeq = 0
   /** Image-only sends retained until admission settles or scope disposal releases their images. */
   private readonly imageFlights = new Map<number, {
@@ -201,7 +201,7 @@ export class SessionInputShell implements SessionInput {
     this.unregister = mergeRegister(
       registerPlainText(this.editor),
       registerHistory(this.editor, createEmptyHistoryState(), HISTORY_MERGE_DELAY_MS),
-      this.editor.registerUpdateListener(() => { this.onEditorUpdate() }),
+      this.editor.registerUpdateListener(({ tags }) => { this.onEditorUpdate(tags) }),
       registerClaimDecoration(this.editor, () => this.activeClaimToken()),
       registerTextRefDecoration(this.editor, () => this.lexicon.getSnapshot(), () => this.activeClaimToken()),
       () => { this.lexiconOff?.() },
@@ -247,7 +247,7 @@ export class SessionInputShell implements SessionInput {
   }
 
   /** Re-project, run the claim watch, publish, and feed trigger tracking after every editor commit. */
-  private onEditorUpdate(): void {
+  private onEditorUpdate(tags: ReadonlySet<string>): void {
     this.ensureLexiconSubscription()
     const prev = this.projection
     this.projection = this.editor.getEditorState().read(() =>
@@ -258,7 +258,7 @@ export class SessionInputShell implements SessionInput {
     // caret motion and subscribers do not re-render per caret move.
     if (projectionContentChanged(prev, this.projection)) {
       this.rev += 1
-      if (!this.restoringFailures && this.failedRestoreRev !== undefined) {
+      if (!tags.has(FAILED_DRAFT_RESTORE_TAG) && this.failedRestoreRev !== undefined) {
         this.failedDetached.clear()
         this.failedRestoreRev = undefined
       }
@@ -819,12 +819,6 @@ export class SessionInputShell implements SessionInput {
         occurrences.push({ ...occurrence, offset: base + occurrence.offset })
       }
     }
-    this.restoringFailures = true
-    using _clearRestore = {
-      [Symbol.dispose]: (): void => {
-        this.restoringFailures = false
-      },
-    }
     this.editor.update(() => {
       const root = $getRoot()
       root.clear()
@@ -855,7 +849,7 @@ export class SessionInputShell implements SessionInput {
       }
       appendText(draft.slice(cursor))
       root.selectEnd()
-    }, { discrete: true, tag: HISTORY_MERGE_TAG })
+    }, { discrete: true, tag: [HISTORY_MERGE_TAG, FAILED_DRAFT_RESTORE_TAG] })
     this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
     this.failedRestoreRev = this.rev
   }

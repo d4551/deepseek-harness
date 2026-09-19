@@ -195,31 +195,26 @@ export class PermissionPresetSettingsController {
       draft.status = 'saving'
       draft.error = null
     })
-    using _clearSaving = {
-      [Symbol.dispose]: (): void => {
-        this.saving = false
-      },
-    }
-    const flight = this.api.settings.mutate(
-      PERMISSION_SETTINGS_NS,
-      [{ op: 'set', path: ['defaultPreset'], value: preset }],
-      view.revision,
-    )
-    flight.then(
-      undefined,
-      (error: Thrown) => {
-        if (this.disposed) return
-        this.fail(thrownMessage(error))
-      },
-    )
-    const response = await flight
-    if (this.disposed) return
-    if (!response.ok) {
-      this.fail(response.error.message)
-      return
-    }
-    this.saving = false
-    this.describeFace.acceptView(response.value)
+    return new Promise<Awaited<ReturnType<SettingsWireFace['settings']['mutate']>>>((resolve) => {
+      resolve(this.api.settings.mutate(
+        PERMISSION_SETTINGS_NS,
+        [{ op: 'set', path: ['defaultPreset'], value: preset }],
+        view.revision,
+      ))
+    }).then((response) => {
+      if (this.disposed) return
+      if (!response.ok) {
+        this.fail(response.error.message)
+        return
+      }
+      this.saving = false
+      this.describeFace.acceptView(response.value)
+    }, (reason: Thrown) => {
+      if (!this.disposed) this.fail(thrownMessage(reason))
+      throw reason instanceof Error ? reason : new Error(thrownMessage(reason), { cause: reason })
+    }).finally(() => {
+      this.saving = false
+    })
   }
 
   /** Stop following the mirror; later publishes leave the snapshot alone. */

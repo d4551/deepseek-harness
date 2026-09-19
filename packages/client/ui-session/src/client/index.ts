@@ -230,6 +230,7 @@ export class UiSession extends Service {
     BUILTIN_SOURCE,
   ]
   private bindings = new Map<SessionId, MaterializedBinding>()
+  private releaseRebuiltBindings: (() => Promise<void>) | undefined
   private absent: StandardSourceBinding
   private currentBinding: StandardSourceBinding
   private readonly currentListeners = new Set<() => void>()
@@ -292,22 +293,17 @@ export class UiSession extends Service {
     const Props extends SessionSourceRoster = undefined,
   >(descriptor: SessionSourceDescriptor<Hooks, KeyedHooks, Props>): () => void {
     const runtimeDescriptor = runtimeDescriptorOf(descriptor)
-    return this.ctx.effect(() => {
+    return this.ctx.effect(function* (this: UiSession) {
       this.descriptors.push(runtimeDescriptor)
       let committed = false
-      using _rollbackProvide = {
-        [Symbol.dispose]: (): void => {
-          if (!committed) this.descriptors.pop()
-        },
+      yield () => {
+        const index = this.descriptors.indexOf(runtimeDescriptor)
+        this.descriptors.splice(index, 1)
+        if (committed) this.rebuildBindings()
       }
       this.rebuildBindings()
       committed = true
-      return () => {
-        const index = this.descriptors.indexOf(runtimeDescriptor)
-        this.descriptors.splice(index, 1)
-        this.rebuildBindings()
-      }
-    }, 'uiSession.provide()')
+    }.bind(this), 'uiSession.provide()')
   }
 
   /**
@@ -344,46 +340,32 @@ export class UiSession extends Service {
         interaction.delegate()
         await completed.promise
       })
-      using _settle = {
-        [Symbol.dispose]: (): void => {
-          remove()
-          completed.resolve()
-        },
-      }
-      const outcome = await interaction.result.then(
-        value => ({ kind: 'answered' as const, value }),
-        (reason: Thrown) => (
-          interaction.isDelegation(reason)
-            ? { kind: 'delegated' as const }
-            : { kind: 'failed' as const, reason }
-        ),
-      )
-      if (outcome.kind === 'answered') return outcome.value
-      if (outcome.kind === 'delegated') return await delegated()
-      throw outcome.reason
+      return interaction.result.then(undefined, (reason: Thrown) => {
+        if (interaction.isDelegation(reason)) return delegated()
+        throw reason instanceof Error ? reason : new Error('pending interaction failed', { cause: reason })
+      }).finally(() => {
+        remove()
+        completed.resolve()
+      })
     }
   }
 
   private rebuildBindings(): void {
     const absent = this.materializeAbsent()
     const bindings = new Map<SessionId, MaterializedBinding>()
-    const created: MaterializedBinding[] = []
-    let committed = false
-    using _rollbackBindings = {
-      [Symbol.dispose]: (): void => {
-        if (committed) return
-        for (const record of created) record.release()
-      },
-    }
-    for (const [sessionId, cached] of this.bindings) {
-      const record = this.createMaterializedBinding(cached.owner)
-      created.push(record)
-      bindings.set(sessionId, record)
-    }
     const previous = this.bindings
+    const releasePrevious = this.releaseRebuiltBindings
+    const release = this.ctx.effect(function* (this: UiSession) {
+      for (const [sessionId, cached] of previous) {
+        const record = this.createMaterializedBinding(cached.owner)
+        yield record.release
+        bindings.set(sessionId, record)
+      }
+    }.bind(this), 'ui-session: rebuilt bindings')
     this.absent = absent
     this.bindings = bindings
-    committed = true
+    this.releaseRebuiltBindings = release
+    Promise.resolve(releasePrevious?.()).then(undefined, (reason: Thrown) => { this.ctx.logger().error(reason) })
     for (const record of previous.values()) record.release()
     this.publishCurrent()
   }

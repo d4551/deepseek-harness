@@ -25,6 +25,7 @@ import {
   DraftAttachmentId, type SessionInputResolver, type SubmitImageAttachment, type SubmitOutcome,
 } from './contract/input.ts'
 import type { InputSubmitMode } from './contract/composer-submission.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * The outward conversation face (`ctx.conversation`): the scope-addressed
@@ -284,16 +285,13 @@ export class ConversationController extends Service implements IConversation {
         finishRetirement?.(settlement)
       },
     })
-    let serialized = false
-    using _abandonUnserialized = {
-      [Symbol.dispose]: (): void => {
-        if (!serialized) submission.abandon()
-      },
-    }
-    await nextPaint()
-    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const uploaded = await nextPaint()
+      .then(() => this.serializeImages(attachments.map(attachment => attachment.file)))
+      .then(undefined, (reason: Thrown) => {
+        submission.abandon()
+        throw reason instanceof Error ? reason : new Error('image serialization failed', { cause: reason })
+      })
     const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
-    serialized = true
     const result = await session.prompt(content, mode, signal, submission.requestId)
     if (!result.ok) return { kind: 'error' }
     if (retirement !== undefined && (await retirement).reason !== 'observed') return { kind: 'error' }

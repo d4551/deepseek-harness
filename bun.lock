@@ -2937,6 +2937,7 @@
         "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:^",
         "@deepseek-ai/dsh-subprocess-local": "workspace:^",
         "@deepseek-ai/dsh-system-prompt": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
         "@deepseek-ai/dsh-tools": "workspace:^",
       },
       "peerDependencies": {
@@ -2945,6 +2946,7 @@
         "@deepseek-ai/dsh-invariants": "workspace:^",
         "@deepseek-ai/dsh-llm": "workspace:^",
         "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/context/tmux-context": {
@@ -3735,6 +3737,7 @@
         "@deepseek-ai/dsh-sandbox": "workspace:^",
         "@deepseek-ai/dsh-sandbox-policy": "workspace:^",
         "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
@@ -3743,6 +3746,7 @@
         "@deepseek-ai/dsh-invariants": "workspace:^",
         "@deepseek-ai/dsh-sandbox": "workspace:^",
         "@deepseek-ai/dsh-sandbox-policy": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/fs/network-drive": {
@@ -4306,12 +4310,14 @@
         "@deepseek-ai/dsh-credentials-local": "workspace:^",
         "@deepseek-ai/dsh-host-webserver": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
         "@deepseek-ai/dsh-client-connection": "workspace:^",
         "@deepseek-ai/dsh-host-webserver": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/host/plugin-inventory": {
@@ -5199,6 +5205,7 @@
         "@deepseek-ai/dsh-llm": "workspace:^",
         "@deepseek-ai/dsh-sdk-protocol": "workspace:^",
         "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
@@ -5206,6 +5213,7 @@
         "@deepseek-ai/dsh-llm": "workspace:^",
         "@deepseek-ai/dsh-sdk-protocol": "workspace:^",
         "@deepseek-ai/dsh-session": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/sdk/protocol": {
@@ -5248,6 +5256,7 @@
         "@deepseek-ai/dsh-session": "workspace:^",
         "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:^",
         "@deepseek-ai/dsh-subagent": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
@@ -5260,6 +5269,7 @@
         "@deepseek-ai/dsh-sdk-protocol": "workspace:^",
         "@deepseek-ai/dsh-session": "workspace:^",
         "@deepseek-ai/dsh-subagent": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/session-query/session-log-export": {
@@ -7306,10 +7316,12 @@
       "devDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
       "peerDependencies": {
         "@deepseek-ai/cordis": "workspace:^",
         "@deepseek-ai/dsh-invariants": "workspace:^",
+        "@deepseek-ai/dsh-thrown": "workspace:^",
       },
     },
     "packages/util/keyed-lock": {

@@ -170,7 +170,8 @@ export class SlotRegistry extends Service {
    */
   inject(key: Extract<keyof SlotMap, string>, callback: () => SlotInjectionEffect): () => void {
     const ctx = this.ctx
-    const disposeController = ctx.effect(() => {
+    const core = this._core
+    const disposeController = ctx.effect(function* () {
       let active: (() => void) | undefined
       let activeEpoch: number | undefined
       let stopped = false
@@ -190,8 +191,8 @@ export class SlotRegistry extends Service {
 
       const reconcile = (): void => {
         if (stopped) return
-        const spec = this._core.specDynamic(key)
-        const epoch = this._core.declarationEpoch(key)
+        const spec = core.specDynamic(key)
+        const epoch = core.declarationEpoch(key)
         if (active !== undefined && activeEpoch === epoch) return
         const dispose = active
         active = undefined
@@ -223,16 +224,9 @@ export class SlotRegistry extends Service {
         observeListenerInvocation(reconcile, failSetup, failSetup)
       }
 
-      unsubscribe = this._core.subscribeDeclaration(key, changed)
-      let installed = false
-      using _setup = {
-        [Symbol.dispose]: (): void => {
-          if (!installed) stop()
-        },
-      }
+      unsubscribe = core.subscribeDeclaration(key, changed)
+      yield stop
       reconcile()
-      installed = true
-      return stop
     }, `slots.inject(${JSON.stringify(key)})`)
     return reportDisposeFailure(disposeController, (error) => { ctx.logger().error(error) })
   }
@@ -277,23 +271,18 @@ export class SlotRegistry extends Service {
    * @returns disposer owned by the caller's Cordis fiber.
    */
   provideRoot(contribution: RootStandardSourceContribution): () => void {
-    const dispose = this.ctx.effect(() => {
+    const dispose = this.ctx.effect(function* (this: SlotRegistry) {
       this._rootContributions.push(contribution)
       let committed = false
-      using _rollback = {
-        [Symbol.dispose]: (): void => {
-          if (!committed) this._rootContributions.pop()
-        },
-      }
-      this.rebuildRootBinding()
-      committed = true
-      return () => {
+      yield () => {
         const index = this._rootContributions.indexOf(contribution)
         if (index === -1) return
         this._rootContributions.splice(index, 1)
-        this.rebuildRootBinding()
+        if (committed) this.rebuildRootBinding()
       }
-    }, 'slots.provideRoot()')
+      this.rebuildRootBinding()
+      committed = true
+    }.bind(this), 'slots.provideRoot()')
     return reportDisposeFailure(dispose, (error) => { this.ctx.logger().error(error) })
   }
 
