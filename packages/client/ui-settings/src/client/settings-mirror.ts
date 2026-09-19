@@ -27,6 +27,11 @@ export interface SettingsWireFace {
 }
 
 type SettingsFace = SettingsWireFace
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
 
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
@@ -178,47 +183,49 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
   }
 
   private async run(): Promise<void> {
-    // The in-flight slot must clear in the same synchronous segment that
-    // observes `rerun` false (and on abrupt exit): a `.finally()` on the
-    // returned promise runs one microtask later, and a `load()` landing in
-    // that gap would mark a rerun nobody reads, losing the read.
-    try {
-      do {
-        const before = this.store.getSnapshot()
-        if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
-        // Cleared immediately before the wire read goes out: a load() marked
-        // earlier (including one reentering from the loading publish above)
-        // is covered by this very read, while one landing after needs the
-        // rerun.
-        this.rerun = false
-        const generation = ++this.generation
-        let outcome: { view: SettingsDescribeView } | { failure: string }
-        try {
-          const response = await this.api.settings.describe()
-          outcome = response.ok
-            ? { view: response.value }
-            : { failure: response.error.message }
-        } catch (error) {
-          outcome = { failure: error instanceof Error ? error.message : String(error) }
-        }
-        // A write answer invalidates a document read before that write committed.
-        if (generation !== this.generation) continue
-        if ('view' in outcome) {
-          this.store.set({ status: 'ready', view: outcome.view, error: null })
-        } else {
-          const held = this.store.getSnapshot()
-          // No answer yet: fall back to idle so `ensure` retries; with one, the
-          // held view keeps serving and only the error field reports the miss.
-          this.store.set({
-            status: held.view === undefined ? 'idle' : 'ready',
-            view: held.view,
-            error: outcome.failure,
-          })
-        }
-      } while (this.shouldRerun())
-    } finally {
-      this.inFlight = undefined
+    // Clear inFlight in the same synchronous segment that observes `rerun`
+    // false (and on abrupt exit). A promise `.finally()` runs one microtask
+    // later, and a `load()` landing in that gap would mark a rerun nobody
+    // reads, losing the read.
+    using _clearFlight = {
+      [Symbol.dispose]: (): void => {
+        this.inFlight = undefined
+      },
     }
+    do {
+      const before = this.store.getSnapshot()
+      if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
+      // Cleared immediately before the wire read goes out: a load() marked
+      // earlier (including one reentering from the loading publish above)
+      // is covered by this very read, while one landing after needs the
+      // rerun.
+      this.rerun = false
+      const generation = ++this.generation
+      const flight = this.api.settings.describe()
+      const response = await flight.then(
+        value => ({ kind: 'answered' as const, value }),
+        (reason: Thrown) => ({ kind: 'failed' as const, reason }),
+      )
+      const outcome = response.kind === 'failed'
+        ? { failure: thrownMessage(response.reason) }
+        : response.value.ok
+          ? { view: response.value.value }
+          : { failure: response.value.error.message }
+      // A write answer invalidates a document read before that write committed.
+      if (generation !== this.generation) continue
+      if ('view' in outcome) {
+        this.store.set({ status: 'ready', view: outcome.view, error: null })
+      } else {
+        const held = this.store.getSnapshot()
+        // No answer yet: fall back to idle so `ensure` retries; with one, the
+        // held view keeps serving and only the error field reports the miss.
+        this.store.set({
+          status: held.view === undefined ? 'idle' : 'ready',
+          view: held.view,
+          error: outcome.failure,
+        })
+      }
+    } while (this.shouldRerun())
   }
 
   private shouldRerun(): boolean {
