@@ -5,4 +5,8 @@ describe('mutationFailureMessage', () => {
   it('reads the Error message', () => {
     expect(mutationFailureMessage(new Error('reorder rejected'))).toBe('reorder rejected')
   })
+
+  it('stringifies a non-Error refusal', () => {
+    expect(mutationFailureMessage('plain refusal')).toBe('plain refusal')
+  })
 })

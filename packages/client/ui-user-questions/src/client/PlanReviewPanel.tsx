@@ -3,6 +3,12 @@ import { Button, IconEditOutline16, MarkdownText } from '@deepseek-ai/dsh-client
 import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
 import css from './PlanReviewPanel.module.css'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /** The panel's own props: the question domain face, the narrowed review, and the locale seat. */
 export type PlanReviewPanelProps =
   { pending: PendingQuestion; review: PlanReview } & Pick<QuestionComposerProps, 't'>
@@ -40,10 +46,13 @@ export function PlanReviewPanel({ pending, review, t }: PlanReviewPanelProps) {
   const settle = (send: () => Promise<void>): void => {
     setBusy(true)
     setError(null)
-    send().catch((cause: unknown) => {
-      setBusy(false)
-      setError(cause instanceof Error ? cause.message : String(cause))
-    })
+    send().then(
+      undefined,
+      (reason: Thrown) => {
+        setBusy(false)
+        setError(thrownMessage(reason))
+      },
+    )
   }
   const decide = (label: string): void => {
     settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }))

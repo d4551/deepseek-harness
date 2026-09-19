@@ -16,7 +16,7 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DirectoryFlowOwnerProps, WorkspacePickerProps } from './contract/slots.ts'
-import { mutationFailureMessage } from './mutation-failure.ts'
+import { mutationFailureMessage, type Thrown } from './mutation-failure.ts'
 import css from './WorkspacePicker.module.css'
 
 const ADD_WORKSPACE = '::add-workspace'
@@ -123,7 +123,7 @@ export function WorkspacePickFlow({
     createWorkspace({ path }).then((workspace) => {
       setFlowOpen(false)
       onPick(workspace.workspaceId)
-    }, (reason: Error) => {
+    }, (reason: Thrown) => {
       setModalError(mutationFailureMessage(reason))
       setFlowOpen(false)
       setErrorOpen(true)

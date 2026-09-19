@@ -309,7 +309,6 @@ export function ConversationRoot({
           const reportSwitchFailure = (
             reason: object | string | number | boolean | bigint | symbol | null | undefined,
           ): undefined => {
-            if (!(reason instanceof Error)) throw new TypeError('workspace switch rejected with a non-Error')
             setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
             console.error('[conversation] workspace switch failed:', reason)
             return undefined

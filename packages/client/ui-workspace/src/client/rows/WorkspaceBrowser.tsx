@@ -32,7 +32,7 @@ import type { RowKey, RowSelection } from '../selection.ts'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import { SessionRenameDialog, type SessionRenameTarget } from './SessionRenameDialog.tsx'
-import { mutationFailureMessage } from '../mutation-failure.ts'
+import { mutationFailureMessage, type Thrown } from '../mutation-failure.ts'
 import css from './WorkspaceBrowser.module.css'
 
 /**
@@ -1299,8 +1299,7 @@ export function WorkspaceBrowser({
     renameWorkspace(renameTarget.workspaceId, renameTrimmed).then(() => {
       setRenaming(false)
       setRenameTarget(null)
-    }, (reason: unknown) => {
-      if (!(reason instanceof Error)) throw new TypeError('workspace rename rejected with a non-Error')
+    }, (reason: Thrown) => {
       setRenaming(false)
       setRenameError(mutationFailureMessage(reason))
     })
@@ -1359,8 +1358,7 @@ export function WorkspaceBrowser({
       // committed list projection without the deleted id. Closing earlier
       // exposes one stale React frame to the next Create Workspace gesture.
       setDeleteCommittedId(deleteTarget.workspaceId)
-    }, (reason: unknown) => {
-      if (!(reason instanceof Error)) throw new TypeError('workspace delete rejected with a non-Error')
+    }, (reason: Thrown) => {
       setDeleting(false)
       setDeleteError(mutationFailureMessage(reason))
     })
