@@ -16,6 +16,8 @@
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { join, parse, resolve, toNamespacedPath } from 'node:path'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** `kernel32!MoveFileExW`: rename or move a path under the given flags. */
 type MoveFileExW = (existing: string, replacement: string, flags: number) => number
 
@@ -93,14 +95,14 @@ function errnoCode(win32Code: number): string {
  */
 function win32Error(syscall: string, win32Code: number, path: string, dest: string): Win32MoveError {
   const code = errnoCode(win32Code)
-  const error = new Error(`${syscall} ${code} (Win32 ${win32Code}): ${path} -> ${dest}`) as Win32MoveError
-  error.code = code
-  error.errno = win32Code
-  error.syscall = syscall
-  error.path = path
-  error.dest = dest
-  error.win32Code = win32Code
-  return error
+  return Object.assign(new Error(`${syscall} ${code} (Win32 ${win32Code}): ${path} -> ${dest}`), {
+    code,
+    errno: win32Code,
+    syscall,
+    path,
+    dest,
+    win32Code,
+  })
 }
 
 /**
@@ -142,28 +144,30 @@ export function replaceFileDurablyWin32(existing: string, replacement: string): 
 }
 
 function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 function isEEXIST(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST'
 }
 
 async function assertDirectory(path: string): Promise<boolean> {
-  try {
-    // A bare drive root is already short, and Node rejects its extended-length
-    // spelling as EISDIR. Descendants retain the namespace for long-path probes.
-    const probe = path === parse(path).root ? path : toNamespacedPath(path)
-    const info = await stat(probe)
-    if (info.isDirectory()) return true
-    const error = new Error(`path exists but is not a directory: ${path}`) as NodeJS.ErrnoException
-    error.code = 'ENOTDIR'
-    error.path = path
-    throw error
-  } catch (error) {
-    if (isENOENT(error)) return false
-    throw error
-  }
+  // A bare drive root is already short, and Node rejects its extended-length
+  // spelling as EISDIR. Descendants retain the namespace for long-path probes.
+  const probe = path === parse(path).root ? path : toNamespacedPath(path)
+  const info = await stat(probe).then(
+    value => value,
+    (error: Thrown) => {
+      if (isENOENT(error)) return undefined
+      throw error
+    },
+  )
+  if (info === undefined) return false
+  if (info.isDirectory()) return true
+  throw Object.assign(new Error(`path exists but is not a directory: ${path}`), {
+    code: 'ENOTDIR',
+    path,
+  })
 }
 
 /**
@@ -192,11 +196,12 @@ async function createLeafDirectoryWin32(parent: string, target: string): Promise
   // Keep the staging component independent of the target basename so a legal
   // 255-byte target component does not make mkdtemp's sibling name too long.
   const staging = await mkdtemp(toNamespacedPath(join(parent, '.dsh-mkdir-')))
-  try {
-    await publishNewFileWin32(staging, target)
-  } catch (error) {
-    await rm(staging, { recursive: true, force: true })
-    if (isEEXIST(error) && await assertDirectory(target)) return
-    throw error
-  }
+  await publishNewFileWin32(staging, target).then(
+    undefined,
+    async (error: Thrown) => {
+      await rm(staging, { recursive: true, force: true })
+      if (isEEXIST(error) && await assertDirectory(target)) return
+      throw error
+    },
+  )
 }

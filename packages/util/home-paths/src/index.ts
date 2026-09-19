@@ -17,6 +17,31 @@ export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 /** Environment variable that overrides the default DeepSeek Harness home. */
 export const DSH_HOME_ENV = 'DSH_HOME'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function isENOENT(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+}
+
+/**
+ * Canonicalize `current` and, when a suffix is missing, prove the ancestor is
+ * an enumerable directory before restoring that suffix.
+ * @param current - deepest path still believed to exist.
+ * @param missing - basename chain to restore after the ancestor resolves.
+ * @returns the target with its existing ancestor canonicalized.
+ */
+function resolveWatchAncestor(current: string, missing: string[]): Promise<string> {
+  return realpath(current).then(async (canonical) => {
+    if (missing.length > 0) {
+      // A Windows file-as-parent probe reports ENOENT. Opening the resolved
+      // ancestor preserves the cross-platform directory requirement.
+      const directory = await opendir(canonical)
+      await directory.close()
+    }
+    return join(canonical, ...missing.reverse())
+  })
+}
+
 /**
  * Give a native filesystem watcher one canonical spelling of a path, even
  * when its final components do not exist yet. The deepest existing ancestor
@@ -34,22 +59,18 @@ export async function canonicalizeWatchPath(path: string): Promise<string> {
   let current = resolve(path)
   const missing: string[] = []
   while (true) {
-    try {
-      const canonical = await realpath(current)
-      if (missing.length > 0) {
-        // A Windows file-as-parent probe reports ENOENT. Opening the resolved
-        // ancestor preserves the cross-platform directory requirement.
-        const directory = await opendir(canonical)
-        await directory.close()
-      }
-      return join(canonical, ...missing.reverse())
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      const parent = dirname(current)
-      if (parent === current) throw error
-      missing.push(basename(current))
-      current = parent
-    }
+    const resolved = await resolveWatchAncestor(current, missing).then(
+      canonicalPath => ({ found: true as const, canonicalPath }),
+      (error: Thrown) => {
+        if (!isENOENT(error)) throw error
+        const parent = dirname(current)
+        if (parent === current) throw error
+        return { found: false as const, parent }
+      },
+    )
+    if (resolved.found) return resolved.canonicalPath
+    missing.push(basename(current))
+    current = resolved.parent
   }
 }
 

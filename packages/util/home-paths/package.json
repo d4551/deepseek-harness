@@ -33,10 +33,12 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }
