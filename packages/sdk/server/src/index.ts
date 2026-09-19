@@ -23,6 +23,46 @@ export const name = 'sdk-jsonrpc-server'
 // Only the agent factory is required; initialize reads the optional LLM seam with ctx.get().
 export const inject = ['agents']
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a refused flush, dispose, or shutdown report.
+ * @param reason - the Thrown the reject arm delivered.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+/** Exhaustive typeof map from a catch or settlement value onto Thrown. */
+function thrown(value: unknown): Thrown {
+  switch (typeof value) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'undefined':
+    case 'object':
+    case 'function':
+      return value
+  }
+}
+
 /** JSON-RPC deployment config plus runtime-only test hooks. */
 export interface JsonRpcConfig {
   /** Report max-token turn/subagent termination as a successful SDK result. */
@@ -79,18 +119,24 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
   // exit the process more than once.
   let exitTask: Promise<void> | undefined
   const failures: Error[] = []
-  const retainFailure = (reason: unknown): void => {
-    const error = reason instanceof Error ? reason : new Error(String(reason), { cause: reason })
+  const retainFailure = (reason: Thrown): void => {
+    const error = reason instanceof Error ? reason : new Error(thrownMessage(reason), { cause: reason })
     if (!failures.includes(error)) failures.push(error)
   }
   const disposeAndExit = (): void => {
     exitTask ??= (async () => {
       const flushed = await Promise.allSettled([Promise.resolve().then(() => transport.flush())])
-      for (const outcome of flushed) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      for (const outcome of flushed) {
+        if (outcome.status === 'rejected') retainFailure(thrown(outcome.reason))
+      }
       const disposed = await Promise.allSettled([Promise.resolve().then(() => rootFiber.dispose())])
-      for (const outcome of disposed) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      for (const outcome of disposed) {
+        if (outcome.status === 'rejected') retainFailure(thrown(outcome.reason))
+      }
       const joined = await Promise.allSettled([Promise.resolve().then(() => rootFiber.await())])
-      for (const outcome of joined) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      for (const outcome of joined) {
+        if (outcome.status === 'rejected') retainFailure(thrown(outcome.reason))
+      }
       transport.close()
       const drained = await transport.closed
       if (drained instanceof AggregateError) retainFailure(drained)
@@ -98,7 +144,9 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
       if (firstFailure !== undefined) {
         const error = failures.length === 1 ? firstFailure : new AggregateError(failures, 'SDK transport shutdown failed')
         const reported = await Promise.allSettled([Promise.resolve().then(() => reportError(error))])
-        for (const outcome of reported) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+        for (const outcome of reported) {
+          if (outcome.status === 'rejected') retainFailure(thrown(outcome.reason))
+        }
       }
       exit(failures.length === 0 ? 0 : 1)
     })()
@@ -133,7 +181,9 @@ export function apply(ctx: Context, config: JsonRpcConfig): void {
     transport.start()
     return async () => {
       const outcomes = await Promise.allSettled([server.shutdown()])
-      for (const outcome of outcomes) if (outcome.status === 'rejected') retainFailure(outcome.reason)
+      for (const outcome of outcomes) {
+        if (outcome.status === 'rejected') retainFailure(thrown(outcome.reason))
+      }
       transport.close()
       await closingObserved
       const drained = await transport.closed

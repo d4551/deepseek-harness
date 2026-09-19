@@ -61,7 +61,7 @@ function forceTerminateWithin(child: ChildProcess, ms: number): Promise<void> {
     try {
       accepted = child.kill('SIGKILL')
       if (child.exitCode !== null || child.signalCode !== null) settle(resolve)
-    } catch (error: unknown) {
+    } catch (error) {
       settle(() => { reject(new Error('SIGKILL failed', { cause: error })) })
     }
   })

@@ -28,6 +28,46 @@ import type {
   SubagentStartedNotification,
 } from '@deepseek-ai/dsh-sdk-protocol'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a refused session or adapter dispose.
+ * @param reason - the Thrown the reject arm delivered.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+/** Exhaustive typeof map from a catch or settlement value onto Thrown. */
+function thrown(value: unknown): Thrown {
+  switch (typeof value) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'undefined':
+    case 'object':
+    case 'function':
+      return value
+  }
+}
+
 interface SessionRecord {
   handle: AgentHandle
 }
@@ -225,12 +265,12 @@ export class HarnessSdkJsonRpcServer {
     this.sessionCreations.clear()
     const records = [...this.sessions.values()]
     this.sessions.clear()
-    const failures: unknown[] = []
+    const failures: Thrown[] = []
     while (this.disposers.length > 0) {
       try {
         this.disposers.pop()?.()
       } catch (error) {
-        failures.push(error)
+        failures.push(thrown(error))
       }
     }
     const teardownResults = await Promise.allSettled([
@@ -238,10 +278,14 @@ export class HarnessSdkJsonRpcServer {
       ...(this.llmFiber === undefined ? [] : [Promise.resolve().then(() => this.llmFiber?.dispose())]),
     ])
     this.llmFiber = undefined
-    failures.push(...teardownResults
-      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-      .map(result => result.reason as unknown))
-    if (failures.length === 1) throw failures[0]
+    for (const result of teardownResults) {
+      if (result.status === 'rejected') failures.push(thrown(result.reason))
+    }
+    if (failures.length === 1) {
+      const [failure] = failures
+      if (failure instanceof Error) throw failure
+      throw new Error(thrownMessage(failure), { cause: failure })
+    }
     if (failures.length > 1) throw new AggregateError(failures, 'SDK server teardown failed')
     return {}
   }
@@ -274,10 +318,10 @@ export class HarnessSdkJsonRpcServer {
     if (pending) return pending
     const creation = this.createSession(sessionId)
     this.sessionCreations.set(sessionId, creation)
-    creation.then(
-      () => { this.sessionCreations.delete(sessionId) },
-      () => { this.sessionCreations.delete(sessionId) },
-    )
+    const releaseCreation = (_error: Thrown): void => {
+      this.sessionCreations.delete(sessionId)
+    }
+    creation.then(() => { this.sessionCreations.delete(sessionId) }, releaseCreation)
     return creation
   }
 
