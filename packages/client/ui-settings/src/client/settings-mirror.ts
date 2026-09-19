@@ -37,6 +37,10 @@ function isSettingsDescribeView(value: object): value is SettingsDescribeView {
   return 'namespaces' in value && 'writable' in value && 'hasDocument' in value
 }
 
+function isThenable(value: object): value is PromiseLike<Thrown> {
+  return typeof Reflect.get(value, 'then') === 'function'
+}
+
 function describeOutcome(value: Thrown): { view: SettingsDescribeView } | { failure: string } {
   if (typeof value !== 'object' || value === null) return { failure: thrownMessage(value) }
   if (!('ok' in value)) return { failure: thrownMessage(value) }
@@ -225,14 +229,24 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
       // rerun.
       this.rerun = false
       const generation = ++this.generation
-      const started = Promise.resolve().then(() => this.api.settings.describe())
-      const response = await started.then(
-        (value: Thrown) => ({ kind: 'settled' as const, value }),
-        (reason: Thrown) => ({ kind: 'failed' as const, reason }),
-      )
-      const outcome = response.kind === 'failed'
-        ? { failure: thrownMessage(response.reason) }
-        : describeOutcome(response.value)
+      const describe = this.api.settings.describe
+      let outcome: { view: SettingsDescribeView } | { failure: string }
+      if (typeof describe !== 'function') {
+        outcome = { failure: 'settings.describe is not a function' }
+      } else {
+        const flight: Thrown = describe.call(this.api.settings)
+        if (typeof flight !== 'object' || flight === null || !isThenable(flight)) {
+          outcome = describeOutcome(flight)
+        } else {
+          const response = await Promise.resolve(flight).then(
+            (value: Thrown) => ({ kind: 'settled' as const, value }),
+            (reason: Thrown) => ({ kind: 'failed' as const, reason }),
+          )
+          outcome = response.kind === 'failed'
+            ? { failure: thrownMessage(response.reason) }
+            : describeOutcome(response.value)
+        }
+      }
       // A write answer invalidates a document read before that write committed.
       if (generation !== this.generation) continue
       if ('view' in outcome) {
