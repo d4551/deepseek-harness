@@ -6,6 +6,9 @@ import { usePointerGrace } from './pointer-grace.ts'
 import { selectionIntersectsNode } from './selection-intersection.ts'
 import css from './HoverCard.module.css'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Render an anchor with a hover-triggered preview card.
  * @param props.anchor - the hover target (rendered in place inside a wrapper span).
@@ -153,7 +156,8 @@ export function HoverCard({
     const clearFlight = (): void => {
       if (copyFlightRef.current === flight) copyFlightRef.current = null
     }
-    flight.then(clearFlight, clearFlight)
+    const clearThrown: (error: Thrown) => void = clearFlight
+    flight.then(clearFlight, clearThrown)
   }
 
   const copyable = copyText !== undefined
