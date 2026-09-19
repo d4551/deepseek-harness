@@ -29,11 +29,16 @@ interface PageRequest {
 type JournalFrame = RemoteJournalFrame<Entry, number, Page>
 type ScriptedFrame = JournalFrame
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/** Leftover follow refusal, excluding undefined so a missing terminal stays distinct. */
+type ScriptedRefusal = object | string | number | boolean | bigint | symbol | null
+
 interface Generation {
   readonly frames: readonly (
     ScriptedFrame | Promise<ScriptedFrame>
   )[]
-  readonly terminal?: Error
+  readonly terminal?: ScriptedRefusal
   readonly hold?: boolean
   readonly waitAfterFrames?: Promise<void>
   readonly afterFrame?: (index: number) => void
@@ -81,6 +86,7 @@ class FixtureJournal extends RemoteJournalStream<Page, Entry, number, PageReques
     changes: RemoteJournalChange<Page, Entry>[],
     failed: (error: unknown) => void,
     factory: RemoteStreamFactory = STREAM_FACTORY,
+    carrierFailed?: (error: RemoteStreamCarrierError) => void,
   ) {
     super(factory, {
       name: 'fixture journal',
@@ -92,6 +98,7 @@ class FixtureJournal extends RemoteJournalStream<Page, Entry, number, PageReques
       compare: (left, right) => left - right,
       follows: (left, right) => right === left + 1,
       publish: (change) => { changes.push(change) },
+      ...(carrierFailed === undefined ? {} : { carrierFailed }),
       failed,
     })
   }
@@ -142,10 +149,11 @@ function journalFixture(
   generations: Generation[],
   pages: PageSource[],
   factory: RemoteStreamFactory = STREAM_FACTORY,
+  carrierFailed?: (error: RemoteStreamCarrierError) => void,
 ): {
   readonly journal: RemoteJournalStream<Page, Entry, number, PageRequest>
   readonly changes: RemoteJournalChange<Page, Entry>[]
-  readonly failed: ReturnType<typeof vi.fn>
+  readonly failed: ReturnType<typeof vi.fn<(error: Thrown) => void>>
   readonly calls: string[]
   readonly pageRequests: PageRequest[]
   readonly pageCursors: number[]
@@ -156,7 +164,7 @@ function journalFixture(
   const pageCursors: number[] = []
   const followRequests: PageRequest[] = []
   const changes: RemoteJournalChange<Page, Entry>[] = []
-  const failed = vi.fn()
+  const failed = vi.fn<(error: unknown) => void>()
   const journal = new FixtureJournal(
     generations,
     pages,
@@ -167,6 +175,7 @@ function journalFixture(
     changes,
     failed,
     factory,
+    carrierFailed,
   )
   return { journal, changes, failed, calls, pageRequests, pageCursors, followRequests }
 }
@@ -180,7 +189,7 @@ function remoteItem(
   value: ScriptedFrame,
   signal: AbortSignal,
 ): RemoteStreamItem<JournalFrame> {
-  return { generation, value, signal, accept: vi.fn() }
+  return { generation, value, signal, accept: vi.fn<() => void>() }
 }
 
 function controlledFactory(
@@ -388,6 +397,29 @@ describe('RemoteJournalStream', () => {
     expect(fixture.failed.mock.calls[0]?.[0]).toMatchObject({
       message: 'fixture journal emitted a partially overlapping entry',
     })
+    await fixture.journal.dispose()
+  })
+
+  it('observes leftover carrier loss through the optional carrierFailed sink', async () => {
+    const lost = new RemoteStreamCarrierError('carrier lost')
+    const carrierFailed = vi.fn<(error: RemoteStreamCarrierError) => void>()
+    const fixture = journalFixture(
+      [
+        {
+          frames: [opened(1, page('initial', [0, 1]))],
+          terminal: lost,
+        },
+        { frames: [opened(1, page('replacement', [0, 1]))], hold: true },
+      ],
+      [],
+      STREAM_FACTORY,
+      carrierFailed,
+    )
+
+    await fixture.journal.open({})
+    await vi.waitFor(() => { expect(carrierFailed).toHaveBeenCalledOnce() })
+    expect(carrierFailed.mock.calls[0]?.[0]).toBe(lost)
+    expect(fixture.failed).not.toHaveBeenCalled()
     await fixture.journal.dispose()
   })
 
@@ -778,6 +810,18 @@ describe('RemoteJournalStream', () => {
     expect(fixture.failed.mock.calls[0]?.[0]).toMatchObject({
       message: 'fixture journal emitted more than one opening cursor',
     })
+    await fixture.journal.dispose()
+  })
+
+  it('publishes a leftover follow refusal after the opening snapshot', async () => {
+    const fixture = journalFixture(
+      [{ frames: [opened(0, page('initial', [0]))], terminal: 'leftover string' }],
+      [],
+    )
+    await fixture.journal.open({})
+    await vi.waitFor(() => { expect(fixture.failed).toHaveBeenCalledOnce() })
+    expect(fixture.failed.mock.calls[0]?.[0]).toBe('leftover string')
+    expect(fixture.changes).toHaveLength(1)
     await fixture.journal.dispose()
   })
 
