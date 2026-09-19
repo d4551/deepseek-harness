@@ -581,9 +581,9 @@ describe('UiSession pending interactions', () => {
     const after = vi.fn<() => void>()
     service.pendingInteractions.subscribe(after)
 
-    expect(() => { interaction.answer('question') }).toThrow(failure)
+    interaction.answer('question')
+    await expect(settled).rejects.toBe(failure)
     expect(after).not.toHaveBeenCalled()
-    await expect(settled).resolves.toBe('question')
     await ctx.fiber.dispose()
   })
 
