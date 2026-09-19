@@ -42,7 +42,7 @@ const DEFAULT_WATCH_STABILITY_THRESHOLD_MS = 200
 const DEFAULT_WATCH_POLL_INTERVAL_MS = 100
 const DEFAULT_WATCH_MAX_PROJECTS = 128
 
-/** Values a Promise reject arm from provider dispose or ancestor watch handling may deliver. */
+/** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 export const name = 'skill-filesystem'
@@ -393,7 +393,7 @@ class SkillWatchManager {
       () => {
         state.opening = undefined
       },
-      () => {
+      (_error: Thrown) => {
         state.opening = undefined
       },
     )
@@ -1029,6 +1029,25 @@ function optionalMetadata(data: Record<string, unknown>): { metadata?: Record<st
   return {}
 }
 
+/**
+ * Human text for a rejected or caught filesystem skill failure.
+ * @param error - the unknown value a claim boundary received.
+ * @returns the Error message, primitive text, or object tag.
+ */
 function errorMessage(error: unknown): string {
-  return String(error)
+  if (error instanceof Error) return error.message
+  switch (typeof error) {
+    case 'string': return error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (error === null) return 'null'
+      return Object.prototype.toString.call(error)
+  }
 }
