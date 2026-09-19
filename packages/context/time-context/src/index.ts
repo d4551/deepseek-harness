@@ -37,6 +37,8 @@ export const Config: z<Config> = z.object({
   refreshIntervalMs: z.number(),
 })
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Format a non-negative elapsed millisecond count as compact whole-second units. */
 function formatDuration(elapsedMs: number): string {
   let seconds = Math.floor(Math.max(0, elapsedMs) / 1000)
@@ -167,43 +169,46 @@ export function apply(ctx: Context, config: Config): void {
     return created
   }
 
-  ctx.on('agent/pre-step', async (
+  ctx.on('agent/pre-step', (
     { agent, turn, step, signal },
     next,
   ): Promise<PreStepDecision> => {
-    const decision = await next()
-    if (decision.kind === 'reject' || signal.aborted) return decision
-    const now = Date.now()
-    if (refreshIntervalMs !== undefined && refreshIntervalMs > 0) {
-      const lastInjection = latestInjectionTime(agent)
-      if (lastInjection !== undefined
-        && now >= lastInjection
-        && now - lastInjection < refreshIntervalMs) return decision
-    }
-    const previous = step === 1
-      ? precedingMessageTime(agent)
-      : precedingStepContextTime(agent, turn)
-    const messages = requestMessages(agent, turn, decision.messages)
-    const browser = deriveBrowserTimeZoneContext(messages)
-    const selectedTimeZone = browser.kind === 'resolved' ? browser.timeZone : fallbackTimeZone
-    const text = renderText(
-      now,
-      turn,
-      step,
-      previous,
-      formatterFor(selectedTimeZone),
-      selectedTimeZone,
-      browser,
-    )
-    return {
-      ...decision,
-      messages: [
-        ...decision.messages,
-        createUserMessage({
-          content: [{ type: 'text', text }],
-          source: { kind: 'plugin', plugin: name, form: 'snapshot', sections: [{ name, text }] },
-        }),
-      ],
-    }
+    return next().then((decision) => {
+      if (decision.kind === 'reject' || signal.aborted) return decision
+      const now = Date.now()
+      if (refreshIntervalMs !== undefined && refreshIntervalMs > 0) {
+        const lastInjection = latestInjectionTime(agent)
+        if (lastInjection !== undefined
+          && now >= lastInjection
+          && now - lastInjection < refreshIntervalMs) return decision
+      }
+      const previous = step === 1
+        ? precedingMessageTime(agent)
+        : precedingStepContextTime(agent, turn)
+      const messages = requestMessages(agent, turn, decision.messages)
+      const browser = deriveBrowserTimeZoneContext(messages)
+      const selectedTimeZone = browser.kind === 'resolved' ? browser.timeZone : fallbackTimeZone
+      const text = renderText(
+        now,
+        turn,
+        step,
+        previous,
+        formatterFor(selectedTimeZone),
+        selectedTimeZone,
+        browser,
+      )
+      return {
+        ...decision,
+        messages: [
+          ...decision.messages,
+          createUserMessage({
+            content: [{ type: 'text', text }],
+            source: { kind: 'plugin', plugin: name, form: 'snapshot', sections: [{ name, text }] },
+          }),
+        ],
+      }
+    }, (error: Thrown): never => {
+      throw error
+    })
   }, { prepend: true })
 }
