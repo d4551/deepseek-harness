@@ -56,6 +56,9 @@ import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
 import { SubagentError } from './error.ts'
 import type SubagentActivationSetupRegistry from './activation-setup-registry.ts'
 
+/** Values a Promise reject arm from settlement watching may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Attribution for a model coordinator's follow-up to one of its children. */
 export interface CoordinatorMessageSource {
   readonly kind: 'coordinator'
@@ -1341,7 +1344,7 @@ export class SubagentContinuationManager {
         return
       }
     })()
-    watching.then(undefined, (error: unknown) => {
+    watching.then(undefined, (error: Thrown) => {
       this.ctx.logger.warn(
         `subagent "${activation.childId}" settlement failed: ${errorChain(error)}`,
       )

@@ -42,6 +42,9 @@ export type {
 } from './types.ts'
 export { TerminalBackendCleanupError } from './types.ts'
 
+/** Values a Promise reject arm from backend registration dispose may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Opaque identity minted by {@link TerminalSessionService} for one live PTY session. */
 export type TerminalSessionId = TerminalSessionIdValue
 
@@ -134,7 +137,7 @@ export class TerminalSessionService extends Service {
       }
     }, 'pty.registerBackend()')
     return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      Promise.resolve(dispose()).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }
   }
 

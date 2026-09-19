@@ -67,6 +67,9 @@ function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
+/** Values a Promise reject arm from the serialized driver task may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Human-readable unexpected values for logs. */
 function renderThrown(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
@@ -233,7 +236,7 @@ export function apply(ctx: Context): void {
       state.run = undefined
       if (state.requested && !state.stopping) requestDrive(state)
     }
-    run.then(retire, (error: unknown) => {
+    run.then(retire, (error: Thrown) => {
       ctx.logger.warn(`goal-round-driver: driver task rejected for agent "${state.agent.id}": ${renderThrown(error)}`)
       disarm(state)
       retire()

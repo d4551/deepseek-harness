@@ -46,6 +46,9 @@ export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
 export { foldTeam } from './fold.ts'
 
+/** Values a Promise reject arm from mailbox observation or Team recovery may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     agentTeams: TeamService
@@ -191,7 +194,7 @@ export class TeamService extends TypertRemoteService {
         const agent = ctx.agents.get(session.id)
         if (agent !== undefined) this.notifyLifecycleChange(agent, false)
       }
-      this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: unknown) => {
+      this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: Thrown) => {
         this.ctx.logger.warn(`Team message acknowledgement for "${session.id}" failed: ${errorMessage(error)}`)
       })
     })
@@ -530,7 +533,7 @@ export class TeamService extends TypertRemoteService {
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {
       if (this.lifecycle.disposed) return
-      this.recoverFor(agent).then(undefined, (error: unknown) => {
+      this.recoverFor(agent).then(undefined, (error: Thrown) => {
         if (this.lifecycle.disposed) return
         this.ctx.logger.warn(`Agent Teams recovery for "${agent.id}" failed: ${errorMessage(error)}`)
       })

@@ -42,6 +42,9 @@ const DEFAULT_WATCH_STABILITY_THRESHOLD_MS = 200
 const DEFAULT_WATCH_POLL_INTERVAL_MS = 100
 const DEFAULT_WATCH_MAX_PROJECTS = 128
 
+/** Values a Promise reject arm from provider dispose or ancestor watch handling may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 export const name = 'skill-filesystem'
 export const inject = ['skills']
 
@@ -165,7 +168,7 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
     this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
     control.signal.addEventListener('abort', () => {
-      this.dispose().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      this.dispose().then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }, { once: true })
     // The environment bundled root is a default root: an isolated provider
     // must see only its explicit roots, or every such provider would
@@ -455,7 +458,7 @@ class SkillWatchManager {
 
   private openAncestorWatcher(state: RootWatchState, mode: Extract<RootWatchMode, { kind: 'ancestor' }>): WatchHandle {
     const listener = (_current: Stats, _previous: Stats): void => {
-      this.handleAncestorWatchEvent(state, mode).then(undefined, (error: unknown) => {
+      this.handleAncestorWatchEvent(state, mode).then(undefined, (error: Thrown) => {
         this.handleWatcherError(state, error)
       })
     }
