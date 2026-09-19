@@ -16,8 +16,8 @@ import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import {
-  LOCALE_ID_PATTERN, LOCALE_IDS, LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE,
-  type BuiltInLocaleId, type LocaleId, type LocaleSettings,
+  decodeLocaleSettings, LOCALE_ID_PATTERN, LOCALE_IDS, LOCALE_PREFERENCE_FIELD,
+  LOCALE_SETTINGS_NAMESPACE, type BuiltInLocaleId, type LocaleId, type LocaleSettings,
 } from '../locale-settings.ts'
 import { en } from '../locales/en.ts'
 import { zh, type CommonKey } from '../locales/zh.ts'
@@ -483,14 +483,9 @@ export class LocaleRuntime {
       revision: this.snapshot.revision + 1,
     })
     if (localeChanged) this.ctx.emit('locale/change', this.snapshot)
-    for (const fn of [...this.listeners]) {
-      try {
-        fn()
-      } catch (error) {
-        // One throwing subscriber must not strand the rest on a stale
-        // revision (outlets would keep the previous language).
-        console.error('locale subscriber crashed:', error)
-      }
+    const pending = Array.from(this.listeners)
+    for (const fn of pending) {
+      fn()
     }
   }
 }
@@ -539,7 +534,10 @@ export const inject = ['slots', 'connection', 'remote', 'settingsScope']
  * @param ctx - client cordis context.
  */
 export function apply(ctx: ClientContext): void {
-  const host = ctx.settingsScope.bind<LocaleSettings>({ namespace: LOCALE_SETTINGS_NAMESPACE })
+  const host = ctx.settingsScope.bind<LocaleSettings>({
+    namespace: LOCALE_SETTINGS_NAMESPACE,
+    decode: decodeLocaleSettings,
+  })
   const locale = new LocaleRuntime(ctx, host)
   locale.register(COMMON_NS, { zh, en })
   locale.register(SETTINGS_NS, { zh: settingsZh, en: settingsEn })

@@ -30,3 +30,16 @@ export interface LocaleSettings {
 export const LocaleSettingsSchema: z<LocaleSettings> = z.object({
   [LOCALE_PREFERENCE_FIELD]: z.string().pattern(LOCALE_ID_PATTERN).required(false),
 })
+
+/**
+ * Claim one wire section as the durable locale settings type.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when the section is not locale settings.
+ */
+export function decodeLocaleSettings(section: unknown): LocaleSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  if (!Object.hasOwn(section, LOCALE_PREFERENCE_FIELD)) return {}
+  const preference = Reflect.get(section, LOCALE_PREFERENCE_FIELD)
+  if (typeof preference !== 'string' || !LOCALE_ID_PATTERN.test(preference)) return undefined
+  return { preference }
+}

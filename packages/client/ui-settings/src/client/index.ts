@@ -52,7 +52,7 @@ export const inject = ['connection', 'remote', 'remote.settings']
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
-  const schema = new SettingsSchemaService(ctx)
+  new SettingsSchemaService(ctx)
   const connection = ctx.connection
   // Captured once here, where `remote.settings` is declared in this plugin's
   // own `inject`; the binder hands the same face to every scope it binds.
@@ -76,5 +76,5 @@ export function apply(ctx: Context): void {
       await pending
     }
   }, 'ui-settings: describe mirror invalidations')
-  new SettingsScopeBinder(ctx, { mirror, schema, wire })
+  new SettingsScopeBinder(ctx, { mirror, wire })
 }

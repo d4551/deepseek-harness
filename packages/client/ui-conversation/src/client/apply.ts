@@ -33,7 +33,9 @@ import { ConversationSession, ConversationSessionHeader } from './skeleton/Conve
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
-import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
+import {
+  CONVERSATION_SETTINGS_NAMESPACE, decodeConversationSettings, type ConversationSettings,
+} from '../submission-settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -109,7 +111,10 @@ export function apply(ctx: Context): void {
   const t = ctx.locale.bind(NS)
   const conversationStore = createConversationStore()
   const submissionPolicy = new ComposerSubmissionPolicy(
-    ctx.settingsScope.bind<ConversationSettings>({ namespace: CONVERSATION_SETTINGS_NAMESPACE }),
+    ctx.settingsScope.bind<ConversationSettings>({
+      namespace: CONVERSATION_SETTINGS_NAMESPACE,
+      decode: decodeConversationSettings,
+    }),
   )
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({

@@ -30,7 +30,7 @@ import { en, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
 import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
-import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
+import { CHAT_SETTINGS_NAMESPACE, decodeChatSettings, type ChatSettings } from '../chat-settings.ts'
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
@@ -81,7 +81,10 @@ export function apply(ctx: Context): void {
   const chatStore = createChatStore()
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()
   const transcriptView = new TranscriptViewPolicy(
-    ctx.settingsScope.bind<ChatSettings>({ namespace: CHAT_SETTINGS_NAMESPACE }),
+    ctx.settingsScope.bind<ChatSettings>({
+      namespace: CHAT_SETTINGS_NAMESPACE,
+      decode: decodeChatSettings,
+    }),
   )
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({

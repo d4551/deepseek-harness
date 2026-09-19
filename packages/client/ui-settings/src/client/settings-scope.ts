@@ -29,7 +29,6 @@ import type {} from '@deepseek-ai/dsh-api-remotes/types'
 // cordis `Events` entry (and with it the branded `SettingsNamespace`).
 import type {} from '@deepseek-ai/dsh-settings/types'
 import type {} from '@deepseek-ai/dsh-client-connection/client'
-import type { SettingsSchemaService } from './schema.ts'
 import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './settings-contract.ts'
 import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
 
@@ -98,17 +97,15 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
 
   /**
    * @param api - settings wire face (writes only; reads ride the mirror).
-   * @param spec - namespace identity and optional narrowing decoder.
+   * @param spec - namespace identity and the decoder that claims the durable section.
    * @param mirror - the shared describe mirror this scope derives from.
    * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
-   * @param schema - settings-owned schema operations.
    */
   constructor(
     private readonly api: SettingsFace,
     private readonly spec: SettingsScopeSpec<T>,
     private readonly mirror: SettingsDescribeMirror,
     private readonly persistence: 'host' | 'memory',
-    private readonly schema: SettingsSchemaService,
   ) {
     this.store = createSnapshotStore<SettingsScopeSnapshot<T>>({
       status: persistence === 'host' ? 'loading' : 'unavailable',
@@ -278,15 +275,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   }
 
   private decode(view: SettingsNamespaceView): T | undefined {
-    if (this.spec.decode !== undefined) return this.spec.decode(view.value)
-    // Sections are plain objects by construction; schemastery alone would
-    // resolve null or an array through object defaults instead of refusing.
-    if (typeof view.value !== 'object' || view.value === null || Array.isArray(view.value)) return undefined
-    const schema = this.schema.rehydrate(view.schema)
-    if (schema === undefined) return undefined
-    const failure = this.schema.validate(schema, view.value)
-    if (failure !== undefined) return undefined
-    return view.value as T
+    return this.spec.decode(view.value)
   }
 }
 
@@ -305,26 +294,22 @@ declare module '@deepseek-ai/cordis' {
  */
 export class SettingsScopeBinder extends Service {
   private readonly mirror: SettingsDescribeMirror
-  private readonly schema: SettingsSchemaService
   private readonly wire: SettingsWireFace
 
   /**
    * @param ctx - the providing plugin's context.
-   * @param config - the shared describe mirror every bound scope derives from,
-   * the settings-owned schema operations, and the settings Remote namespace the
-   * bound scopes write through. The namespace is captured here rather than read
-   * inside {@link bind}, because a Service reads `ctx` as its *consumer's*
-   * fiber: reading it there would make every caller declare `remote.settings`
-   * in its own `inject`.
+   * @param config - the shared describe mirror every bound scope derives from
+   * and the settings Remote namespace the bound scopes write through. The
+   * namespace is captured here rather than read inside {@link bind}, because a
+   * Service reads `ctx` as its *consumer's* fiber: reading it there would make
+   * every caller declare `remote.settings` in its own `inject`.
    */
   constructor(ctx: Context, config: {
     mirror: SettingsDescribeMirror
-    schema: SettingsSchemaService
     wire: SettingsWireFace
   }) {
     super(ctx, 'settingsScope')
     this.mirror = config.mirror
-    this.schema = config.schema
     this.wire = config.wire
   }
 
@@ -357,7 +342,6 @@ export class SettingsScopeBinder extends Service {
       spec,
       this.mirror,
       connection.isLoopback ? 'host' : 'memory',
-      this.schema,
     )
     ctx.effect(() => {
       const initialRead = this.mirror.ensure()

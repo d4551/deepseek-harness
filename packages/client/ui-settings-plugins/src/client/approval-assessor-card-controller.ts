@@ -10,6 +10,27 @@ export interface ApprovalAssessorSettings {
   extraPhrases?: readonly string[]
 }
 
+/**
+ * Claim one wire section as the assessor card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is the wrong kind.
+ */
+export function decodeApprovalAssessorSettings(section: unknown): ApprovalAssessorSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const enabled = Reflect.get(section, 'enabled')
+  const extraPhrases = Reflect.get(section, 'extraPhrases')
+  if (enabled !== undefined && typeof enabled !== 'boolean') return undefined
+  if (extraPhrases !== undefined) {
+    if (!Array.isArray(extraPhrases) || !extraPhrases.every(phrase => typeof phrase === 'string')) {
+      return undefined
+    }
+  }
+  const claimed: ApprovalAssessorSettings = {}
+  if (enabled !== undefined) claimed.enabled = enabled
+  if (extraPhrases !== undefined) claimed.extraPhrases = extraPhrases
+  return claimed
+}
+
 export interface ApprovalAssessorCardState extends CardShell {
   enabled: CardFieldState
   extraPhrases: CardFieldState

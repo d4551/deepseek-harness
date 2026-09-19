@@ -20,6 +20,25 @@ export interface AgentLoopSettings {
   maxParallelToolCalls?: number
 }
 
+/**
+ * Claim one wire section as the agent-loop card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when the parallel cap is not a finite number.
+ */
+export function decodeAgentLoopSettings(section: unknown): AgentLoopSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const maxParallelToolCalls = Reflect.get(section, 'maxParallelToolCalls')
+  if (
+    maxParallelToolCalls !== undefined
+    && (typeof maxParallelToolCalls !== 'number' || !Number.isFinite(maxParallelToolCalls))
+  ) {
+    return undefined
+  }
+  const claimed: AgentLoopSettings = {}
+  if (maxParallelToolCalls !== undefined) claimed.maxParallelToolCalls = maxParallelToolCalls
+  return claimed
+}
+
 /** What the agent-loop card renders. */
 export interface AgentLoopCardState extends CardShell {
   /** Parallel tool-call cap. */

@@ -6,16 +6,20 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import { SettingsSchemaService } from '../src/client/schema.ts'
 import { SettingsScopeController, SettingsScopeBinder } from '../src/client/settings-scope.ts'
 import { SettingsDescribeMirror, type SettingsRemote } from '../src/client/settings-mirror.ts'
 
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
-const settingsSchema = new SettingsSchemaService(new Context())
-
 interface UiTestSettings {
   preference: 'light' | 'dark' | 'system'
+}
+
+function decodeUiTestSettings(section: unknown): UiTestSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const preference = Reflect.get(section, 'preference')
+  if (preference !== 'light' && preference !== 'dark' && preference !== 'system') return undefined
+  return { preference }
 }
 
 const ENVELOPE = z.object({
@@ -65,11 +69,14 @@ function derivedScope(
     describe?: ReturnType<typeof vi.fn<SettingsRemote['describe']>>
     mutate?: ReturnType<typeof vi.fn<SettingsRemote['mutate']>>
   },
-  spec: { namespace: string; decode?: (section: unknown) => UiTestSettings | undefined } = { namespace: 'ui-test' },
+  spec: { namespace: string; decode: (section: unknown) => UiTestSettings | undefined } = {
+    namespace: 'ui-test',
+    decode: decodeUiTestSettings,
+  },
 ) {
   const wire = { settings: api } as never
   const mirror = new SettingsDescribeMirror(wire)
-  const scope = new SettingsScopeController<UiTestSettings>(wire, spec, mirror, 'host', settingsSchema)
+  const scope = new SettingsScopeController<UiTestSettings>(wire, spec, mirror, 'host')
   return { mirror, scope }
 }
 
@@ -116,13 +123,15 @@ describe('SettingsScopeController', () => {
     expect(good).toEqual([undefined, { preference: 'dark' }])
   })
 
-  it('treats a schema envelope it cannot rehydrate as vouching for no section', async () => {
+  it('claims a valid section even when the wire schema envelope is missing', async () => {
     const broken = { ...view({ preference: 'dark' }, 2), schema: null }
     const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(ok({ writable: true, hasDocument: true, namespaces: [broken] }))
     const { mirror, scope } = derivedScope({ describe: describeCall })
     await mirror.load()
-    expect(scope.getSnapshot()).toMatchObject({ status: 'loading', value: undefined, revision: 2 })
+    expect(scope.getSnapshot()).toMatchObject({
+      status: 'ready', value: { preference: 'dark' }, revision: 2,
+    })
   })
 
   it('reports an unexposed namespace as unavailable and recovers when it reappears', async () => {
@@ -145,9 +154,10 @@ describe('SettingsScopeController', () => {
       .mockResolvedValueOnce(described({ preference: 'dark' }, 2))
     const { mirror, scope } = derivedScope({ describe: describeCall }, {
       namespace: 'ui-test',
-      decode: section => (section as UiTestSettings).preference === 'dark'
-        ? section as UiTestSettings
-        : undefined,
+      decode: (section) => {
+        const claimed = decodeUiTestSettings(section)
+        return claimed?.preference === 'dark' ? claimed : undefined
+      },
     })
     await mirror.load()
     expect(scope.getSnapshot()).toMatchObject({ status: 'loading', value: undefined, revision: 1 })
@@ -238,8 +248,10 @@ describe('SettingsScopeController', () => {
     const mutate = vi.fn<SettingsRemote['mutate']>().mockResolvedValueOnce(ok(view({ preference: 'dark' }, 5)))
     const wire = { settings: { describe: describeCall, mutate } } as never
     const mirror = new SettingsDescribeMirror(wire)
-    const writer = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
-    const sibling = new SettingsScopeController<UiTestSettings>(wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
+    const writer = new SettingsScopeController<UiTestSettings>(
+      wire, { namespace: 'ui-test', decode: decodeUiTestSettings }, mirror, 'host')
+    const sibling = new SettingsScopeController<UiTestSettings>(
+      wire, { namespace: 'ui-test', decode: decodeUiTestSettings }, mirror, 'host')
     await mirror.load()
     await writer.set('preference', 'dark')
     expect(describeCall).toHaveBeenCalledTimes(1)
@@ -491,7 +503,7 @@ describe('SettingsScopeController', () => {
     } as never
     const wire = { settings: {} } as never
     const scope = new SettingsScopeController<UiTestSettings>(
-      wire, { namespace: 'ui-test' }, mirror, 'host', settingsSchema)
+      wire, { namespace: 'ui-test', decode: decodeUiTestSettings }, mirror, 'host')
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 1 })
 
     await scope.dispose()
@@ -510,7 +522,7 @@ describe('SettingsScopeController', () => {
     const wire = { settings: { describe: describeCall, mutate } } as never
     const mirror = new SettingsDescribeMirror(wire, 'memory')
     const scope = new SettingsScopeController<UiTestSettings>(
-      wire, { namespace: 'ui-test' }, mirror, 'memory', settingsSchema)
+      wire, { namespace: 'ui-test', decode: decodeUiTestSettings }, mirror, 'memory')
     expect(scope.getSnapshot()).toEqual({
       status: 'unavailable', value: undefined, revision: undefined, writable: false,
       secrets: [], applies: 'live', mode: 'memory',
@@ -594,13 +606,17 @@ describe('SettingsScopeBinder.bind', () => {
     let theme!: SettingsScope<UiTestSettings>
     let locale!: SettingsScope<UiTestSettings>
     new TestRemote(ctx)
-    await ctx.plugin(SettingsScopeBinder, { mirror, schema: settingsSchema, wire: wire as never }).await()
+    await ctx.plugin(SettingsScopeBinder, { mirror, wire: wire as never }).await()
     expect(ctx.settingsScope.describe()).toBe(mirror)
     const fiber = ctx.plugin({
       inject: ['connection', 'remote', 'settingsScope'],
       apply: (plugin: Context) => {
-        theme = plugin.settingsScope.bind<UiTestSettings>({ namespace: 'ui-test' })
-        locale = plugin.settingsScope.bind<UiTestSettings>({ namespace: 'ui-test' })
+        theme = plugin.settingsScope.bind<UiTestSettings>({
+          namespace: 'ui-test', decode: decodeUiTestSettings,
+        })
+        locale = plugin.settingsScope.bind<UiTestSettings>({
+          namespace: 'ui-test', decode: decodeUiTestSettings,
+        })
       },
     })
     await fiber.await()
@@ -622,11 +638,13 @@ describe('SettingsScopeBinder.bind', () => {
     ctx.provide('connection', { api: wire, isLoopback: false } as never)
     let scope!: SettingsScope<UiTestSettings>
     new TestRemote(ctx)
-    await ctx.plugin(SettingsScopeBinder, { mirror, schema: settingsSchema, wire: wire as never }).await()
+    await ctx.plugin(SettingsScopeBinder, { mirror, wire: wire as never }).await()
     const fiber = ctx.plugin({
       inject: ['connection', 'remote', 'settingsScope'],
       apply: (plugin: Context) => {
-        scope = plugin.settingsScope.bind<UiTestSettings>({ namespace: 'ui-test' })
+        scope = plugin.settingsScope.bind<UiTestSettings>({
+          namespace: 'ui-test', decode: decodeUiTestSettings,
+        })
       },
     })
     await fiber.await()

@@ -27,3 +27,24 @@ export interface ChatSettings {
 export const ChatSettingsSchema: z<ChatSettings> = z.object({
   [TRANSCRIPT_VIEW_FIELD]: z.union([...TRANSCRIPT_VIEW_MODES]).default(DEFAULT_TRANSCRIPT_VIEW_MODE),
 })
+
+/**
+ * Claim a transcript presentation token.
+ * @param value - wire or menu token.
+ * @returns whether the token is a configured transcript view mode.
+ */
+export function isTranscriptViewMode(value: unknown): value is TranscriptViewMode {
+  return value === 'normal' || value === 'compact'
+}
+
+/**
+ * Claim one wire section as the durable chat settings type.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when the section is not chat settings.
+ */
+export function decodeChatSettings(section: unknown): ChatSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const transcriptView = Reflect.get(section, TRANSCRIPT_VIEW_FIELD)
+  if (!isTranscriptViewMode(transcriptView)) return undefined
+  return { transcriptView }
+}

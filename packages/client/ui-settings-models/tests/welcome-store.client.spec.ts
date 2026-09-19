@@ -1,14 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
-import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
+import { SettingsDescribeMirror, type SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
 import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
-
-const schemaService = new SettingsSchemaService(new Context())
 
 /** The settings namespace answers over the Remote carrier, which has no envelope. */
 function ok<T>(value: T) {
@@ -32,7 +28,10 @@ function acknowledgedNamespace(version: string, revision = 1) {
 
 /** The welcome store over a real mirror-derived scope and a fake wire. */
 function buildWelcome(
-  api: { describe?: ReturnType<typeof vi.fn>; mutate?: ReturnType<typeof vi.fn> },
+  api: {
+    describe?: ReturnType<typeof vi.fn<SettingsRemote['describe']>>
+    mutate?: ReturnType<typeof vi.fn<SettingsRemote['mutate']>>
+  },
   persistence: 'host' | 'memory' = 'host',
 ) {
   const wire = { settings: api } as never
@@ -42,15 +41,14 @@ function buildWelcome(
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
     persistence,
-    schemaService,
   )
   return { mirror, controller: new WelcomeNoticeStore(scope) }
 }
 
 describe('WelcomeNoticeStore', () => {
   it('acknowledges in memory while Host settings persistence is disabled', async () => {
-    const describeCall = vi.fn()
-    const mutate = vi.fn()
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+    const mutate = vi.fn<SettingsRemote['mutate']>()
     const { controller } = buildWelcome({ describe: describeCall, mutate }, 'memory')
 
     await controller.load()
@@ -69,7 +67,7 @@ describe('WelcomeNoticeStore', () => {
       ['older-copy', false],
       [WELCOME_NOTICE_VERSION, true],
     ] as const) {
-      const describeCall = vi.fn(() => Promise.resolve(ok({
+      const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
         writable: true,
         hasDocument: false,
         namespaces: [version === undefined ? namespace() : acknowledgedNamespace(version)],
@@ -82,10 +80,10 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('persists the owner version through one revision-fenced mutation', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [namespace({}, 3)],
     })))
-    const mutate = vi.fn(() => Promise.resolve(ok(acknowledgedNamespace(WELCOME_NOTICE_VERSION, 4))))
+    const mutate = vi.fn<SettingsRemote['mutate']>(() => Promise.resolve(ok(acknowledgedNamespace(WELCOME_NOTICE_VERSION, 4))))
     const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
     await mirror.load()
     await controller.load()
@@ -101,7 +99,7 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('keeps the notice pending while the settings read has not answered', async () => {
-    const describeCall = vi.fn(() => Promise.reject(new Error('offline')))
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.reject(new Error('offline')))
     const { mirror, controller } = buildWelcome({ describe: describeCall })
     await mirror.load()
     await controller.load()
@@ -110,10 +108,10 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('reports a failed or refused persistence attempt after its recovery read', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [namespace()],
     })))
-    const mutate = vi.fn(() => Promise.reject(new Error('disk full')))
+    const mutate = vi.fn<SettingsRemote['mutate']>(() => Promise.reject(new Error('disk full')))
     const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
     await mirror.load()
     await controller.load()
@@ -128,7 +126,7 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('reports a missing namespace as an error instead of a silent skip', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [],
     })))
     const { mirror, controller } = buildWelcome({ describe: describeCall })
@@ -142,7 +140,7 @@ describe('WelcomeNoticeStore', () => {
 
   it('reads malformed durable values as unacknowledged', async () => {
     for (const value of [null, 42, { [WELCOME_NOTICE_ACK_FIELD]: 42 }]) {
-      const describeCall = vi.fn(() => Promise.resolve(ok({
+      const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
         writable: true, hasDocument: false, namespaces: [namespace(value)],
       })))
       const { mirror, controller } = buildWelcome({ describe: describeCall })
@@ -153,7 +151,7 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('follows a later document change without an own read', async () => {
-    const describeCall = vi.fn()
+    const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(ok({ writable: true, hasDocument: false, namespaces: [namespace()] }))
       .mockResolvedValueOnce(ok({
         writable: true, hasDocument: false,

@@ -25,7 +25,7 @@ import { AgentLoopCard } from './AgentLoopCard.tsx'
 import { AgentDefaultModelCard } from './AgentDefaultModelCard.tsx'
 import { AgentTeamCard } from './AgentTeamCard.tsx'
 import { RequestBudgetCard } from './RequestBudgetCard.tsx'
-import { RequestBudgetCardController } from './request-budget-card-controller.ts'
+import { decodeRequestBudgetLimits, RequestBudgetCardController } from './request-budget-card-controller.ts'
 import { ApprovalAdversaryCard } from './ApprovalAdversaryCard.tsx'
 import { ApprovalAssessorCard } from './ApprovalAssessorCard.tsx'
 import { BashCard } from './BashCard.tsx'
@@ -36,25 +36,26 @@ import { SubagentModelSelectionCard } from './SubagentModelSelectionCard.tsx'
 import { WebAccessCard } from './WebAccessCard.tsx'
 import { WebProviderCard } from './WebProviderCard.tsx'
 import { WebSearchCard } from './WebSearchCard.tsx'
-import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
+import { AGENT_LOOP_NS, AgentLoopCardController, decodeAgentLoopSettings } from './agent-loop-card-controller.ts'
 import {
-  APPROVAL_ADVERSARY_NS, ApprovalAdversaryCardController,
+  APPROVAL_ADVERSARY_NS, ApprovalAdversaryCardController, decodeApprovalAdversarySettings,
 } from './approval-adversary-card-controller.ts'
 import {
-  APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController,
+  APPROVAL_ASSESSOR_NS, ApprovalAssessorCardController, decodeApprovalAssessorSettings,
 } from './approval-assessor-card-controller.ts'
 import {
-  AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController,
+  AGENT_DEFAULT_MODEL_NS, AgentDefaultModelCardController, decodeAgentDefaultModelSettings,
 } from './agent-default-model-card-controller.ts'
-import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
-import { AGENT_TEAM_NS, AgentTeamCardController } from './agent-team-card-controller.ts'
+import { decodeBashSettings, SHELL_NS, BashCardController } from './bash-card-controller.ts'
+import { AGENT_TEAM_NS, AgentTeamCardController, decodeAgentTeamSettings } from './agent-team-card-controller.ts'
 import { ConfigurablePluginsTabController } from './tab-store.ts'
 import {
-  SUBAGENT_MODEL_SELECTION_NS, SubagentModelSelectionCardController,
+  decodeSubagentModelSelectionSettings, SUBAGENT_MODEL_SELECTION_NS,
+  SubagentModelSelectionCardController,
 } from './subagent-model-selection-card-controller.ts'
-import { WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
-import { WEB_ACCESS_NS, WebAccessCardController } from './web-access-card-controller.ts'
-import { WebProviderCardController } from './web-provider-card-controller.ts'
+import { decodeWebSearchSettings, WEB_SEARCH_NS, WebSearchCardController } from './web-search-card-controller.ts'
+import { decodeWebAccessSettings, WEB_ACCESS_NS, WebAccessCardController } from './web-access-card-controller.ts'
+import { decodeWebProviderSettings, WebProviderCardController } from './web-provider-card-controller.ts'
 import { WEB_PROVIDERS } from './web-provider-catalog.ts'
 import { en, zh } from './locales.ts'
 import { registerSettingsFlows } from './register-settings-flows.ts'
@@ -82,29 +83,44 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugins: section dictionaries')
 
-  const bash = new BashCardController(ctx.settingsScope.bind({ namespace: SHELL_NS }))
-  const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
+  const bash = new BashCardController(ctx.settingsScope.bind({
+    namespace: SHELL_NS, decode: decodeBashSettings,
+  }))
+  const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({
+    namespace: AGENT_LOOP_NS, decode: decodeAgentLoopSettings,
+  }))
   const requestBudget = new RequestBudgetCardController(
-    ctx.settingsScope.bind({ namespace: REQUEST_BUDGET_SETTINGS_NAMESPACE }),
+    ctx.settingsScope.bind({
+      namespace: REQUEST_BUDGET_SETTINGS_NAMESPACE, decode: decodeRequestBudgetLimits,
+    }),
   )
   const approvalAssessor = new ApprovalAssessorCardController(
-    ctx.settingsScope.bind({ namespace: APPROVAL_ASSESSOR_NS }),
+    ctx.settingsScope.bind({
+      namespace: APPROVAL_ASSESSOR_NS, decode: decodeApprovalAssessorSettings,
+    }),
   )
   const approvalAdversary = new ApprovalAdversaryCardController(
-    ctx.settingsScope.bind({ namespace: APPROVAL_ADVERSARY_NS }),
+    ctx.settingsScope.bind({
+      namespace: APPROVAL_ADVERSARY_NS, decode: decodeApprovalAdversarySettings,
+    }),
   )
   const webSearch = new WebSearchCardController(
-    ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx.remote.credentials)
+    ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS, decode: decodeWebSearchSettings }),
+    ctx.remote.credentials)
   const subagentModelSelection = new SubagentModelSelectionCardController(
-    ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
+    ctx.settingsScope.bind({
+      namespace: SUBAGENT_MODEL_SELECTION_NS, decode: decodeSubagentModelSelectionSettings,
+    }),
     ctx.remote.session,
   )
   const agentDefaultModel = new AgentDefaultModelCardController(
-    ctx.settingsScope.bind({ namespace: AGENT_DEFAULT_MODEL_NS }),
+    ctx.settingsScope.bind({
+      namespace: AGENT_DEFAULT_MODEL_NS, decode: decodeAgentDefaultModelSettings,
+    }),
     ctx.remote.session,
   )
   const webAccess = new WebAccessCardController(
-    ctx.settingsScope.bind({ namespace: WEB_ACCESS_NS }),
+    ctx.settingsScope.bind({ namespace: WEB_ACCESS_NS, decode: decodeWebAccessSettings }),
     ctx.settingsScope.describe(),
   )
   // Each backend edits its own namespace; the DeepSeek one keeps its own card
@@ -113,12 +129,14 @@ export function apply(ctx: ClientContext): void {
     .filter(provider => provider.fields.length > 0)
     .map(provider => new WebProviderCardController(
       provider,
-      ctx.settingsScope.bind({ namespace: provider.ns }),
+      ctx.settingsScope.bind({ namespace: provider.ns, decode: decodeWebProviderSettings }),
     ))
   ctx.effect(() => () => { webAccess.dispose() }, 'ui-settings-plugins: web backend directory')
   // Only a Team-composed deployment serves this namespace, so the card is
   // absent from a profile that mounts no Team rather than showing dead controls.
-  const agentTeam = new AgentTeamCardController(ctx.settingsScope.bind({ namespace: AGENT_TEAM_NS }))
+  const agentTeam = new AgentTeamCardController(ctx.settingsScope.bind({
+    namespace: AGENT_TEAM_NS, decode: decodeAgentTeamSettings,
+  }))
 
   // The credential a card reports is not part of any settings section, so its
   // scope publishes nothing when one is written. This is the only signal that

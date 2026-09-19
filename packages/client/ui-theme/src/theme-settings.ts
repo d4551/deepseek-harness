@@ -51,3 +51,18 @@ export const ThemeSettingsSchema: z<ThemeSettings> = z.object({
 export function isThemePreference(value: unknown): value is ThemePreference {
   return THEME_PREFERENCES.some(preference => preference === value)
 }
+
+/**
+ * Claim one wire section as the durable theme settings type.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when the section is not theme settings.
+ */
+export function decodeThemeSettings(section: unknown): ThemeSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const preference = Reflect.get(section, THEME_PREFERENCE_FIELD)
+  const fontSize = Reflect.get(section, FONT_SIZE_FIELD)
+  if (!isThemePreference(preference)) return undefined
+  if (typeof fontSize !== 'number' || !Number.isInteger(fontSize)) return undefined
+  if (fontSize < FONT_SIZE_MIN || fontSize > FONT_SIZE_MAX) return undefined
+  return { preference, fontSize }
+}

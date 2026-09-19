@@ -2,13 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { Context } from '@deepseek-ai/cordis'
-import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
-import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
+import { SettingsDescribeMirror, type SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
-
-/** Stateless schema service for scope construction in this jsdom fixture. */
-const schemaService = new SettingsSchemaService(new Context())
 import { WelcomeNotice } from '../src/client/WelcomeNotice.tsx'
 import type { WelcomeNoticeProps } from '../src/client/WelcomeNotice.tsx'
 import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
@@ -53,13 +48,13 @@ const useSessionPendingInteraction: WelcomeNoticeProps['useSessionPendingInterac
 
 function mount(
   version?: string,
-  mutateImpl: () => Promise<unknown> = () =>
+  mutateImpl: SettingsRemote['mutate'] = () =>
     Promise.resolve(remoteAnswer(welcomeView({ [WELCOME_NOTICE_ACK_FIELD]: WELCOME_NOTICE_VERSION }, 1))),
 ) {
   const appRoot = document.createElement('div')
   appRoot.id = 'root'
   document.body.append(appRoot)
-  const mutate = vi.fn(mutateImpl)
+  const mutate = vi.fn<SettingsRemote['mutate']>(mutateImpl)
   const api = {
     settings: {
       describe: () => Promise.resolve(remoteAnswer({
@@ -76,17 +71,16 @@ function mount(
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
     'host',
-    schemaService,
   )
   const controller = new WelcomeNoticeStore(scope)
   const initialRead = mirror.load()
   onTestFinished(async () => { await initialRead })
-  const complete = vi.fn()
+  const complete = vi.fn<WelcomeNoticeProps['complete']>()
   const unusedHook = (() => { throw new Error('unused standard hook') }) as never
   const props: WelcomeNoticeProps = {
     stepId: 'welcome-notice',
     complete,
-    openSection: vi.fn(),
+    openSection: vi.fn<WelcomeNoticeProps['openSection']>(),
     useSessions: unusedHook,
     useSessionPendingInteraction,
     useWorkspaces: unusedHook,

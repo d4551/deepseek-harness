@@ -13,6 +13,29 @@ import {
 /** Namespace of the Host-owned subagent model-selection preference. */
 export const SUBAGENT_MODEL_SELECTION_NS = 'subagent-model-selection'
 
+/**
+ * Claim one wire section as the subagent model-selection settings type.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when enabled or routes are the wrong kind.
+ */
+export function decodeSubagentModelSelectionSettings(
+  section: unknown,
+): SubagentModelSelectionSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const enabled = Reflect.get(section, 'enabled')
+  const allowedModels = Reflect.get(section, 'allowedModels')
+  if (typeof enabled !== 'boolean' || !Array.isArray(allowedModels)) return undefined
+  const routes: SubagentModelSelectionSettings['allowedModels'] = []
+  for (const candidate of allowedModels) {
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) return undefined
+    const provider = Reflect.get(candidate, 'provider')
+    const model = Reflect.get(candidate, 'model')
+    if (typeof provider !== 'string' || typeof model !== 'string') return undefined
+    routes.push({ provider, model })
+  }
+  return { enabled, allowedModels: routes }
+}
+
 /** State rendered by the staged allowlist card. */
 export interface SubagentModelSelectionCardState extends CardShell {
   /** Whether the draft enables model-facing child route selection. */
