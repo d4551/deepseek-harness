@@ -23,16 +23,19 @@ import { bootstrapEnvironment, readRemoteEnvironment, serializeRemoteEnvironment
 import { E2BBase64Decoder, E2B_OUTPUT_COMPLETE_FRAME, E2BOutputReader } from './output.ts'
 import { asError, commandOpts, signalRemoteGroups, waitTick } from './remote.ts'
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected command, stream, or remote control.
  * @param reason - the Thrown the Promise rejected with.
- * @returns the Error string, primitive text, or object tag.
+ * @returns the Error message, primitive text, or object tag.
  */
 function thrownMessage(reason: Thrown): string {
-  if (reason instanceof Error) return String(reason)
+  if (reason instanceof Error) {
+    if (reason.message.length > 0) return reason.message
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
   switch (typeof reason) {
     case 'string': return reason
     case 'number':
@@ -242,10 +245,10 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       ...(this.stderrReader !== undefined ? { stderr: this.stderrReader } : {}),
     }
     this.stdin = spec.stdio.stdin === 'pipe' ? new DeferredStdin(this.readyState.promise) : undefined
-    this.readyState.promise.catch(() => {})
+    this.readyState.promise.catch((_error: Thrown) => {})
     spec.signal?.addEventListener('abort', this.onAbort, { once: true })
     this.done = this.run()
-    this.done.catch(() => {})
+    this.done.catch((_error: Thrown) => {})
     if (spec.signal?.aborted === true) this.terminate()
   }
 
@@ -286,7 +289,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       }
       if (this.remotePid <= 0) {
         const attempt = this.terminationAttempt
-        if (attempt !== undefined && await waitWithSignal(attempt.catch(() => undefined), signal) === WAIT_ABORTED) {
+        if (attempt !== undefined && await waitWithSignal(attempt.catch((_error: Thrown) => undefined), signal) === WAIT_ABORTED) {
           return false
         }
         this.throwTerminationFailure()
@@ -295,7 +298,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       }
     } else {
       const observed = await waitWithSignal(
-        this.readyState.promise.catch(() => this.commandState.promise),
+        this.readyState.promise.catch((_error: Thrown) => this.commandState.promise),
         signal,
       )
       if (observed === WAIT_ABORTED) return false
@@ -309,7 +312,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     let sandbox: Sandbox
     try {
       sandbox = await this.runtime.getSandbox()
-    } catch (error: unknown) {
+    } catch (error) {
       if (signal?.aborted === true) return false
       if (error instanceof SandboxNotFoundError) {
         this.markQuiescent()
@@ -355,13 +358,13 @@ export class E2BSubprocessHandle implements SubprocessHandle {
         },
       )
       const completion = handle.wait()
-      completion.catch(() => {})
+      completion.catch((_error: Thrown) => {})
       if (!isValidProcessId(handle.pid)) {
         const invalidPid = new Error(`subprocess-e2b: E2B returned invalid command pid ${handle.pid}`)
         try {
           await handle.kill()
           this.markQuiescent()
-        } catch (cleanupError: unknown) {
+        } catch (cleanupError) {
           this.terminationFailure = asError(cleanupError)
           this.commandState.resolve(handle)
           throw new AggregateError(
@@ -374,10 +377,10 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       this.commandState.resolve(handle)
       try {
         this.remotePid = await this.waitForProcessGroupId(sandbox, completion)
-      } catch (error: unknown) {
+      } catch (error) {
         try {
           await this.rollbackUnpublishedGroup(sandbox, handle)
-        } catch (cleanupError: unknown) {
+        } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
             'subprocess-e2b: process-group publication failed and rollback did not reach quiescence',
@@ -394,13 +397,13 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       this.stderrDecoder.finish(requireCompleteOutput)
       await this.finalizeSpills(sandbox)
       return outcome
-    } catch (error: unknown) {
+    } catch (error) {
       const canceledPreparation = preparing && this.terminationController.signal.aborted
       let failure = await this.rollbackPublishedFailure(error)
       if (sandbox !== undefined && this.stateDirectoryCreated) {
         try {
           await this.removeFailedState(sandbox)
-        } catch (cleanupError: unknown) {
+        } catch (cleanupError) {
           failure = new AggregateError(
             [failure, cleanupError],
             'subprocess-e2b: command failed and private state cleanup failed',
@@ -459,7 +462,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     let bytes: Buffer
     try {
       bytes = stream === 'stdout' ? this.stdoutDecoder.push(data) : this.stderrDecoder.push(data)
-    } catch (error: unknown) {
+    } catch (error) {
       this.outputTransportError ??= asError(error)
       const target = stream === 'stdout' ? this.stdout : this.stderr
       target?.destroy(this.outputTransportError)
@@ -473,7 +476,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       }
       this.stderrReader?.push(bytes)
       await this.writeOutput(this.stderr, this.spec.stdio.stderr === 'inherit' ? process.stderr : undefined, bytes)
-    } catch (error: unknown) {
+    } catch (error) {
       const target = stream === 'stdout' ? this.stdout : this.stderr
       target?.destroy(asError(error))
     }
@@ -508,7 +511,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
   private async waitForProcessGroupId(sandbox: Sandbox, completion: Promise<CommandResult>): Promise<number> {
     const commandSettled = completion.then(
       () => true,
-      () => true,
+      (_error: Thrown) => true,
     )
     while (true) {
       // TODO(e2b-publication-cancel): Join cancellation to the existing
@@ -588,7 +591,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     try {
       await this.waitForExit()
       return error
-    } catch (cleanupError: unknown) {
+    } catch (cleanupError) {
       return new AggregateError(
         [asError(error), asError(cleanupError)],
         'subprocess-e2b: command monitoring failed and process-group rollback did not reach quiescence',
@@ -608,7 +611,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
   private async terminateRemote(): Promise<void> {
     try {
       await this.terminateRemoteInSandbox()
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof SandboxNotFoundError) {
         this.markQuiescent()
         return
@@ -711,7 +714,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     for (const path of [this.paths.environment, this.stateDir]) {
       try {
         await sandbox.files.remove(path)
-      } catch (error: unknown) {
+      } catch (error) {
         if (!(error instanceof FileNotFoundError)) failures.push(asError(error))
       }
     }

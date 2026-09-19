@@ -401,6 +401,17 @@
     },
     {
       "files": [
+        "packages/e2b/subprocess-e2b/src/process.ts"
+      ],
+      "rules": {
+        "promise/no-callback-in-promise": "off" // Node Writable._write/_final settle only through their callback argument; no promise-based alternative exists.
+      },
+      "plugins": [
+        "promise"
+      ]
+    },
+    {
+      "files": [
         "packages/experimental/webworker-runtime/src/node/**/*.ts",
         "packages/experimental/webworker-runtime/src/storage/memory.ts",
         "packages/experimental/webworker-runtime/src/module-system/module-loader.ts",
