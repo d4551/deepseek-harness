@@ -208,7 +208,7 @@ type RuntimePendingDomain = PendingInteractionDomain<SessionPendingInteractionBa
 interface MaterializedBinding {
   readonly owner: SessionBinding
   readonly value: ScopedStandardSourceBinding
-  readonly release: () => void
+  readonly release: () => void | Promise<void>
 }
 
 const BUILTIN_SOURCE = {
@@ -293,22 +293,23 @@ export class UiSession extends Service {
     const KeyedHooks extends SessionSourceRoster = undefined,
     const Props extends SessionSourceRoster = undefined,
   >(descriptor: SessionSourceDescriptor<Hooks, KeyedHooks, Props>): () => void {
-    const runtimeDescriptor = descriptor as unknown as RuntimeSessionSourceDescriptor
-    const dispose = this.ctx.effect(() => {
+    const runtimeDescriptor = runtimeDescriptorOf(descriptor)
+    return this.ctx.effect(() => {
       this.descriptors.push(runtimeDescriptor)
-      try {
-        this.rebuildBindings()
-      } catch (error) {
-        this.descriptors.pop()
-        throw error
+      let committed = false
+      using _rollbackProvide = {
+        [Symbol.dispose]: (): void => {
+          if (!committed) this.descriptors.pop()
+        },
       }
+      this.rebuildBindings()
+      committed = true
       return () => {
         const index = this.descriptors.indexOf(runtimeDescriptor)
         this.descriptors.splice(index, 1)
         this.rebuildBindings()
       }
     }, 'uiSession.provide()')
-    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
   }
 
   /**
@@ -363,17 +364,23 @@ export class UiSession extends Service {
   private rebuildBindings(): void {
     const absent = this.materializeAbsent()
     const bindings = new Map<SessionId, MaterializedBinding>()
-    try {
-      for (const [sessionId, cached] of this.bindings) {
-        bindings.set(sessionId, this.createMaterializedBinding(cached.owner))
-      }
-    } catch (error) {
-      for (const record of bindings.values()) record.release()
-      throw error
+    const created: MaterializedBinding[] = []
+    let committed = false
+    using _rollbackBindings = {
+      [Symbol.dispose]: (): void => {
+        if (committed) return
+        for (const record of created) record.release()
+      },
+    }
+    for (const [sessionId, cached] of this.bindings) {
+      const record = this.createMaterializedBinding(cached.owner)
+      created.push(record)
+      bindings.set(sessionId, record)
     }
     const previous = this.bindings
     this.absent = absent
     this.bindings = bindings
+    committed = true
     for (const record of previous.values()) record.release()
     this.publishCurrent()
   }
@@ -435,7 +442,7 @@ export class UiSession extends Service {
     const record: MaterializedBinding = {
       owner,
       value,
-      release: () => { Promise.resolve(releaseEffect()).catch(owner.ctx.logger().error) },
+      release: () => Promise.resolve(releaseEffect()),
     }
     return record
   }
@@ -474,6 +481,24 @@ export class UiSession extends Service {
       declareAbsent('prop', props, descriptor.props, finalProps)
     }
     return { key: undefined, hooks, keyedHooks, props }
+  }
+}
+
+function runtimeDescriptorOf(
+  descriptor: SessionSourceDescriptor,
+): RuntimeSessionSourceDescriptor {
+  return {
+    ...(descriptor.hooks === undefined ? {} : { hooks: descriptor.hooks }),
+    ...(descriptor.keyedHooks === undefined ? {} : { keyedHooks: descriptor.keyedHooks }),
+    ...(descriptor.props === undefined ? {} : { props: descriptor.props }),
+    resolve: (binding) => {
+      const contribution = descriptor.resolve(binding)
+      return {
+        ...(contribution.hooks === undefined ? {} : { hooks: contribution.hooks }),
+        ...(contribution.keyedHooks === undefined ? {} : { keyedHooks: contribution.keyedHooks }),
+        ...(contribution.props === undefined ? {} : { props: contribution.props }),
+      }
+    },
   }
 }
 

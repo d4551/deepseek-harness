@@ -92,9 +92,31 @@ export interface ClientTransportHooks {
   ownsHost?: boolean
 }
 
-/** Page global carrying {@link ClientTransportHooks}; absent in the served web app. */
-interface ClientTransportGlobal {
-  __DSH_TRANSPORT__?: ClientTransportHooks
+function isClientTransportHooks(value: object): value is ClientTransportHooks {
+  if (!('fetch' in value) || typeof value.fetch !== 'function') return false
+  if ('openStream' in value && value.openStream !== undefined && typeof value.openStream !== 'function') {
+    return false
+  }
+  if ('loadBundle' in value && value.loadBundle !== undefined && typeof value.loadBundle !== 'function') {
+    return false
+  }
+  if ('ownsHost' in value && value.ownsHost !== undefined && typeof value.ownsHost !== 'boolean') {
+    return false
+  }
+  return true
+}
+
+function transportHooksOf(value: object): ClientTransportHooks | undefined {
+  if (!('__DSH_TRANSPORT__' in value)) return undefined
+  const hooks = value.__DSH_TRANSPORT__
+  if (hooks === undefined) return undefined
+  if (hooks === null || typeof hooks !== 'object') {
+    throw new Error('connection: __DSH_TRANSPORT__ is not an object')
+  }
+  if (!isClientTransportHooks(hooks)) {
+    throw new Error('connection: __DSH_TRANSPORT__ is missing a fetch function')
+  }
+  return hooks
 }
 
 /**
@@ -152,7 +174,7 @@ export function apply(ctx: Context): void {
   const pageLocation = typeof location === 'undefined' ? undefined : location
   const fixture = pageLocation !== undefined && new URLSearchParams(pageLocation.search).has('fixture')
   const fixtureRpc = fixture ? createFixtureConnectionRpc() : undefined
-  const transport = (globalThis as ClientTransportGlobal).__DSH_TRANSPORT__
+  const transport = transportHooksOf(globalThis)
   const rpc = fixtureRpc ?? createWebConnectionRpc(transport?.fetch, transport?.openStream)
   let generationSource: {
     readonly source: ConnectionGenerationSource
@@ -194,7 +216,7 @@ export function apply(ctx: Context): void {
         const results = await Promise.allSettled([...registration.owners.values()].map(releaseOwner))
         const failures = results.filter(result => result.status === 'rejected')
         if (failures.length > 0) {
-          throw new AggregateError(failures.map((result): unknown => result.reason), 'connection source disposal failed')
+          throw new AggregateError(failures.map(result => result.reason), 'connection source disposal failed')
         }
       }
     },
@@ -226,7 +248,12 @@ export function apply(ctx: Context): void {
           owner = undefined
           publishGeneration(undefined)
         }
-        return controller.stop().finally(() => { registration.owners.delete(token) })
+        const stopping = controller.stop()
+        stopping.then(
+          () => { registration.owners.delete(token) },
+          () => { registration.owners.delete(token) },
+        )
+        return stopping
       }, 'connection.generation')
       const current = { token, source, controller, dispose }
       registration.owners.set(token, current)
