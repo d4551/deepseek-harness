@@ -69,9 +69,7 @@ async function disposeInspector(
 ): Promise<void> {
   const failures: Thrown[] = []
   for (const dispose of [...disposers].reverse()) {
-    await new Promise((resolve) => {
-      resolve(dispose())
-    }).then(undefined, (error: Thrown) => {
+    await Promise.resolve().then(() => dispose()).then(undefined, (error: Thrown) => {
       failures.push(error)
     })
   }
