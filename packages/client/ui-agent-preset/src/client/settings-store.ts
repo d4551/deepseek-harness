@@ -12,16 +12,23 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-presets/types'
 import type { SettingsDescribeFace, SettingsWireFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** The agent-preset settings namespace on the host wire. */
 export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
 
 /**
  * Human text for a rejected wire call.
- * @param error - the Error the transport or host rejected with.
+ * @param reason - the Thrown the transport or host rejected with.
  * @returns the message to show.
  */
-export function messageOf(error: Error): string {
-  return error.message
+export function messageOf(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
+function refusalMessage(error: object): string {
+  const message = Reflect.get(error, 'message')
+  return typeof message === 'string' ? message : messageOf(error)
 }
 
 /**
@@ -43,17 +50,14 @@ export async function writeDefaultPreset(
     { default: id },
     undefined,
   ).then(
-    response => response.ok ? undefined : response.error.message,
-    (reason: unknown) => {
-      if (!(reason instanceof Error)) throw new TypeError('settings update rejected with a non-Error')
-      return reason.message
-    },
+    response => response.ok ? undefined : refusalMessage(response.error),
+    (reason: Thrown) => messageOf(reason),
   )
 }
 
 /** One selectable preset. */
 export interface AgentPresetOption {
-  /** Preset id, written to Settings and the label's fallback. */
+  /** Preset id, written to Settings and used as the label when the preset published none. */
   id: string
   /** Whether the preset ships with the deployment or was authored locally. */
   trust: 'system' | 'user'
@@ -86,12 +90,9 @@ export async function readRoster(remote: { agentPresets: Pick<ClientRemote['agen
     (result) => {
       if (result.ok) return { ok: true, value: result.value }
       if (result.error.code === 'invocation-unavailable') return { ok: true, value: EMPTY_ROSTER }
-      return { ok: false, error: result.error.message }
+      return { ok: false, error: refusalMessage(result.error) }
     },
-    (reason: unknown): RosterRead => {
-      if (!(reason instanceof Error)) throw new TypeError('preset roster list rejected with a non-Error')
-      return { ok: false, error: reason.message }
-    },
+    (reason: Thrown): RosterRead => ({ ok: false, error: messageOf(reason) }),
   )
 }
 
