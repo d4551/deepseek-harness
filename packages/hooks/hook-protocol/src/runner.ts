@@ -6,9 +6,13 @@
  * @module @deepseek-ai/dsh-hook-protocol/runner
  */
 
+import { errorChain } from '@deepseek-ai/dsh-llm'
 import type { ShellExecutor } from '@deepseek-ai/dsh-shell'
 import { parseHookOutput } from './codec.ts'
 import type { CommandHook, HookOutput } from './types.ts'
+
+/** Values a Promise reject arm from the shell executor may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /**
  * The reference default per-hook timeout, in ms (10 minutes) — the value both
@@ -64,7 +68,7 @@ export interface RunHookResult {
  * @param now - millisecond clock used for the reported duration.
  * @returns the decoded output plus the run's wall-clock duration.
  */
-export async function runHook(
+export function runHook(
   bash: ShellExecutor,
   hook: CommandHook,
   options: RunHookOptions,
@@ -83,24 +87,23 @@ export async function runHook(
     ...options.env !== undefined ? { env: options.env } : {},
   }
 
-  try {
-    const result = await bash.run(bash.resolve(request))
-    // ShellRunResult.exitCode is `number | null` (null = died by signal); the
-    // protocol's exit-code contract is numeric, so a signal death maps to
-    // `undefined` (a non-blocking error — no clean exit code to act on).
-    const exitCode = result.exitCode ?? undefined
-    return {
-      output: parseHookOutput(exitCode, result.stdout.text, result.stderr.text, options.expectedEventName),
+  return bash.run(bash.resolve(request)).then(
+    (result) => {
+      // ShellRunResult.exitCode is `number | null` (null = died by signal); the
+      // protocol's exit-code contract is numeric, so a signal death maps to
+      // `undefined` (a non-blocking error — no clean exit code to act on).
+      const exitCode = result.exitCode ?? undefined
+      return {
+        output: parseHookOutput(exitCode, result.stdout.text, result.stderr.text, options.expectedEventName),
+        durationMs: now() - started,
+      }
+    },
+    (error: Thrown) => ({
+      // The executor rejects only on infrastructure faults (unusable workdir,
+      // missing shell). A hook that cannot run is a non-blocking error: no exit
+      // code, the failure on stderr for the record. The turn proceeds.
+      output: parseHookOutput(undefined, '', errorChain(error)),
       durationMs: now() - started,
-    }
-  } catch (error: unknown) {
-    // The executor rejects only on infrastructure faults (unusable workdir,
-    // missing shell). A hook that cannot run is a non-blocking error: no exit
-    // code, the failure on stderr for the record. The turn proceeds.
-    const message = error instanceof Error ? error.message : String(error)
-    return {
-      output: parseHookOutput(undefined, '', message),
-      durationMs: now() - started,
-    }
-  }
+    }),
+  )
 }

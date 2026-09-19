@@ -9,6 +9,7 @@
 
 import { readFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
+import { errorChain } from '@deepseek-ai/dsh-llm'
 import { matcherDiagnostic } from './matcher.ts'
 import type { CommandHook, MatcherGroup, MatcherMode } from './types.ts'
 
@@ -130,8 +131,8 @@ export function loadHookGroups(ctx: Context, options: LoadHookGroupsOptions): Ho
     const { config, warnings } = options.parse(raw)
     for (const warning of warnings) ctx.logger.warn(`${options.plugin}: ${warning}`)
     return config
-  } catch (error: unknown) {
-    ctx.logger.warn(`${options.plugin}: could not load hook config "${options.configPath}": ${String(error)} — no hooks registered`)
+  } catch (error) {
+    ctx.logger.warn(`${options.plugin}: could not load hook config "${options.configPath}": ${errorChain(error)} — no hooks registered`)
     return undefined
   }
 }
