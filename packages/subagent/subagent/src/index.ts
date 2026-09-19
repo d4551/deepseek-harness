@@ -458,7 +458,7 @@ export class SubagentRuntime extends TypertRemoteService {
     validateControlRequest('subagent.list', { parentSessionId })
     try {
       return catalogView(this.ctx, parentSessionId, await this.listChildren(parentSessionId, signal))
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectCatalogRead(error, signal)
     }
   }
@@ -507,7 +507,7 @@ export class SubagentRuntime extends TypertRemoteService {
     const content: ContentBlock[] = [...request.content]
     try {
       return { messageId: await this.followup(parent, childSessionId, content, { source, signal }) }
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectPrompt(error, childSessionId, signal)
     }
   }
@@ -535,7 +535,7 @@ export class SubagentRuntime extends TypertRemoteService {
     validateControlRequest('subagent.interrupt', { childSessionId, parentSessionId, mode })
     try {
       this.interrupt(childSessionId, { kind: 'user', parentSessionId })
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof SubagentError && error.code === 'UNAUTHORIZED') {
         return rejectControl(
           'subagent-unauthorized',
@@ -633,7 +633,7 @@ export class SubagentRuntime extends TypertRemoteService {
     let run: SubagentRun
     try {
       run = await provider.start(resolved)
-    } catch (error: unknown) {
+    } catch (error) {
       release()
       throw error
     }
@@ -647,7 +647,7 @@ export class SubagentRuntime extends TypertRemoteService {
   private async admit(signal: AbortSignal): Promise<CapacityRelease> {
     try {
       return await this.runCapacity.acquire(signal)
-    } catch (error: unknown) {
+    } catch (error) {
       throw new SubagentError(
         'subagent start cancelled while waiting for a concurrency slot',
         'CANCELLED',

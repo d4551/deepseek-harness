@@ -101,7 +101,7 @@ export function assertTimerBound(prefix: string, name: string, value: number): v
  * Deployment inputs a one-shot out-of-process run spec carries unchanged from
  * plugin config. A provider stores this resolved record and spreads it into
  * each run's spec beside that run's own working directory and callbacks.
- * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ * @template TPermissionMode - the product's own non-interactive permission modes.
  */
 export interface OneShotRunConfig<TPermissionMode extends string> {
   /** Native model fixed for this instance; omitted to inherit the product's own settings. */
@@ -119,7 +119,7 @@ export interface OneShotRunConfig<TPermissionMode extends string> {
  * provider still declares its own `Config` — that declaration is the
  * deployment surface the config catalog pastes verbatim — and satisfies this
  * type to resolve it.
- * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ * @template TPermissionMode - the product's own non-interactive permission modes.
  */
 export interface OneShotProviderConfig<TPermissionMode extends string> {
   /** Provider name on `ctx.subagents`. */
@@ -138,7 +138,7 @@ export interface OneShotProviderConfig<TPermissionMode extends string> {
  * The values a provider substitutes for the two fields a programmatic caller
  * may legitimately omit. Each is product-specific, so the seam holds none of
  * them.
- * @typeParam TPermissionMode - the product's own non-interactive permission modes.
+ * @template TPermissionMode - the product's own non-interactive permission modes.
  */
 export interface OneShotProviderDefaults<TPermissionMode extends string> {
   /** Registry name when config omits `providerName`. */
@@ -334,7 +334,7 @@ export async function settleRunResult(parts: RunResultSettlement): Promise<Subag
     return parts.cancelled()
       ? { output: parts.collectOutput(), stopReason: 'aborted' }
       : normalizeSubagentDiagnostic(result)
-  } catch (error: unknown) {
+  } catch (error) {
     // Cover a rejection already queued when cancellation arrives.
     if (parts.cancelled()) return { output: parts.collectOutput(), stopReason: 'aborted' }
     // Flatten post-publication transport failures while preserving diagnostics.

@@ -207,7 +207,7 @@ export function precheckCode(code: string, half: 'code.host' | 'code.client'): v
   const wrapped = `(async () => {\n${code}\n})()`
   try {
     new Script(wrapped, { filename: `cordis-dyn-${half}.js` })
-  } catch (error: unknown) {
+  } catch (error) {
     if (!isSyntaxError(error)) throw error
     throw new Error(parseErrorMessage(half, syntaxErrorContext(error)))
   }

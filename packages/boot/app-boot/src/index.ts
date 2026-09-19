@@ -56,6 +56,32 @@ export {
   type ProfileTemplate,
 } from './profile.ts'
 
+/** Values a Promise reject arm from patch repair, fiber await, or fail-loud release may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected repair value that is not already an Error.
+ * @param reason - the Thrown the reject arm delivered.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
  * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
@@ -320,20 +346,21 @@ export async function watchUserPatches(
     })
     // A rejected generation must not poison the chain: whichever trigger
     // started it owns its report.
-    queue = run.then(undefined, () => {})
+    queue = run.then(undefined, (_error: Thrown) => undefined)
     return run
   }
   // The repair trigger's own failure report, matching what HMR broadcasts for
   // the watch trigger so one broken file reads the same either way.
-  const report = async (reason: unknown): Promise<void> => {
-    const error = reason instanceof Error ? reason : new Error(String(reason), { cause: reason })
+  const report = async (reason: Thrown): Promise<void> => {
+    const error = reason instanceof Error ? reason : new Error(thrownMessage(reason), { cause: reason })
     ctx.logger.warn('user patch repair at %C failed', filename)
     ctx.logger.warn(error)
-    try {
-      await ctx.parallel('hmr/config-update-failed', filename, error)
-    } catch (rejection) {
-      ctx.logger.warn(rejection)
-    }
+    await ctx.parallel('hmr/config-update-failed', filename, error).then(
+      undefined,
+      (rejection: Thrown) => {
+        ctx.logger.warn(rejection)
+      },
+    )
   }
   const cleanup: Array<() => unknown> = []
   try {
@@ -672,11 +699,11 @@ export interface FailLoudProcess {
 // next process rejection checkpoint so the process guard can coalesce them.
 const assembledActivationRejections = new Map<unknown, number>()
 
-function retainAssembledRejection(reason: unknown): void {
+function retainAssembledRejection(reason: Thrown): void {
   assembledActivationRejections.set(reason, (assembledActivationRejections.get(reason) ?? 0) + 1)
 }
 
-function releaseAssembledRejection(reason: unknown): void {
+function releaseAssembledRejection(reason: Thrown): void {
   const count = assembledActivationRejections.get(reason)
   if (count === undefined || count === 1) {
     assembledActivationRejections.delete(reason)
@@ -685,8 +712,7 @@ function releaseAssembledRejection(reason: unknown): void {
   }
 }
 
-async function observeLoaderRejectionCheckpoint(reasons: readonly unknown[]): Promise<void> {
-  for (const reason of reasons) retainAssembledRejection(reason)
+async function observeLoaderRejectionCheckpoint(reasons: readonly Thrown[]): Promise<void> {
   try {
     await new Promise<void>(resolve => setImmediate(resolve))
   } finally {
@@ -754,7 +780,12 @@ export function installFailLoud(
       clearTimeout(timer)
       proc.exit(1)
     }
-    Promise.race([released, timeout.promise]).then(exit, exit)
+    Promise.race([released, timeout.promise]).then(
+      exit,
+      (_error: Thrown) => {
+        exit()
+      },
+    )
   }
   const uninstall = (): void => { proc.off('unhandledRejection', handler) }
   proc.on('unhandledRejection', handler)
@@ -805,19 +836,24 @@ function formatActivationError(error: unknown): string {
 export async function assertEntriesActivated(ctx: Context, binName: string): Promise<void> {
   assertEntriesLoaded(ctx, binName)
   const failures: string[] = []
-  const rejectionReasons: unknown[] = []
+  const failed: Array<{ name: string }> = []
+  const rejectionReasons = new Map<{ name: string }, Thrown>()
+  const draining: Array<Promise<void>> = []
   for (const entry of ctx.loader.entries()) {
     const fiber = entry.fiber
     if (fiber === undefined || entry.disabled) continue
     const state = fiber.state
     if (state === FIBER_ACTIVE) continue
     if (state === FIBER_FAILED) {
-      try {
-        await fiber.await()
-      } catch (error) {
-        rejectionReasons.push(error)
-        failures.push(`${entry.options.name}: ${formatActivationError(error)}`)
-      }
+      const item = { name: entry.options.name }
+      failed.push(item)
+      draining.push(fiber.await().then(
+        () => undefined,
+        (error: Thrown) => {
+          rejectionReasons.set(item, error)
+          retainAssembledRejection(error)
+        },
+      ))
       continue
     }
     if (state === FIBER_PENDING) {
@@ -828,9 +864,15 @@ export async function assertEntriesActivated(ctx: Context, binName: string): Pro
       failures.push(`${entry.options.name}: fiber state ${String(state)}`)
     }
   }
+  await Promise.all(draining)
+  for (const item of failed) {
+    if (!rejectionReasons.has(item)) continue
+    const error = rejectionReasons.get(item)
+    failures.push(`${item.name}: ${formatActivationError(error)}`)
+  }
   if (failures.length > 0) {
-    if (rejectionReasons.length > 0) {
-      await observeLoaderRejectionCheckpoint(rejectionReasons)
+    if (rejectionReasons.size > 0) {
+      await observeLoaderRejectionCheckpoint([...rejectionReasons.values()])
     }
     const noun = failures.length === 1 ? 'entry' : 'entries'
     throw new Error(`${binName}: ${String(failures.length)} ${noun} did not activate\n${failures.join('\n')}`)

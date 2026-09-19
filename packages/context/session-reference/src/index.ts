@@ -157,7 +157,7 @@ export class SessionReferenceResolver extends TypertRemoteService {
     messages: readonly UserMessage[],
     signal: AbortSignal,
   ): Promise<UserMessage[]> {
-    const prepared = await Promise.all(messages.map(async (message): Promise<UserMessage[]> => {
+    const prepared = await waitAll(messages.map(async (message): Promise<UserMessage[]> => {
       if (message.source.kind !== 'user') return [message]
       const references: SessionReferenceInput[] = []
       const content = message.content.map((block): ContentBlock => {
@@ -299,7 +299,7 @@ export class SessionReferenceResolver extends TypertRemoteService {
     if (inputs.length === 0) return { content: acceptedContent }
     assertNotCancelled(signal)
     const prepared = await settleWithCancellation(
-      Promise.all(inputs.map(async input => ({
+      waitAll(inputs.map(async input => ({
         input,
         snapshot: await this.ctx.sessionQuery.readSurface(input.sessionId),
       }))),
@@ -400,6 +400,24 @@ function candidateRank(candidateCwd: string | undefined, targetCwd: string | und
 
 function assertNotCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) throw cancelled(signal)
+}
+
+function waitAll<T>(works: readonly Promise<T>[]): Promise<T[]> {
+  return Promise.all(works.map(work => work.then(
+    (value): { ok: true; value: T } => ({ ok: true, value }),
+    (error: Thrown): { ok: false; error: Thrown } => ({ ok: false, error }),
+  ))).then((outcomes) => {
+    const values: T[] = []
+    for (const outcome of outcomes) {
+      if (outcome.ok) {
+        values.push(outcome.value)
+        continue
+      }
+      const error = outcome.error
+      throw error instanceof Error ? error : new Error(thrownMessage(error))
+    }
+    return values
+  })
 }
 
 function settleWithCancellation<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {

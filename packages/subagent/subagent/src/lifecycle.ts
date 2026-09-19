@@ -24,6 +24,9 @@ import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentRunId } from './types.ts'
 import type { SubagentResult, SubagentRun, SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
 
+/** Values a Promise reject arm from one-shot run settlement may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * How one Activation's residency epoch ended, as both the terminal lifecycle
  * edge and the manager's own parent delivery report it.
@@ -154,7 +157,7 @@ export function observeRun(
         ...result.output.length === 0 ? {} : { lastAssistantMessage: result.output },
       }, parent)
     },
-    () => {
+    (_error: Thrown) => {
       emit('subagent/end', { ...identity, stopReason: 'error' }, parent)
     },
   )

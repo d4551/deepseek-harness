@@ -94,10 +94,16 @@ export class WebhookRuntime extends Service {
     this.selfCtx = ctx
     ctx.effect(() => async () => {
       this.closing = true
-      /* v8 ignore next -- caller-owned registration effects normally dispose first; this covers provider-first unload. */
+      /* v8 ignore start -- caller-owned registration effects normally dispose first; this covers provider-first unload. */
+      const failures: Thrown[] = []
       await Promise.all(
-        [...this.rules.values()].map(rule => this.disposeRegistration(rule)),
+        [...this.rules.values()].map(rule => this.disposeRegistration(rule).then(
+          undefined,
+          (reason: Thrown) => { failures.push(reason) },
+        )),
       )
+      if (failures.length > 0) throw new AggregateError(failures, 'webhook runtime teardown failed')
+      /* v8 ignore stop */
     }, 'webhookRuntime.lifecycle()')
   }
 

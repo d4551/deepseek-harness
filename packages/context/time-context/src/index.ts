@@ -149,7 +149,7 @@ export function apply(ctx: Context, config: Config): void {
   let fallbackFormatter: Intl.DateTimeFormat
   try {
     fallbackFormatter = createTimestampFormatter(timeZone)
-  } catch (error: unknown) {
+  } catch (error) {
     const message = timeZone === undefined
       ? 'time-context: failed to resolve the system time zone'
       : `time-context: invalid IANA timeZone ${JSON.stringify(timeZone)}`

@@ -129,7 +129,7 @@ async function nodeStatFile(path: string, signal?: AbortSignal): Promise<StatFil
     signal?.throwIfAborted()
     if (!info.isFile()) return { kind: 'absent' }
     return { kind: 'present', info: { size: info.size } }
-  } catch (error: unknown) {
+  } catch (error) {
     signal?.throwIfAborted()
     return isMissingPathError(error) ? { kind: 'absent' } : { kind: 'unavailable' }
   }

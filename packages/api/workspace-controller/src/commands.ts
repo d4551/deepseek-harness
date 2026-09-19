@@ -24,6 +24,9 @@ import type {
   WorkspaceValue,
 } from './types.ts'
 
+/** Values a Promise reject arm from a serialized Workspace command may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Implements Workspace mutations against the authoritative registry. */
 export class WorkspaceCommands {
   private operationTail = Promise.resolve()
@@ -170,7 +173,7 @@ export class WorkspaceCommands {
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.operationTail.then(operation)
-    this.operationTail = result.then(() => undefined, () => undefined)
+    this.operationTail = result.then(() => undefined, (_error: Thrown) => undefined)
     return result
   }
 }

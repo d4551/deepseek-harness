@@ -30,6 +30,9 @@ export type {
 /** Request for a human answer. */
 export interface AskUserQuestionRequest extends AskUserQuestionRequestEvent {}
 
+/** Values a Promise reject arm from the answerer waterfall may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Stable error taxonomy for user-questions failures. */
 export class UserQuestionError extends HarnessError {
   constructor(message: string, code: string, options?: ErrorOptions) {
@@ -38,7 +41,7 @@ export class UserQuestionError extends HarnessError {
   }
 }
 
-function abortedQuestion(cause?: unknown): UserQuestionError {
+function abortedQuestion(cause?: Thrown): UserQuestionError {
   return new UserQuestionError(
     'ask_user_question was aborted before the user answered',
     'ASK_ABORTED',
@@ -46,11 +49,11 @@ function abortedQuestion(cause?: unknown): UserQuestionError {
   )
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: Thrown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function restoreUserQuestionError(reason: unknown): unknown {
+function restoreUserQuestionError(reason: Thrown): Thrown {
   if (reason instanceof UserQuestionError) return reason
   if (isRecord(reason)
     && reason.name === 'UserQuestionError'
@@ -131,23 +134,22 @@ export class UserQuestionService extends Service {
       'no user-questions answerer accepted the request',
       'NO_PROVIDER',
     ))
-    try {
-      return await (agent === undefined
-        ? this.ctx.waterfall('user-questions/request', request, noAnswerer)
-        : this.ctx.waterfall(
-          scopeTarget(agent, agent),
-          'user-questions/request',
-          { ...request, agent },
-          noAnswerer,
-        ))
-    } catch (error) {
+    const pending = agent === undefined
+      ? this.ctx.waterfall('user-questions/request', request, noAnswerer)
+      : this.ctx.waterfall(
+        scopeTarget(agent, agent),
+        'user-questions/request',
+        { ...request, agent },
+        noAnswerer,
+      )
+    return await pending.then(undefined, (error: Thrown) => {
       const restored = restoreUserQuestionError(error)
       if (restored instanceof UserQuestionError) throw restored
       if (request.signal?.aborted) {
         throw abortedQuestion(error)
       }
-      throw restored
-    }
+      throw error
+    })
   }
 }
 

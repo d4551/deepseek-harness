@@ -90,7 +90,8 @@ export class SubagentActivationSetupRegistry {
   apply(childCtx: Context): AgentSetupCommit {
     const state: TransactionState = { installations: [], invalidated: false }
     try {
-      for (const registration of [...this.registrations]) {
+      const snapshot = Array.from(this.registrations)
+      for (const registration of snapshot) {
         /* v8 ignore next -- only a synchronous re-entrant revocation of an
          * already-snapshotted registration reaches this guard. */
         if (registration.removed) continue
@@ -113,7 +114,7 @@ export class SubagentActivationSetupRegistry {
         // Dispose that escaped record and invalidate the provisioning batch.
         if (isRemoved(registration)) this.release(installation)
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Keep the installer failure authoritative, but attempt every rollback.
       try {
         this.releaseAll([...state.installations], 'setup rollback')
@@ -153,7 +154,7 @@ export class SubagentActivationSetupRegistry {
     for (const installation of installations) {
       try {
         this.release(installation)
-      } catch (error: unknown) {
+      } catch (error) {
         failures.push(error)
       }
     }

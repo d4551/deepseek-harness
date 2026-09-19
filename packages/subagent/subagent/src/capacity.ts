@@ -15,6 +15,9 @@
 import type { CapacityRelease } from '@deepseek-ai/dsh-capacity-gate'
 import type { SubagentRun } from './types.ts'
 
+/** Values a Promise reject arm from one-shot run settlement may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Bind one granted concurrency slot to a published run's lifetime.
  *
@@ -30,7 +33,7 @@ import type { SubagentRun } from './types.ts'
 export function holdSlotUntilSettled(run: SubagentRun, release: CapacityRelease): SubagentRun {
   // Attaching to `result` covers the ordinary path even when a holder never
   // disposes, and the seam's own contract says a rejected result is terminal.
-  run.result.then(release, release)
+  run.result.then(release, (_error: Thrown) => { release() })
   const teardown = async (): Promise<void> => {
     try {
       await run.dispose()

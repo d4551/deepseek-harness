@@ -34,7 +34,7 @@ export function decodeSessionReferenceUri(uri: string): SessionIdType {
     const sessionId = SessionId(parsed)
     if (encodeSessionReferenceUri(sessionId) !== uri) throw new TypeError('URI is not canonical')
     return sessionId
-  } catch (error: unknown) {
+  } catch (error) {
     throw invalidUri(uri, error)
   }
 }
