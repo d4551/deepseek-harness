@@ -248,15 +248,16 @@ function expandProvenanceFromStorage(parsed: unknown): object {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new TypeError('stored session records must be objects')
   }
-  const sourceEventSeqs = Reflect.get(parsed, 'sourceEventSeqs')
+  const sourceEventSeqs: unknown = Reflect.get(parsed, 'sourceEventSeqs')
   if (sourceEventSeqs === undefined) return parsed
-  const seq = Reflect.get(parsed, 'seq')
+  const seq: unknown = Reflect.get(parsed, 'seq')
   if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0) {
     throw new TypeError('stored session event seq must be a non-negative safe integer')
   }
   const record: { [key: string]: unknown } = {}
   for (const key of Object.keys(parsed)) {
-    record[key] = Reflect.get(parsed, key)
+    const field: unknown = Reflect.get(parsed, key)
+    record[key] = field
   }
   record.sourceEventSeqs = decodeSeqRanges(sourceEventSeqs, seq)
   return record
@@ -406,12 +407,12 @@ export class SessionLogScanner {
         return
       }
       const seq = storedEventSeq(event)
-      if (seq !== this.events.length) {
+      if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq !== this.events.length) {
         const expected = this.events.length
         this.events.length = rowStart
         this.issue = new Error(
           `corrupt session log: seq gap in committed region at line ${this.eventLine} `
-          + `(expected ${expected}, got ${seq})`,
+          + `(expected ${String(expected)}, got ${String(seq)})`,
         )
         if (decoded.some(candidate => storedEventType(candidate) === 'turn/end')) throw this.issue
         return
@@ -464,10 +465,6 @@ function storedEventType(event: unknown): unknown {
 }
 
 /** Read the sequence number carried by one decoded stored record. */
-function storedEventSeq(event: object): number {
-  const seq = Reflect.get(event, 'seq')
-  if (typeof seq !== 'number' || !Number.isSafeInteger(seq)) {
-    throw new TypeError('stored event seq must be a safe integer')
-  }
-  return seq
+function storedEventSeq(event: object): unknown {
+  return Reflect.get(event, 'seq')
 }

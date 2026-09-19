@@ -1031,6 +1031,34 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     const { events } = scanLog(Buffer.from(log))
     expect(events.map(storedSeq)).toEqual([0, 1]) // tail dropped
   })
+
+  it.each([
+    ['missing', { type: 'step/start', time: 3, data: { turn: 2, step: 1 } }],
+    ['a string', { type: 'step/start', seq: '9', time: 3, data: { turn: 2, step: 1 } }],
+    ['fractional', { type: 'step/start', seq: 1.5, time: 3, data: { turn: 2, step: 1 } }],
+  ])('tolerates a %s seq after the last turn/end as an uncommitted tail', (_label, tail) => {
+    const log = [
+      JSON.stringify({ type: 'session', version: 0, id: 't-seq', createdAt: 1, delegationDepth: 0 }),
+      JSON.stringify({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } }),
+      JSON.stringify({ type: 'turn/end', seq: 1, time: 2, data: { turn: 1, reason: { kind: 'completed' } } }),
+      JSON.stringify(tail),
+    ].join('\n') + '\n'
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0, 1])
+  })
+
+  it.each([
+    ['missing', { type: 'step/start', time: 2, data: { turn: 1, step: 1 } }],
+    ['a string', { type: 'step/start', seq: '2', time: 2, data: { turn: 1, step: 1 } }],
+    ['fractional', { type: 'step/start', seq: 1.5, time: 2, data: { turn: 1, step: 1 } }],
+  ])('rejects a %s seq before a later committed turn/end', (_label, hole) => {
+    const log = [
+      JSON.stringify({ type: 'session', version: 0, id: 't-seq-committed', createdAt: 1, delegationDepth: 0 }),
+      JSON.stringify({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } }),
+      JSON.stringify(hole),
+      JSON.stringify({ type: 'turn/end', seq: 2, time: 3, data: { turn: 1, reason: { kind: 'completed' } } }),
+    ].join('\n') + '\n'
+    expect(() => scanLog(Buffer.from(log))).toThrow(/seq gap in committed region/)
+  })
 })
 
 describe('JsonlSessionPersistence: default packed chunk rows', () => {
