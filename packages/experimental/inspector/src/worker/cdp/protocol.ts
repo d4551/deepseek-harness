@@ -2,6 +2,32 @@
 
 import { isPlainObject } from '../../shared/json.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected CDP operation.
+ * @param reason - Rejection or claim-boundary failure.
+ * @returns The message to put on the wire.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Parsed client request. */
 export interface CdpRequest {
   readonly id: number
@@ -60,8 +86,7 @@ export function cdpError(id: number, code: number, message: string): object {
  * @param error - Rejection or synchronous error to render.
  */
 export function sendCdpFailure(transport: CdpTransport, request: CdpRequest, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error)
-  transport.send(cdpError(request.id, -32000, message))
+  transport.send(cdpError(request.id, -32000, thrownMessage(error)))
 }
 
 /**
@@ -77,6 +102,6 @@ export function respondToCdpRequest(
 ): void {
   operation().then(
     (result) => { transport.send({ id: request.id, result }) },
-    (error: unknown) => { sendCdpFailure(transport, request, error) },
+    (error: Thrown) => { sendCdpFailure(transport, request, error) },
   )
 }
