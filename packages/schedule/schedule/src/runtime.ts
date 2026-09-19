@@ -21,6 +21,9 @@ import { runScheduleTransaction } from './transaction.ts'
 /** Largest delay that Node timers represent without clamping. */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647
 
+/** Values a Promise reject arm from a live timer projection may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 interface EveryDue {
   readonly record: EveryScheduleRecord
   readonly occurrenceAt: string
@@ -68,9 +71,23 @@ function dueDecision(folded: FoldedSchedules, now: number): DueDecision {
   return { kind: 'wait', ...(target === undefined ? {} : { target }) }
 }
 
-/** Render an unknown value for process-local diagnostics only. */
+/** Render a claim-boundary or Thrown value for process-local diagnostics only. */
 function renderThrown(value: unknown): string {
-  return value instanceof Error ? value.message : String(value)
+  if (value instanceof Error) return value.message
+  switch (typeof value) {
+    case 'string': return value
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(value)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (value === null) return 'null'
+      return Object.prototype.toString.call(value)
+  }
 }
 
 /** One process-local, disposable projection of an exact agent's durable schedules. */
@@ -117,7 +134,7 @@ export class ScheduleRuntime {
     this.run = run
     run.then(
       () => { this.retire(run) },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.isLive()) {
           this.ctx.logger.warn(`schedule: runtime failed for agent "${this.agent.id}": ${renderThrown(error)}`)
         }
@@ -193,7 +210,7 @@ export class ScheduleRuntime {
         this.idleWait = undefined
         this.requestDrive()
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         this.idleWait = undefined
         if (this.isLive()) {
           this.ctx.logger.warn(`schedule: idle wait failed for agent "${this.agent.id}": ${renderThrown(error)}`)
@@ -231,94 +248,96 @@ export class ScheduleRuntime {
   private async driveOnce(): Promise<void> {
     this.clearTimer()
     if (!this.isRunnable()) return
-    try {
-      await flushSchedulePersistence(this.ctx, this.agent.session)
-    } catch (error: unknown) {
-      if (this.isLive()) {
-        this.ctx.logger.warn(`schedule: preflight failed for agent "${this.agent.id}": ${renderThrown(error)}`)
-      }
-      return
-    }
-    if (!this.isRunnable()) return
-
-    const folded = this.readFolded()
-    if (folded === undefined) return
-    const wakeNow = Date.now()
-    const wakeDecision = this.decide(folded, wakeNow)
-    if (wakeDecision === undefined) return
-    if (wakeDecision.kind === 'wait') {
-      if (wakeDecision.target !== undefined) this.arm(wakeDecision.target, wakeNow)
-      return
-    }
-
-    let maintenance: Promise<boolean>
-    try {
-      maintenance = this.agent.runMaintenance(() => {
-        if (!this.isRunnable()) return Promise.resolve(false)
-        const claimed = this.readFolded()
-        if (claimed === undefined) return Promise.resolve(false)
-        const decisionNow = Date.now()
-        const decision = this.decide(claimed, decisionNow)
-        if (decision === undefined) return Promise.resolve(false)
-        if (decision.kind === 'wait') {
-          if (decision.target !== undefined) this.arm(decision.target, decisionNow)
-          return Promise.resolve(false)
+    await flushSchedulePersistence(this.ctx, this.agent.session).then(
+      () => {
+        if (!this.isRunnable()) return
+        const folded = this.readFolded()
+        if (folded === undefined) return
+        const wakeNow = Date.now()
+        const wakeDecision = this.decide(folded, wakeNow)
+        if (wakeDecision === undefined) return
+        if (wakeDecision.kind === 'wait') {
+          if (wakeDecision.target !== undefined) this.arm(wakeDecision.target, wakeNow)
+          return
         }
+
+        let maintenance: Promise<boolean>
         try {
-          const text = decision.kind === 'one-shot'
-            ? renderReminderFraming(decision.record)
-            : renderEveryReminderBatchFraming(decision.reminders)
-          const message = createUserMessage({
-            content: [{ type: 'text', text }],
-            source: { kind: 'plugin', plugin: 'schedule' },
-          })
-          this.agent.followup(message)
-        } catch (error: unknown) {
-          if (this.isLive()) {
-            this.ctx.logger.warn(`schedule: framing or followup failed for agent "${this.agent.id}": ${renderThrown(error)}`)
-          }
-          return Promise.resolve(false)
-        }
-        try {
-          if (decision.kind === 'one-shot') {
-            this.agent.session.append('schedule/change', {
-              version: 1,
-              operation: 'dispatch',
-              id: decision.record.id,
-            })
-          } else {
-            for (const reminder of decision.reminders) {
-              this.agent.session.append('schedule/change', {
-                version: 1,
-                operation: 'dispatch',
-                id: reminder.record.id,
-                acceptedAt: decision.acceptedAt,
-              })
+          maintenance = this.agent.runMaintenance(() => {
+            if (!this.isRunnable()) return Promise.resolve(false)
+            const claimed = this.readFolded()
+            if (claimed === undefined) return Promise.resolve(false)
+            const decisionNow = Date.now()
+            const decision = this.decide(claimed, decisionNow)
+            if (decision === undefined) return Promise.resolve(false)
+            if (decision.kind === 'wait') {
+              if (decision.target !== undefined) this.arm(decision.target, decisionNow)
+              return Promise.resolve(false)
             }
-          }
-        } catch (error: unknown) {
-          this.faulted = true
-          this.clearTimer()
-          this.ctx.logger.warn(`schedule: dispatch append failed for agent "${this.agent.id}": ${renderThrown(error)}`)
-          return Promise.resolve(false)
+            try {
+              const text = decision.kind === 'one-shot'
+                ? renderReminderFraming(decision.record)
+                : renderEveryReminderBatchFraming(decision.reminders)
+              const message = createUserMessage({
+                content: [{ type: 'text', text }],
+                source: { kind: 'plugin', plugin: 'schedule' },
+              })
+              this.agent.followup(message)
+            } catch (error: unknown) {
+              if (this.isLive()) {
+                this.ctx.logger.warn(`schedule: framing or followup failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+              }
+              return Promise.resolve(false)
+            }
+            try {
+              if (decision.kind === 'one-shot') {
+                this.agent.session.append('schedule/change', {
+                  version: 1,
+                  operation: 'dispatch',
+                  id: decision.record.id,
+                })
+              } else {
+                for (const reminder of decision.reminders) {
+                  this.agent.session.append('schedule/change', {
+                    version: 1,
+                    operation: 'dispatch',
+                    id: reminder.record.id,
+                    acceptedAt: decision.acceptedAt,
+                  })
+                }
+              }
+            } catch (error: unknown) {
+              this.faulted = true
+              this.clearTimer()
+              this.ctx.logger.warn(`schedule: dispatch append failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+              return Promise.resolve(false)
+            }
+            return Promise.resolve(true)
+          })
+        } catch (_busy: unknown) {
+          // `runMaintenance` rejects synchronously only while another agent activity owns the idle phase.
+          if (this.isLive()) this.waitForIdle()
+          return
         }
-        return Promise.resolve(true)
-      })
-    } catch (_busy: unknown) {
-      // `runMaintenance` rejects synchronously only while another agent activity owns the idle phase.
-      if (this.isLive()) this.waitForIdle()
-      return
-    }
-    if (!await maintenance) return
-
-    try {
-      await flushSchedulePersistence(this.ctx, this.agent.session)
-    } catch (error: unknown) {
-      if (this.isLive()) {
-        this.ctx.logger.warn(`schedule: dispatch barrier failed for agent "${this.agent.id}": ${renderThrown(error)}`)
-      }
-      return
-    }
-    if (this.isRunnable()) this.requestDrive()
+        return maintenance.then((accepted) => {
+          if (!accepted) return
+          return flushSchedulePersistence(this.ctx, this.agent.session).then(
+            () => {
+              if (this.isRunnable()) this.requestDrive()
+            },
+            (error: Thrown) => {
+              if (this.isLive()) {
+                this.ctx.logger.warn(`schedule: dispatch barrier failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+              }
+            },
+          )
+        })
+      },
+      (error: Thrown) => {
+        if (this.isLive()) {
+          this.ctx.logger.warn(`schedule: preflight failed for agent "${this.agent.id}": ${renderThrown(error)}`)
+        }
+      },
+    )
   }
 }

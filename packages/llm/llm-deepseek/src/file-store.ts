@@ -11,6 +11,9 @@ import type { DeepSeekUploadRecord } from './upload-index.ts'
 export const MAX_CHAT_IMAGE_BYTES = 32 * 1024 * 1024
 const OWNED_FILE_PREFIX = 'dsh-'
 
+/** Values a Promise reject arm from a shared upload may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Resolved file-store policy from the plugin configuration. */
 export interface DeepSeekFilePolicy {
   expiresAfterSeconds: number
@@ -84,7 +87,7 @@ function waitForUpload(operation: SharedUpload, signal: AbortSignal | undefined)
       signal.removeEventListener('abort', abort)
       release()
       resolve(value)
-    }, (error: unknown) => {
+    }, (error: Thrown) => {
       signal.removeEventListener('abort', abort)
       release()
       reject(uploadFailure(error))
@@ -164,7 +167,7 @@ export class DeepSeekFileStore {
     shared.promise = this.ensureUploadedOnce(version, connection, policy, controller.signal).then((value) => {
       shared.settled = true
       return value
-    }, (error: unknown) => {
+    }, (error: Thrown) => {
       shared.settled = true
       throw uploadFailure(error)
     })
@@ -213,24 +216,24 @@ export class DeepSeekFileStore {
       }
     }
 
-    let candidate: DeepSeekUploadRecord
-    try {
-      candidate = await upload()
-    } catch (error: unknown) {
+    const finish = (candidate: DeepSeekUploadRecord): Promise<DeepSeekFileReference> =>
+      this.index.commit(candidate, this.now(), marginMs).then((committed) => {
+        if (committed.accepted) return { record: committed.record, uploaded: committed.accepted }
+        return client.delete(candidate.fileId, signal).then(
+          () => ({ record: committed.record, uploaded: committed.accepted }),
+          (_error: Thrown) => {
+            // The winning mapping is durable. A failed duplicate cleanup affects quota only and is retried by recovery.
+            return { record: committed.record, uploaded: committed.accepted }
+          },
+        )
+      })
+    return upload().then(finish, (error: Thrown) => {
       if (!isFilesQuotaError(error)) throw error
-      const deleted = await this.reclaimOldestOwned(connection, policy.quotaCleanupBatch, signal)
-      if (deleted === 0) throw error
-      candidate = await upload()
-    }
-    const committed = await this.index.commit(candidate, this.now(), marginMs)
-    if (!committed.accepted) {
-      try {
-        await client.delete(candidate.fileId, signal)
-      } catch {
-        // The winning mapping is durable. A failed duplicate cleanup affects quota only and is retried by recovery.
-      }
-    }
-    return { record: committed.record, uploaded: committed.accepted }
+      return this.reclaimOldestOwned(connection, policy.quotaCleanupBatch, signal).then((deleted) => {
+        if (deleted === 0) throw error
+        return upload()
+      }).then(finish)
+    })
   }
 
   /**
