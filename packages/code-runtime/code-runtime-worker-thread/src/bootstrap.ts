@@ -13,13 +13,18 @@ import { decodeWorkerJson, encodeWorkerJson, snapshotCodeJsonValue } from './wor
 /** Values a Promise reject arm may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
+const CapturedError = Error
+const capturedObjectCreate = Object.create
+const capturedObjectDefineProperty = Object.defineProperty
+const capturedObjectToString = Object.prototype.toString
+
 /**
  * Human text for a thrown clone failure or Promise rejection.
  * @param reason - the Thrown or catch-boundary value.
  * @returns the Error message, primitive text, or object tag.
  */
 function thrownMessage(reason: unknown): string {
-  if (reason instanceof Error) return reason.message
+  if (reason instanceof CapturedError) return reason.message
   switch (typeof reason) {
     case 'string': return reason
     case 'number':
@@ -32,13 +37,9 @@ function thrownMessage(reason: unknown): string {
       return 'undefined'
     case 'object':
       if (reason === null) return 'null'
-      return Object.prototype.toString.call(reason)
+      return capturedObjectToString.call(reason)
   }
 }
-
-const CapturedError = Error
-const capturedObjectCreate = Object.create
-const capturedObjectDefineProperty = Object.defineProperty
 
 /** Define one public binding-error field without consulting mutable globals or descriptor prototypes. */
 function defineBindingErrorField(error: Error, key: string, value: string): void {

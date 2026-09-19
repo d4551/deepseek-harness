@@ -510,7 +510,9 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
         const replyFailed = (error: Thrown): void => {
           finish(() => output.failure([...logs, ...strayLogs], { kind: 'worker-exit', message: messageOf(error) }))
         }
-        fn(args).then(
+        new Promise<unknown>((resolve) => {
+          resolve(fn(args))
+        }).then(
           (resolved) => {
             let value: CodeJsonValue | undefined
             try {
