@@ -25,16 +25,25 @@ import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerPayloads, WorkerToHostMessage } from './protocol.ts'
 import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Confirm child output is an array of merge-extensible content blocks. */
-function assertChildOutput(value: object): asserts value is ContentBlock[] {
+function assertChildOutput(value: JsonValue): asserts value is ContentBlock[] {
   if (!Array.isArray(value)) {
     throw new TypeError('child result is not losslessly JSON-serializable')
   }
   for (const item of value) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    if (typeof item !== 'object') {
       throw new TypeError('child result is not losslessly JSON-serializable')
     }
-    if (!('type' in item) || typeof item.type !== 'string') {
+    if (item === null || Array.isArray(item)) {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (!('type' in item)) {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (typeof item.type !== 'string') {
       throw new TypeError('child result is not losslessly JSON-serializable')
     }
   }
@@ -232,7 +241,7 @@ export class WorkerRun implements WorkflowRun {
       // workflow/end.
       this.endStrandedAgents()
       this.settleResult(this.cancelledResult(this.hostStarted))
-      this.worker.terminate().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      this.worker.terminate().then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }, this.disposeGraceMs)
     // unref'd: an armed grace timer must never hold the process open.
     this.graceTimer.unref()
@@ -282,7 +291,7 @@ export class WorkerRun implements WorkflowRun {
     disposing.then(
       () => { claimed.resolve(undefined) },
       /* v8 ignore next -- result/quiescence never reject and Worker.terminate is the only external promise */
-      (error: unknown) => { claimed.reject(error) },
+      (error: Thrown) => { claimed.reject(error) },
     )
     return this.disposed
   }
@@ -438,7 +447,7 @@ export class WorkerRun implements WorkflowRun {
           this.post(HostToWorkerType.ChildFailed, { callId, rendered })
         }
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         const rendered = renderThrown(error)
         this.post(HostToWorkerType.ChildFailed, { callId, rendered })
       },
@@ -474,7 +483,7 @@ export class WorkerRun implements WorkflowRun {
     if (record.disposal !== undefined) return record.disposal
     record.disposal = Promise.resolve()
       .then(() => record.run.dispose())
-      .catch((error: unknown) => {
+      .catch((error: Thrown) => {
         this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${renderThrown(error)}`)
       })
       .then(() => { this.finishChild(callId) })
