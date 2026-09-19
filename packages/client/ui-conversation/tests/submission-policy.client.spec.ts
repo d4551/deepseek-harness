@@ -64,12 +64,15 @@ describe('ComposerSubmissionPolicy', () => {
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
   })
 
-  it('tracks a Host write and leaves persist rejection on that flight', async () => {
+  it('tracks a Host write and publishes persist rejection on that flight', async () => {
     const host = stubSettingsScope<ConversationSettings>()
     host.set.mockRejectedValueOnce(new Error('mirror fold failed'))
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setBusyEnter(requireBusyEnterBehavior('steer'))
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
     await expect(policy.hostWrite).rejects.toThrow('mirror fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('mirror fold failed')
+    })
   })
 })

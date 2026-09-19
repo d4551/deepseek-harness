@@ -11,6 +11,8 @@ export interface EnterBehaviorRowInjected {
   hooks: {
     /** Persisted busy-state preference bound as useBusyEnter. */
     busyEnter: SnapshotStore<BusyEnterBehavior>
+    /** Durable persist failure bound as useWriteError. */
+    writeError: SnapshotStore<string | null>
   }
   /** Change the busy-state plain-Enter behavior. */
   setBusyEnter: (behavior: BusyEnterBehavior) => void
@@ -35,16 +37,18 @@ const OPTIONS: readonly {
  * @param props - composed Settings slot props.
  * @returns the preference row.
  */
-export function EnterBehaviorRow({ useBusyEnter, setBusyEnter, t }: EnterBehaviorRowProps) {
+export function EnterBehaviorRow({ useBusyEnter, useWriteError, setBusyEnter, t }: EnterBehaviorRowProps) {
   const behavior = useBusyEnter(value => value)
+  const writeError = useWriteError(value => value)
   const [open, setOpen] = useState(false)
   const selectedLabel = behavior === 'queue' ? 'settings.enter.queue' : 'settings.enter.steer'
+  const description = writeError ?? t('settings.enter.description')
 
   return (
     <div className="dsw-settings-cell">
       <div className="dsw-settings-cell-text">
         <div className="dsw-settings-cell-title">{t('settings.enter.title')}</div>
-        <div className="dsw-settings-cell-desc">{t('settings.enter.description')}</div>
+        <div className="dsw-settings-cell-desc" role={writeError === null ? undefined : 'alert'}>{description}</div>
       </div>
       <Menu
         open={open}

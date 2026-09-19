@@ -165,21 +165,17 @@ function nextPaint(): Promise<void> {
   })
 }
 
-/** Claim a FileReader data-URL result. */
-function requireDataUrl(result: string | ArrayBuffer | null): string {
-  if (typeof result !== 'string' || result === '') {
-    throw new Error('conversation: image read produced no data URL')
-  }
-  return result
-}
-
 /** Native canonical base64 of one browser file (FileReader data-URL encode; no main-thread byte loop). */
 function base64Of(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
-      const url = requireDataUrl(reader.result)
-      resolve(url.slice(url.indexOf(',') + 1))
+      const result = reader.result
+      if (typeof result !== 'string' || result === '') {
+        reject(new Error('conversation: image read produced no data URL'))
+        return
+      }
+      resolve(result.slice(result.indexOf(',') + 1))
     }
     reader.onerror = () => {
       reject(reader.error ?? new Error('conversation: image read failed'))

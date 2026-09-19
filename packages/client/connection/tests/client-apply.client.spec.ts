@@ -41,7 +41,7 @@ class GenerationProbe {
   })
 
   end(): void {
-    for (const finish of [...this.active]) finish()
+    for (const finish of this.active) finish()
   }
 }
 
@@ -150,12 +150,12 @@ describe('connection client apply', () => {
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
     })
+    expect(generations).toEqual([])
+    expect(connected).toBe(0)
+    expect(errorSpy).toHaveBeenCalled()
     const stopping = loop.stop()
     expect(handle.generation.getSnapshot()).toBeUndefined()
-    await stopping
-    expect(generations).toEqual(['/h', undefined])
-    expect(connected).toBe(1)
-    expect(errorSpy).toHaveBeenCalledTimes(2)
+    await expect(stopping).rejects.toThrow('subscriber bug')
     stopThrowing()
     stopGeneration()
     errorSpy.mockRestore()
@@ -197,7 +197,7 @@ describe('connection client apply', () => {
       sawGeneration = true
       stopping = owner.loop?.stop()
     })
-    const connected = vi.fn()
+    const connected = vi.fn<() => void>()
     const loop = handle.start({ onConnected: connected })
     owner.loop = loop
     try {
@@ -361,7 +361,7 @@ describe('connection client apply', () => {
     const handle = await mount()
     const original = globalThis.fetch
     const abort = new AbortController()
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }))
+    globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(new Response('unavailable', { status: 503 }))
     try {
       await expect(handle.rpc.call('/api', 'goals/create', {}, abort.signal))
         .rejects.toThrow('HTTP 503')
@@ -371,7 +371,7 @@ describe('connection client apply', () => {
       )
 
       ;(globalThis as Win).location = { hostname: 'localhost', search: '', origin: 'null' }
-      globalThis.fetch = vi.fn().mockResolvedValue(Response.json({
+      globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
         type: 'server-response',
         rpcId: 'different-rpc',
         result: { ok: true, value: null },
@@ -393,7 +393,7 @@ describe('connection client apply', () => {
         { type: 'other', rpcId: 'rpc', result: { ok: true } },
         { type: 'server-response', rpcId: 1, result: { ok: true } },
       ]) {
-        globalThis.fetch = vi.fn().mockResolvedValue(Response.json(envelope))
+        globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValue(Response.json(envelope))
         await expect(handle.rpc.call('/api', 'goals/create', {}))
           .rejects.toThrow('invalid server-response envelope')
       }

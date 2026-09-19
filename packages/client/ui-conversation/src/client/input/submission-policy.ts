@@ -23,6 +23,8 @@ export { DEFAULT_BUSY_ENTER_BEHAVIOR } from '../../submission-settings.ts'
 export class ComposerSubmissionPolicy {
   /** Reactive preference source for the Settings row. */
   readonly busyEnter: SnapshotStore<BusyEnterBehavior> = createSnapshotStore(DEFAULT_BUSY_ENTER_BEHAVIOR)
+  /** Last durable persist failure; null while the Host write is holding or succeeded. */
+  readonly writeError: SnapshotStore<string | null> = createSnapshotStore<string | null>(null)
   /** In-flight Host write; rejects when the durable mutation fails. */
   hostWrite: Promise<void> | undefined
   private readonly host: SettingsScope<ConversationSettings> | undefined
@@ -67,8 +69,19 @@ export class ComposerSubmissionPolicy {
   setBusyEnter(behavior: BusyEnterBehavior): void {
     if (this.busyEnter.getSnapshot() === behavior) return
     this.busyEnter.set(behavior)
+    this.writeError.set(null)
     if (this.host === undefined) return
-    this.hostWrite = this.host.set(BUSY_ENTER_FIELD, behavior)
+    const flight = this.host.set(BUSY_ENTER_FIELD, behavior)
+    this.hostWrite = flight
+    flight.then(
+      () => {
+        if (this.hostWrite === flight) this.writeError.set(null)
+      },
+      (error: Error) => {
+        if (this.hostWrite !== flight) return
+        this.writeError.set(error instanceof Error ? error.message : String(error))
+      },
+    )
   }
 
   /**

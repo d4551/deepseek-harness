@@ -309,6 +309,33 @@ describe('sendSession submission echo', () => {
     await b.runtime.dispose()
   })
 
+  it('rejects sendSession when FileReader yields no data URL', async () => {
+    const b = await echoBench()
+    class EmptyReader {
+      result: string | ArrayBuffer | null = null
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      readAsDataURL(): void {
+        queueMicrotask(() => this.onload?.())
+      }
+    }
+    vi.stubGlobal('FileReader', EmptyReader)
+    try {
+      const [attachment] = b.root.createDraftImages([
+        new File([Uint8Array.of(1)], 'empty.png', { type: 'image/png' }),
+      ])
+      const session = requireSessionScope(b.runtime, 's1').binding.session
+      await expect(b.root.sendSession(session, 'x', [attachment!.id], 'queue'))
+        .rejects.toThrow('image read produced no data URL')
+      expect(b.abandon).toHaveBeenCalledOnce()
+      expect(b.prompt).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+      b.restore()
+    }
+    await b.runtime.dispose()
+  })
+
   it('yields through the macrotask fallback where no frame clock exists', async () => {
     const b = await echoBench()
     vi.stubGlobal('requestAnimationFrame', undefined)
@@ -465,7 +492,7 @@ describe('InputHub queue steering (empty-draft accelerated Enter)', () => {
     await b.runtime.dispose()
   })
 
-  it('no-ops without queued rows', async () => {
+  it('leaves updateQueue uncalled when the queue is empty', async () => {
     const b = await bench()
     b.shell.steerQueue()
     await b.shell.pendingSteer
@@ -481,6 +508,26 @@ describe('InputHub queue steering (empty-draft accelerated Enter)', () => {
     b.updateQueue.mockRejectedValueOnce(new Error('transport down'))
     b.shell.steerQueue()
     await expect(b.shell.pendingSteer).rejects.toThrow('transport down')
+    expect(b.shell.notices.getSnapshot()).toEqual(
+      expect.objectContaining({ level: 'error', text: 'transport down' }),
+    )
+    await b.runtime.dispose()
+  })
+
+  it('keeps the first in-flight steer instead of replacing it', async () => {
+    const b = await bench()
+    await b.runtime.sessions.updateSessionSnapshot('s1', (draft) => {
+      draft.queue = [row('q-1')]
+    })
+    const held = Promise.withResolvers<Awaited<ReturnType<typeof b.updateQueue>>>()
+    b.updateQueue.mockImplementation(() => held.promise)
+    b.shell.steerQueue()
+    const first = b.shell.pendingSteer
+    b.shell.steerQueue()
+    expect(b.shell.pendingSteer).toBe(first)
+    expect(b.updateQueue).toHaveBeenCalledTimes(1)
+    held.resolve({ ok: true, value: { accepted: true } })
+    await first
     await b.runtime.dispose()
   })
 })

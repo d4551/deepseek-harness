@@ -416,9 +416,19 @@ export class SessionInputShell implements SessionInput {
    */
   steerQueue(): void {
     const run = this.deps.steerQueue
-    if (run === undefined) return
+    if (run === undefined || this.steerFlight !== undefined) return
     const flight = run()
-    if (flight instanceof Promise) this.steerFlight = flight
+    if (!(flight instanceof Promise)) return
+    this.steerFlight = flight
+    flight.then(
+      () => {
+        if (this.steerFlight === flight) this.steerFlight = undefined
+      },
+      (error: Error) => {
+        if (this.steerFlight === flight) this.steerFlight = undefined
+        this.notify('error', error instanceof Error ? error.message : String(error))
+      },
+    )
   }
 
   /** In-flight empty-draft queue steer started by {@link SessionInputShell.steerQueue}. */
@@ -791,6 +801,11 @@ export class SessionInputShell implements SessionInput {
       }
     }
     this.restoringFailures = true
+    using _clearRestore = {
+      [Symbol.dispose]: (): void => {
+        this.restoringFailures = false
+      },
+    }
     this.editor.update(() => {
       const root = $getRoot()
       root.clear()
@@ -824,7 +839,6 @@ export class SessionInputShell implements SessionInput {
     }, { discrete: true, tag: HISTORY_MERGE_TAG })
     this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
     this.failedRestoreRev = this.rev
-    this.restoringFailures = false
   }
 
   /** Return failed-send images to the head of the rail (ids still resolve — release happens only after success). */
