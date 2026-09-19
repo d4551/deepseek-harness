@@ -107,9 +107,18 @@ function entriesToRecord(
   return result
 }
 
+/** True when `name` contains a C0 or DEL control character. */
+function containsControl(name: string): boolean {
+  for (const character of name) {
+    const code = character.codePointAt(0)
+    if (code !== undefined && (code <= 0x1f || code === 0x7f)) return true
+  }
+  return false
+}
+
 /** Produce a stable DSH tool namespace from ACP's human-readable server name. */
 function normalizeServerName(name: string): string {
-  if (name.trim().length === 0 || /[\u0000-\u001f\u007f]/.test(name)) {
+  if (name.trim().length === 0 || containsControl(name)) {
     throw new AcpMcpConfigError('mcpServers contains an invalid server name')
   }
   if (VALID_SERVER_NAME.test(name)) return name
@@ -135,7 +144,7 @@ function assertHttpUrl(value: string, field: string): void {
 function validateClientConfig(index: number, parse: () => McpClient.Config): McpClient.Config {
   try {
     return parse()
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore next -- Schemastery validation rejects with Error instances. */
     const detail = error instanceof Error ? error.message : String(error)
     throw new AcpMcpConfigError(`mcpServers[${index}] is invalid: ${detail}`)

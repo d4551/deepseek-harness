@@ -5,6 +5,9 @@ import type { SessionConfigOption, SessionConfigValueId } from '@agentclientprot
 import { installModelSelection, type ModelSelection, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId, type LlmCallConfig, type LlmRuntime } from '@deepseek-ai/dsh-llm'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const MODEL_CONFIG_ID = 'model'
 const REASONING_CONFIG_ID = 'reasoning_effort'
 // DSH reasoning effort ids are non-empty, so the empty opaque ACP value is a disjoint provider-default choice.
@@ -144,37 +147,38 @@ export class AcpModelControl {
   private async state(signal?: AbortSignal): Promise<ConfigState> {
     const selected = this.selected
     if (selected === undefined) return { choices: new Map(), options: [] }
-    let resolved: ModelSelection
-    let routeAvailable = true
-    try {
-      resolved = await this.resolveSelection(selected, signal)
-      this.hasResolvedState = true
-    } catch (error: unknown) {
-      if (!this.hasResolvedState) throw error
-      resolved = selected
-      routeAvailable = false
-    }
+    const resolvedState = await this.resolveSelection(selected, signal).then(
+      (resolved) => {
+        this.hasResolvedState = true
+        return { resolved, routeAvailable: true }
+      },
+      (error: Thrown) => {
+        if (!this.hasResolvedState) throw error
+        return { resolved: selected, routeAvailable: false }
+      },
+    )
+    const { resolved, routeAvailable } = resolvedState
     const choices = new Map<SessionConfigValueId, ModelSelection>()
-    const groups = await Promise.all(this.llm.listProviders().map(async (provider) => {
-      try {
-        const models = await this.llm.listModels(provider.id)
-        const entries = models.map((model) => {
-          const choice: ModelChoice = {
-            value: modelValue(provider.id, model.id),
-            selection: { provider: provider.id, model: model.id },
-          }
-          choices.set(choice.value, choice.selection)
-          return {
-            value: choice.value,
-            name: model.name,
-            ...model.description === undefined ? {} : { description: model.description },
-          }
-        })
-        return { group: provider.id, name: provider.name, options: entries }
-      } catch (_providerCatalogUnavailable) {
-        return { group: provider.id, name: provider.name, options: [] }
-      }
-    }))
+    const groups = await Promise.all(this.llm.listProviders().map(provider =>
+      this.llm.listModels(provider.id).then(
+        (models) => {
+          const entries = models.map((model) => {
+            const choice: ModelChoice = {
+              value: modelValue(provider.id, model.id),
+              selection: { provider: provider.id, model: model.id },
+            }
+            choices.set(choice.value, choice.selection)
+            return {
+              value: choice.value,
+              name: model.name,
+              ...model.description === undefined ? {} : { description: model.description },
+            }
+          })
+          return { group: provider.id, name: provider.name, options: entries }
+        },
+        (_providerCatalogUnavailable: Thrown) => ({ group: provider.id, name: provider.name, options: [] }),
+      ),
+    ))
     const currentValue = modelValue(resolved.provider, resolved.model)
     if (!choices.has(currentValue)) {
       choices.set(currentValue, { provider: resolved.provider, model: resolved.model })

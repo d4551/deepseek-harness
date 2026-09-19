@@ -7,6 +7,9 @@ import type { ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@d
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Raster formats shared by ACP image blocks and the core attachment vocabulary. */
 const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
   'image/png',
@@ -67,12 +70,12 @@ async function assertImageRoute(ctx: Context, route: ModelSelection | undefined,
   if (provider === undefined || model === undefined || llm === undefined) {
     throw new AcpContentError('the current model route could not be resolved for image input', 'invalid')
   }
-  let info: Awaited<ReturnType<typeof llm.resolveModelInfo>>
-  try {
-    info = await llm.resolveModelInfo(provider, model, signal)
-  } catch (error: unknown) {
-    throw new AcpContentError('the current model route could not be verified for image input', 'internal', { cause: error })
-  }
+  const info = await llm.resolveModelInfo(provider, model, signal).then(
+    undefined,
+    (error: Thrown) => {
+      throw new AcpContentError('the current model route could not be verified for image input', 'internal', { cause: error })
+    },
+  )
   if (info.inputModalities === undefined || !info.inputModalities.includes('image')) {
     throw new AcpContentError(`model "${model}" does not declare image input`, 'invalid')
   }
@@ -95,12 +98,10 @@ export async function supportsAcpImagePrompts(
   const llm = ctx.get('llm')
   if (attachments === undefined || llm === undefined || provider === undefined || model === undefined) return false
   if (!attachments.imageLimits.mediaTypes.some(mediaType => IMAGE_MEDIA_TYPES.includes(mediaType))) return false
-  try {
-    const info = await llm.resolveModelInfo(provider, model)
-    return info.inputModalities?.includes('image') === true
-  } catch {
-    return false
-  }
+  return await llm.resolveModelInfo(provider, model).then(
+    info => info.inputModalities?.includes('image') === true,
+    (_error: Thrown) => false,
+  )
 }
 
 /** Render one baseline resource link into the core's current text vocabulary. */
@@ -153,14 +154,12 @@ export async function admitAcpPrompt(
     if (attachments === undefined) throw new AcpContentError('no attachment store is mounted', 'invalid')
     await assertImageRoute(ctx, route, signal)
     signal.throwIfAborted()
-    try {
-      refs = await attachments.saveImages(images)
-    } catch (error: unknown) {
+    refs = await attachments.saveImages(images).then(undefined, (error: Thrown) => {
       if (isImageAdmissionError(error)) {
         throw new AcpContentError(error.message, 'invalid', { cause: error })
       }
       throw new AcpContentError('unable to persist the prompt image batch', 'internal', { cause: error })
-    }
+    })
     signal.throwIfAborted()
   }
 
@@ -223,12 +222,12 @@ export async function assistantBlockToAcp(
   if (attachments === undefined) {
     throw new AcpContentError('cannot deliver assistant image: no attachment store is mounted', 'internal')
   }
-  let stored: Awaited<ReturnType<typeof attachments.readImage>>
-  try {
-    stored = await attachments.readImage(block.attachment)
-  } catch (error: unknown) {
-    throw new AcpContentError('cannot deliver assistant image: the attachment is unavailable or corrupt', 'internal', { cause: error })
-  }
+  const stored = await attachments.readImage(block.attachment).then(
+    undefined,
+    (error: Thrown) => {
+      throw new AcpContentError('cannot deliver assistant image: the attachment is unavailable or corrupt', 'internal', { cause: error })
+    },
+  )
   return {
     type: 'image',
     data: Buffer.from(stored.data).toString('base64'),
