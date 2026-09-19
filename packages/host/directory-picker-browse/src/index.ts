@@ -167,16 +167,17 @@ async function directoryRow(
   const path = join(parent, name)
   let enterable = isDirectory
   if (!enterable && isSymbolicLink) {
-    try {
-      // The probe races the caller too: a symlink target on a stalled
-      // network filesystem must not keep a departed caller's request alive.
-      enterable = (await raceAbort(stat(path), signal)).isDirectory()
-    } catch {
-      /* v8 ignore next 2 -- an abort landing mid-probe needs a stalled stat; the per-candidate check in list covers the settled path. */
-      if (signal?.aborted) throw asError(signal.reason)
-      // Broken or cyclic symlink: stat is the probe, failure means "not enterable".
-      return null
-    }
+    // The probe races the caller too: a symlink target on a stalled
+    // network filesystem must not keep a departed caller's request alive.
+    enterable = await raceAbort(stat(path), signal).then(
+      st => st.isDirectory(),
+      (_reason: Thrown) => {
+        /* v8 ignore next 2 -- an abort landing mid-probe needs a stalled stat; the per-candidate check in list covers the settled path. */
+        if (signal?.aborted) throw asError(signal.reason)
+        // Broken or cyclic symlink: stat is the probe, failure means "not enterable".
+        return false
+      },
+    )
   }
   if (!enterable) return null
   // POSIX hidden convention; Windows' hidden attribute is not exposed by
@@ -316,16 +317,16 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       throw new DirectoryPickerError('directory-create-failed', join(parent, name), `"${name}" is not a single path segment`)
     }
     const target = join(parent, name)
-    try {
-      // Non-recursive: the parent is the directory the browser is showing, so
-      // a missing parent is a real failure, not a level to invent.
-      await mkdir(target)
-      return target
-    } catch (error: unknown) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST') {
-        throw new DirectoryPickerError('directory-exists', target, `${target} already exists`)
-      }
-      throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${messageOf(error)}`)
-    }
+    // Non-recursive: the parent is the directory the browser is showing, so
+    // a missing parent is a real failure, not a level to invent.
+    return await mkdir(target).then(
+      () => target,
+      (reason: Thrown) => {
+        if (typeof reason === 'object' && reason !== null && 'code' in reason && reason.code === 'EEXIST') {
+          throw new DirectoryPickerError('directory-exists', target, `${target} already exists`)
+        }
+        throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${messageOf(reason)}`)
+      },
+    )
   }
 }
