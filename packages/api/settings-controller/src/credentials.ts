@@ -12,6 +12,32 @@ import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a refused credential write.
+ * @param reason - the Thrown the provider Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Fan-out bound on one remote `describe` batch. A settings page asks about the
  * references its own rows name, so this is far above any real page and still
@@ -141,16 +167,14 @@ export class CredentialsController extends TypertRemoteService {
    * path and fails the same way it does on the read side. The details name only
    * the reference, so no failure path can carry the value back out.
    */
-  private async write(ref: string, write: () => Promise<void>): Promise<void> {
-    try {
-      await write()
-    } catch (error: unknown) {
+  private write(ref: string, write: () => Promise<void>): Promise<void> {
+    return write().then(undefined, (error: Thrown) => {
       throw new TypertRemoteFailure({
         code: 'credential-rejected',
-        message: error instanceof Error ? error.message : String(error),
+        message: thrownMessage(error),
         details: { ref },
       })
-    }
+    })
   }
 }
 

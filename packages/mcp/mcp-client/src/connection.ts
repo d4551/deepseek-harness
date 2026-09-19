@@ -49,6 +49,32 @@ export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
 // generation is gone; timing out fails closed instead of overlapping children.
 const GENERATION_CLOSE_TIMEOUT_MS = 5_000
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected connection or close.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Fully resolved reconnect policy captured at plugin load. */
 export type ResolvedReconnectPolicy = Readonly<Required<ReconnectConfig>>
 
@@ -155,7 +181,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       disposers = await syncTools(generation, ctx, syncOpts, disposers)
     })
     // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
-    syncChain = run.catch(() => {})
+    syncChain = run.catch((_error: Thrown) => {})
     return run
   }
 
@@ -172,7 +198,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => { resolve(false) }, GENERATION_CLOSE_TIMEOUT_MS)
       timeout.unref()
-      const closeFailed = (error: unknown): void => {
+      const closeFailed = (error: Thrown): void => {
         clearTimeout(timeout)
         reject(error instanceof Error ? error : new Error('MCP transport close failed', { cause: error }))
       }
@@ -228,7 +254,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
    *
    * @param startup - Whether this is the plugin's activation attempt.
    */
-  async function connectGeneration(startup: boolean): Promise<void> {
+  function connectGeneration(startup: boolean): Promise<void> {
     const generation = new Client(
       { name: 'dsh-mcp-client', version: '0.0.1' },
       { capabilities: {} },
@@ -242,7 +268,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     generation.onclose = () => {
       closeObserved = true
       closed.resolve()
-      // A failed connect owns its close barrier in the catch path below. An
+      // A failed connect owns its close barrier in the reject arm below. An
       // established generation can transition down directly from this signal.
       if (attemptSettled) generationDown(generation)
     }
@@ -250,52 +276,65 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     // queued behind it rather than dropped.
     generation.setNotificationHandler(
       ToolListChangedNotificationSchema,
-      async () => {
+      () => {
         if (!isCurrent(generation)) return
         ctx.logger.info(`${label}: tool list changed, re-syncing`)
-        try {
-          await enqueueSync(generation)
-        } catch (error) {
+        return enqueueSync(generation).then(undefined, (error: Thrown) => {
           // Fetch-phase failure: the previous generation is still registered
           // and `disposers` still owns it — keep serving the last good list.
-          if (!disposed) ctx.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
-        }
+          if (!disposed) ctx.logger.error(`${label}: tool re-sync failed: ${thrownMessage(error)}`)
+        })
       },
     )
-    try {
-      await generation.connect(createTransport(config))
-      if (hasClosed()) {
-        attemptSettled = true
-        generationDown(generation)
-        return
-      }
-      await enqueueSync(generation, startup ? startupOpts : opts)
-    } catch (error) {
+    const failAttempt = (error: Thrown): Promise<void> => {
       if (firstAttemptError === undefined) firstAttemptError = error
       // Disposal clears current ownership before it closes the generation, so
       // only a live supervisor reports an attempt failure.
-      if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
-      try { await generation.close() } catch { /* transport already gone */ }
-      const quiesced = hasClosed() || await waitForClose(closed.promise)
-      attemptSettled = true
-      if (!isCurrent(generation)) return
-      if (!quiesced) {
-        client = undefined
-        clientClosed = undefined
-        ctx.logger.error(`${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`)
-        return
+      if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${thrownMessage(error)}`)
+      const afterClose = (): void | Promise<void> => {
+        if (hasClosed()) {
+          attemptSettled = true
+          if (!isCurrent(generation)) return
+          generationDown(generation)
+          return
+        }
+        return waitForClose(closed.promise).then((quiesced) => {
+          attemptSettled = true
+          if (!isCurrent(generation)) return
+          if (!quiesced) {
+            client = undefined
+            clientClosed = undefined
+            ctx.logger.error(`${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`)
+            return
+          }
+          generationDown(generation)
+        })
       }
-      generationDown(generation)
-      return
+      return generation.close().then(afterClose, (_error: Thrown) => afterClose())
     }
-    attemptSettled = true
-    if (hasClosed()) {
-      generationDown(generation)
-      return
-    }
-    if (!isCurrent(generation)) return
-    connectedAt = Date.now()
-    if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
+    return generation.connect(createTransport(config)).then(
+      () => {
+        if (hasClosed()) {
+          attemptSettled = true
+          generationDown(generation)
+          return
+        }
+        return enqueueSync(generation, startup ? startupOpts : opts).then(
+          () => {
+            attemptSettled = true
+            if (hasClosed()) {
+              generationDown(generation)
+              return
+            }
+            if (!isCurrent(generation)) return
+            connectedAt = Date.now()
+            if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
+          },
+          (error: Thrown) => failAttempt(error),
+        )
+      },
+      (error: Thrown) => failAttempt(error),
+    )
   }
 
   /** The in-flight (or last settled) connection attempt; dispose awaits it for quiescence. */
@@ -318,7 +357,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
 
   return {
     ready,
-    async dispose(): Promise<void> {
+    dispose(): Promise<void> {
       disposed = true
       if (reconnectTimer !== undefined) {
         clearTimeout(reconnectTimer)
@@ -328,18 +367,23 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       const currentClosed = clientClosed
       client = undefined
       clientClosed = undefined
-      if (current !== undefined) {
-        try { await current.close() } catch { /* transport already gone */ }
-        if (currentClosed !== undefined && !await waitForClose(currentClosed)) {
-          ctx.logger.error(`${label}: generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms during disposal — server shutdown may be incomplete`)
-        }
-      }
       // Quiesce, don't just request it: the in-flight attempt enqueues its
       // sync before settling, so awaiting both leaves `disposers` final.
-      await settling
-      await syncChain
-      for (const dispose of disposers.values()) dispose()
-      disposers = new Map()
+      const finish = (): Promise<void> => settling.then(() => syncChain).then(() => {
+        for (const dispose of disposers.values()) dispose()
+        disposers = new Map()
+      })
+      if (current === undefined) return finish()
+      const afterClose = (): Promise<void> => {
+        if (currentClosed === undefined) return finish()
+        return waitForClose(currentClosed).then((quiesced) => {
+          if (!quiesced) {
+            ctx.logger.error(`${label}: generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms during disposal — server shutdown may be incomplete`)
+          }
+          return finish()
+        })
+      }
+      return current.close().then(afterClose, (_error: Thrown) => afterClose())
     },
   }
 }
