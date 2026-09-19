@@ -18,7 +18,7 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { draftBlocker, type AgentPresetSectionState } from './section-store.ts'
-import { messageOf } from './settings-store.ts'
+import { messageOf, type Thrown } from './settings-store.ts'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'
 import css from './AgentPresetSection.module.css'
 
@@ -76,8 +76,7 @@ interface CopyDialogProps {
 
 function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
   const [submissionError, setSubmissionError] = useState<string | null>(null)
-  const reportSubmissionError = (reason: unknown) => {
-    if (!(reason instanceof Error)) throw new TypeError('preset copy rejected with a non-Error')
+  const reportSubmissionError = (reason: Thrown) => {
     setSubmissionError(messageOf(reason))
   }
   const draft = state.copy
@@ -153,8 +152,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
   const { useAgentPresetSection, t, load } = props
   const state = useAgentPresetSection(snapshot => snapshot)
   const [actionError, setActionError] = useState<string | null>(null)
-  const reportActionError = useCallback((reason: unknown) => {
-    if (!(reason instanceof Error)) throw new TypeError('preset section action rejected with a non-Error')
+  const reportActionError = useCallback((reason: Thrown) => {
     setActionError(messageOf(reason))
   }, [])
   const viewedId = state.view?.id

@@ -19,8 +19,8 @@ import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-sl
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, protocolChoices, providerUsable } from './store.ts'
-import type { ModelsSettingsStore, ModelsWire, ProviderRow } from './store.ts'
+import { deriveKeyRef, protocolChoices, providerUsable, thrownMessage } from './store.ts'
+import type { ModelsSettingsStore, ModelsWire, ProviderRow, Thrown } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
@@ -98,9 +98,8 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
   )
 }
 
-function transportRefusal(reason: unknown): string {
-  if (!(reason instanceof Error)) throw new TypeError('provider removal rejected with a non-Error')
-  return reason.message
+function transportRefusal(reason: Thrown): string {
+  return thrownMessage(reason)
 }
 
 /**
@@ -137,7 +136,12 @@ export function removeProviderProfile(
     )
   }).then((failure) => {
     if (failure !== undefined) return failure
-    return controller.load().then(() => undefined)
+    return controller.load().then(() => {
+      const snapshot = controller.store.getSnapshot()
+      if (snapshot.status !== 'error') return undefined
+      if (snapshot.error === null) throw new TypeError('models error status requires a message')
+      return snapshot.error
+    })
   })
 }
 
@@ -232,11 +236,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [declaring, setDeclaring] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
-  const reportLoadFailure = useCallback((reason: unknown): void => {
-    if (!(reason instanceof Error)) throw new TypeError('models load rejected with a non-Error')
+  const reportLoadFailure = useCallback((reason: Thrown): void => {
     controller.store.update((snapshot) => {
       snapshot.status = 'error'
-      snapshot.error = reason.message
+      snapshot.error = thrownMessage(reason)
     })
   }, [controller])
 
@@ -291,10 +294,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
         }
         setDeleteTarget(undefined)
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         setDeleting(false)
-        if (!(reason instanceof Error)) throw new TypeError('provider deletion rejected with a non-Error')
-        setDeleteFailure(reason.message)
+        setDeleteFailure(thrownMessage(reason))
       },
     )
   }

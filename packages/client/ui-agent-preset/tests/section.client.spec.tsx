@@ -44,21 +44,21 @@ function renderSection(
 ) {
   const store = createSnapshotStore<AgentPresetSectionState>({ ...READY, ...state })
   const actions = {
-    load: vi.fn(() => Promise.resolve()),
+    load: vi.fn<() => Promise<void>>(() => Promise.resolve()),
     // The shell-owned section affordance (SettingsSectionOwnerProps.close).
-    close: vi.fn(),
-    ...options.creator === false ? {} : { startCreatorDraft: vi.fn() },
-    view: vi.fn(() => Promise.resolve()),
-    closeView: vi.fn(),
-    beginCopy: vi.fn(),
-    cancelCopy: vi.fn(),
-    setCopyId: vi.fn(),
-    setCopyName: vi.fn(),
-    confirmCopy: vi.fn(() => Promise.resolve()),
-    openLocation: vi.fn(() => Promise.resolve()),
-    confirmDelete: vi.fn(),
-    remove: vi.fn(() => Promise.resolve()),
-    makeDefault: vi.fn(() => Promise.resolve()),
+    close: vi.fn<() => void>(),
+    ...options.creator === false ? {} : { startCreatorDraft: vi.fn<() => void>() },
+    view: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
+    closeView: vi.fn<() => void>(),
+    beginCopy: vi.fn<(from: string) => void>(),
+    cancelCopy: vi.fn<() => void>(),
+    setCopyId: vi.fn<(id: string) => void>(),
+    setCopyName: vi.fn<(name: string) => void>(),
+    confirmCopy: vi.fn<() => Promise<void>>(() => Promise.resolve()),
+    openLocation: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
+    confirmDelete: vi.fn<(id: string | null) => void>(),
+    remove: vi.fn<() => Promise<void>>(() => Promise.resolve()),
+    makeDefault: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
   }
   const props = {
     ...actions,
@@ -320,7 +320,7 @@ describe('the preset list', () => {
       useAgentPresetSection: bindSnapshotSelector(
         createSnapshotStore<AgentPresetSectionState>({ ...READY, status: 'unavailable', rows: [] })),
       t: (key: keyof typeof en) => en[key],
-      load: vi.fn(() => Promise.resolve()),
+      load: vi.fn<() => Promise<void>>(() => Promise.resolve()),
     } as unknown as AgentPresetSectionProps)} />)
 
     expect(container.firstChild).toBeNull()
@@ -344,6 +344,14 @@ describe('the preset list', () => {
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
     expect(actions.load).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('reports a non-Error rejected action onto the page', async () => {
+    const actions = renderSection()
+    actions.view.mockRejectedValueOnce('plain refusal')
+
+    fireEvent.click(screen.getByRole('button', { name: `${en.view}: ${en.presetStandardName}` }))
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('plain refusal') })
   })
 })
 
@@ -415,6 +423,15 @@ describe('the copy dialog', () => {
     fireEvent.click(dialog.getByRole('button', { name: en.create }))
     expect(dialog.queryByRole('alert')).toBeNull()
     expect(actions.confirmCopy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a non-Error copy refusal inside its dialog', async () => {
+    const actions = renderSection({ copy: { ...draft, id: 'my-agent' } })
+    actions.confirmCopy.mockRejectedValueOnce('plain refusal')
+    const dialog = within(screen.getByRole('dialog'))
+
+    fireEvent.click(dialog.getByRole('button', { name: en.create }))
+    await waitFor(() => { expect(dialog.getByRole('alert').textContent).toBe('plain refusal') })
   })
 
   it('dismisses on Escape', () => {

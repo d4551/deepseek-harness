@@ -1479,6 +1479,75 @@ describe('ModelsSection', () => {
     )
     expect(failure).toBe('connection lost')
   })
+
+  it('reports a non-Error mutate refusal', async () => {
+    const { face, controller } = await mountSection({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
+    )
+    expect(failure).toBe('plain refusal')
+  })
+
+  it('reports a non-Error credential transport refusal', async () => {
+    const { face, controller, mutate } = await mountSection({
+      unset: vi.fn<() => Promise<unknown>>(() => Promise.reject('credential transport refusal')),
+    })
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      {
+        settingsNs: 'llm-pi-ai',
+        settingsPath: ['providers', 'openai'],
+        credentialRef: 'OPENAI_API_KEY',
+      },
+    )
+    expect(failure).toBe('credential transport refusal')
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('reports a settled load failure after a successful removal write', async () => {
+    const { face, controller } = await mountSection()
+    face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal')))
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      { settingsNs: 'llm-plain', settingsPath: ['ghost-profile'] },
+    )
+    expect(failure).toBe('directory down')
+    expect(controller.store.getSnapshot().status).toBe('error')
+  })
+
+  it('claims a non-Error load refusal onto the page', async () => {
+    const { face } = scriptedFace()
+    const controller = new ModelsSettingsStore(
+      face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    controller.load = vi.fn<() => Promise<void>>(() => Promise.reject('plain refusal'))
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    expect(await screen.findByText(/plain refusal/)).toBeTruthy()
+    expect(controller.store.getSnapshot().status).toBe('error')
+    expect(controller.store.getSnapshot().error).toBe('plain refusal')
+  })
+
+  it('keeps a non-Error deletion refusal recoverable in its confirmation dialog', async () => {
+    const mutate = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    await mountSection({ mutate })
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
+    fireEvent.click(within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) }))
+    await within(dialog).findByText('plain refusal')
+    expect(screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBe(dialog)
+  })
 })
 
 describe('apiKeyFailure', () => {

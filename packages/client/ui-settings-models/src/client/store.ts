@@ -15,9 +15,15 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace, SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+/** Values a Promise reject arm or wire refusal may deliver. */
+export type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
-function thrownMessage(reason: Thrown): string {
+/**
+ * Human text for a rejected wire call or transport refusal.
+ * @param reason - the Thrown the transport or host rejected with.
+ * @returns the message to show.
+ */
+export function thrownMessage(reason: Thrown): string {
   return reason instanceof Error ? reason.message : String(reason)
 }
 
