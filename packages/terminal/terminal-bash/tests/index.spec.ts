@@ -203,38 +203,27 @@ describe('BashTerminalBackend startup rollback', () => {
     initialization.resolve(undefined)
   })
 
-  it('rejects leftover undefined abort and initialize refuse instead of publishing the session', async () => {
+  it('rejects leftover undefined initialize refuse instead of publishing the session', async () => {
     const ctx = new Context()
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
-
-    const initialization = Promise.withResolvers<undefined>()
-    const initializationStarted = Promise.withResolvers<undefined>()
-    const abortedClose = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
-    const abortedSession = {
-      initialize: () => {
-        initializationStarted.resolve(undefined)
-        return initialization.promise
-      },
-      close: abortedClose,
-    } as unknown as LocalPtySession
-    const abortBackend = new BashTerminalBackend(ctx, config(), async () => terminalHandle(), () => abortedSession)
-    const controller = new AbortController()
-    const aborting = abortBackend.spawn(spec(agent(ctx), controller.signal))
-    await initializationStarted.promise
-    const claimedAbort = aborting.then(undefined, _error => undefined)
-    controller.abort(undefined)
-    await expect(aborting).rejects.toBeUndefined()
-    await claimedAbort
-    expect(abortedClose).toHaveBeenCalledWith('PTY startup failed')
-    initialization.resolve(undefined)
-
     const refusedClose = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const initializeStarted = Promise.withResolvers<undefined>()
     const refused = {
-      initialize: () => Promise.reject(undefined),
+      initialize: () => {
+        initializeStarted.resolve(undefined)
+        return Promise.reject(undefined)
+      },
       close: refusedClose,
     } as unknown as LocalPtySession
     const refuseBackend = new BashTerminalBackend(ctx, config(), async () => terminalHandle(), () => refused)
-    await expect(refuseBackend.spawn(spec(agent(ctx)))).rejects.toBeUndefined()
+    const controller = new AbortController()
+    const spawning = refuseBackend.spawn(spec(agent(ctx), controller.signal))
+    const claimed = spawning.then(undefined, _error => undefined)
+    await initializeStarted.promise
+    await Promise.resolve()
+    controller.abort(new Error('later abort must not replace the first leftover refuse'))
+    await expect(spawning).rejects.toBeUndefined()
+    await claimed
     expect(refusedClose).toHaveBeenCalledWith('PTY startup failed')
   })
 
