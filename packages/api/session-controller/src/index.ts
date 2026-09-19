@@ -86,6 +86,9 @@ export interface SessionControllerInternals {
   readonly canOpenPath?: () => boolean
 }
 
+/** Values a Promise reject arm from background activation may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Host service backing the generated `ctx.remote.session` namespace. */
 export class SessionController extends TypertRemoteService {
   static inject = [
@@ -174,7 +177,7 @@ export class SessionController extends TypertRemoteService {
       using ownedObservation = observation
       const result = await this.agents.resolveObservedAgent(ownedObservation)
       if ('error' in result) this.ctx.emit('api-session/error', sessionId, result.error.message)
-    })().catch((error: unknown) => {
+    })().catch((error: Thrown) => {
       this.ctx.logger.error(`session-controller: background activation for "${sessionId}" failed: ${errorChain(error)}`)
     })
     this.promotions.add(task)

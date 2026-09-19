@@ -67,6 +67,9 @@ export type ApiSessionAgentResult =
   | { readonly agent: Agent }
   | { readonly error: ApiSessionAgentError }
 
+/** Values a Promise reject arm from Session create-or-adopt may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type InstalledSelection = ModelSelectionRef & {
   current: AgentModelSelection
   consume(provider: string, model: string, reasoningEffort: string | undefined): boolean
@@ -242,7 +245,7 @@ export class ApiSessionAgentController {
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
       creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId)
-        .catch((error: unknown) => {
+        .catch((error: Thrown) => {
           const live = this.ctx.agents.get(sessionId)
           if (live !== undefined) {
             if (hasApiSessionSubagentOwner(this.ctx, live.session, live)) {
