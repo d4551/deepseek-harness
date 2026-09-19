@@ -147,9 +147,13 @@ export interface ConnectionHandle {
    * API Gateway owns the loop; a second call throws.
    * @param sinks - connection-state callbacks.
    * @param config - reconnect/backoff tunables.
-   * @returns handle that cancels immediately and awaits the loop and its retiring generations.
+   * @returns handle that cancels immediately and awaits the loop and its retiring generations. `settled` rejects when a sink throws.
    */
-  start(sinks: ConnectionSinks, config?: ConnectionConfig): { stop(): Promise<void> }
+  start(sinks: ConnectionSinks, config?: ConnectionConfig): {
+    stop(): Promise<void>
+    /** Settlement of the connect loop; a sink throw rejects it. */
+    readonly settled: Promise<void>
+  }
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -258,9 +262,10 @@ export function apply(ctx: Context): void {
       const current = { token, source, controller, dispose }
       registration.owners.set(token, current)
       owner = current
-      controller.start()
+      const settled = controller.start()
       return {
         stop: () => releaseOwner(current),
+        settled,
       }
     },
   }

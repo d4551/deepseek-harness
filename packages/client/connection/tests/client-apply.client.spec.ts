@@ -145,6 +145,12 @@ describe('connection client apply', () => {
     // config omitted: the `config ?? {}` default arm is part of the surface.
     let connected = 0
     const loop = handle.start({ onConnected: () => { connected++ } })
+    const observed = loop.settled.then(
+      () => {
+        throw new Error('connection loop settled')
+      },
+      (reason: object | string | number | boolean | bigint | symbol | null | undefined) => reason,
+    )
     expect(() => handle.start({})).toThrow(/already owned by another consumer/)
     await vi.waitFor(() => {
       expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
@@ -153,6 +159,9 @@ describe('connection client apply', () => {
     expect(connected).toBe(0)
     const stopping = loop.stop()
     expect(handle.generation.getSnapshot()).toBeUndefined()
+    const reason = await observed
+    if (!(reason instanceof Error)) throw new Error(`expected Error, received ${String(reason)}`)
+    expect(reason.message).toMatch(/subscriber bug|connection loop failed/)
     await expect(stopping).rejects.toThrow('subscriber bug')
     stopThrowing()
     stopGeneration()

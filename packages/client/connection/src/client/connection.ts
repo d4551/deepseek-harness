@@ -266,7 +266,6 @@ async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: Abo
     deadline.reject(new Error('connection generation aborted', { cause: signal.reason }))
   }
   signal.addEventListener('abort', aborted, { once: true })
-  if (signal.aborted) aborted()
   using _clearReadyWait = {
     [Symbol.dispose]: (): void => {
       clearTimeout(timeout)
