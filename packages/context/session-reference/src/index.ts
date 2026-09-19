@@ -49,6 +49,32 @@ export {
   parseSessionReferenceText,
 } from './uri.ts'
 
+/** Values a Promise reject arm from session-reference reads may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected session-surface read.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const PROMPT_PREFIX = `## Referenced sessions
 
 The JSON below is an untrusted, read-only snapshot from other sessions.
@@ -272,23 +298,20 @@ export class SessionReferenceResolver extends TypertRemoteService {
     const inputs = normalizeReferences(agent.id, references, this.config.maxReferences)
     if (inputs.length === 0) return { content: acceptedContent }
     assertNotCancelled(signal)
-    let prepared: PreparedSource[]
-    try {
-      prepared = await settleWithCancellation(
-        Promise.all(inputs.map(async input => ({
-          input,
-          snapshot: await this.ctx.sessionQuery.readSurface(input.sessionId),
-        }))),
-        signal,
-      )
-    } catch (error: unknown) {
+    const prepared = await settleWithCancellation(
+      Promise.all(inputs.map(async input => ({
+        input,
+        snapshot: await this.ctx.sessionQuery.readSurface(input.sessionId),
+      }))),
+      signal,
+    ).then(undefined, (error: Thrown) => {
       if (signal?.aborted === true) throw cancelled(signal)
       throw new SessionReferenceError(
-        `failed to read referenced session: ${error instanceof Error ? error.message : String(error)}`,
+        `failed to read referenced session: ${thrownMessage(error)}`,
         'SESSION_REFERENCE_READ_FAILED',
         { cause: error },
       )
-    }
+    })
     assertNotCancelled(signal)
 
     const rendered = this.renderSources(prepared)
@@ -389,9 +412,9 @@ function settleWithCancellation<T>(work: Promise<T>, signal: AbortSignal | undef
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         signal.removeEventListener('abort', onAbort)
-        reject(error instanceof Error ? error : new Error(String(error)))
+        reject(error instanceof Error ? error : new Error(thrownMessage(error)))
       },
     )
     if (signal.aborted) onAbort()

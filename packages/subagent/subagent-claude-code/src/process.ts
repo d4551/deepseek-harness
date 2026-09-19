@@ -17,6 +17,9 @@ import {
   type SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 
+/** Values a Promise reject arm from the managed-process handle may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 function thrown(value: unknown): Error {
   /* v8 ignore next -- the subprocess seam rejects with Error. */
   return value instanceof Error ? value : new Error(String(value))
@@ -87,7 +90,7 @@ export class ManagedClaudeCodeProcess implements SpawnedProcess {
         this.outcomeValue = outcome
         this.events.emit('exit', outcome.exitCode, outcome.signal)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         this.events.emit('error', thrown(error))
       },
     )
