@@ -259,7 +259,7 @@ export class E2BFileSystem extends FileSystem {
       throw mapError(error, 'read', target.displayPath, signal)
     }
     const pull = (): Promise<Uint8Array> => {
-      if (signal?.aborted === true) mapped(abortedError('read'))
+      if (signal?.aborted === true) return Promise.reject(abortedError('read'))
       return reader.read().then((chunk) => {
         if (chunk.done) {
           const whole = new Uint8Array(bytes)
@@ -313,7 +313,9 @@ export class E2BFileSystem extends FileSystem {
         const byteSource: AsyncIterable<Uint8Array> = {
           [Symbol.asyncIterator]: () => ({
             next: (): Promise<IteratorResult<Uint8Array, undefined>> => {
-              if (signal?.aborted === true) mapped(abortedError('read'))
+              if (signal?.aborted === true) {
+                return Promise.reject(abortedError('read')).then(undefined, mapped)
+              }
               return reader.read().then(
                 (next) => {
                   if (next.done) {
