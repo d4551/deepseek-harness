@@ -14,13 +14,13 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { PERSISTENT_SHELL_DIALECTS } from './dialect.ts'
 import type { CommandMarkers, PersistentShellDialect, ShellDialectName } from './dialect.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this command output was dropped by the terminal scrollback limit. The following text is the earliest retained output.</NOTE>\n'
 // One page is enough to find a just-emitted completion marker; the full
 // scrollback is assembled only when a command settles or needs partial output.
 const SCROLLBACK_PAGE_LINES = 1_000
 const POLL_INTERVAL_MS = 25
-
-import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 interface ResolvedConfig {
   dialect: PersistentShellDialect
@@ -239,10 +239,15 @@ function persistentShells(ctx: Context, config: ResolvedConfig): PersistentShell
 
   ctx.effect(() => async () => {
     lifecycle.abort(new Error('tool-shell-persistent disposed during shell creation'))
-    await Promise.allSettled(creating)
-    const closing = [...live].map(async ([owner, id]) => { await close(owner, id, 'tool-shell-persistent disposed') })
-    await Promise.all(closing)
+    await Promise.all([...creating].map(task => task.then(undefined, (_error: Thrown) => undefined)))
+    const closing = [...live].map(([owner, id]) => close(owner, id, 'tool-shell-persistent disposed'))
+    let firstFailure: Thrown | undefined
+    await Promise.all(closing.map(task => task.then(() => undefined, (error: Thrown) => {
+      firstFailure ??= error
+      return undefined
+    })))
     live.clear()
+    if (firstFailure !== undefined) throw firstFailure
   }, 'tool-shell-persistent shell cleanup')
 
   const reset = async (owner: Agent, reason: string): Promise<void> => {
@@ -257,35 +262,33 @@ function persistentShells(ctx: Context, config: ResolvedConfig): PersistentShell
     if (existing !== undefined) return existing
     const combinedSignal = AbortSignal.any([signal, lifecycle.signal])
     const creation = (async () => {
-      try {
-        const cwd = owner.session.header.cwd
-        const spawned = await ctx.terminals.spawn(owner, {
-          type: config.backendType,
-          ...cwd === undefined ? {} : { cwd },
-        }, combinedSignal)
-        live.set(owner, spawned.sessionId)
-        if (!ownerCleanupInstalled.has(owner)) {
-          ownerCleanupInstalled.add(owner)
-          owner.ctx.effect(() => () => {
-            pending.delete(owner)
-            live.delete(owner)
-          }, 'tool-shell-persistent owner cache cleanup')
-        }
-        const setup = ctx.terminals.startSend(owner, spawned.sessionId, {
-          text: config.dialect.setup,
-          submit: true,
-          signal: combinedSignal,
-        })
-        const result = await setup.done
-        if (result.sessionStatus.kind === 'exited' || result.waitReason === 'timeout') {
-          throw new Error(`persistent ${shell} shell did not accept initialization`)
-        }
-        return spawned.sessionId
-      } catch (error) {
-        await reset(owner, `persistent ${shell} initialization failed`)
-        throw error
+      const cwd = owner.session.header.cwd
+      const spawned = await ctx.terminals.spawn(owner, {
+        type: config.backendType,
+        ...cwd === undefined ? {} : { cwd },
+      }, combinedSignal)
+      live.set(owner, spawned.sessionId)
+      if (!ownerCleanupInstalled.has(owner)) {
+        ownerCleanupInstalled.add(owner)
+        owner.ctx.effect(() => () => {
+          pending.delete(owner)
+          live.delete(owner)
+        }, 'tool-shell-persistent owner cache cleanup')
       }
-    })()
+      const setup = ctx.terminals.startSend(owner, spawned.sessionId, {
+        text: config.dialect.setup,
+        submit: true,
+        signal: combinedSignal,
+      })
+      const result = await setup.done
+      if (result.sessionStatus.kind === 'exited' || result.waitReason === 'timeout') {
+        throw new Error(`persistent ${shell} shell did not accept initialization`)
+      }
+      return spawned.sessionId
+    })().then(undefined, async (error: Thrown) => {
+      await reset(owner, `persistent ${shell} initialization failed`)
+      throw error
+    })
     const tracked = creation.finally(() => {
       creating.delete(tracked)
     })
@@ -326,20 +329,19 @@ async function executeCommand(
         ctx, shells, owner, id, status, marker, wrapped, fallback, fallbackTruncated, config,
       )
     }
-    let operation
-    let result
-    try {
-      operation = ctx.terminals.startSend(owner, id, {
+    const sent = await Promise.resolve().then(() => {
+      const operation = ctx.terminals.startSend(owner, id, {
         text: first ? wrapped : '',
         submit: first,
         signal: commandDeadline.signal,
       })
       first = false
-      result = await operation.done
-    } catch (error) {
+      return operation.done.then(result => ({ operation, result }))
+    }).then(undefined, async (error: Thrown) => {
       await shells.reset(owner, `persistent ${dialect.toolName} send failed`)
       throw error
-    }
+    })
+    const { operation, result } = sent
     const incremental = operation.readOutput()
     fallback = incremental.delta.length > 0 ? fallback + incremental.delta : result.viewport
     fallbackTruncated ||= incremental.truncated || result.truncated
@@ -393,16 +395,14 @@ function registerPersistentShell(ctx: Context, config: ResolvedConfig): void {
   const shells = persistentShells(ctx, config)
   const queues = new WeakMap<Agent, Promise<void>>()
 
-  const serialized = async <T>(owner: Agent, operation: () => Promise<T>): Promise<T> => {
+  const serialized = <T>(owner: Agent, operation: () => Promise<T>): Promise<T> => {
     const prior = queues.get(owner) ?? Promise.resolve()
     const run = prior.then(operation)
     const tail = run.then(() => undefined, (_error: Thrown) => undefined)
     queues.set(owner, tail)
-    try {
-      return await run
-    } finally {
-      if (queues.get(owner) === tail) queues.delete(owner)
-    }
+    const forget = (): void => { if (queues.get(owner) === tail) queues.delete(owner) }
+    tail.then(forget)
+    return run
   }
 
   ctx.tools.register(defineTool({

@@ -23,6 +23,8 @@ import type {
 import { classifyDenial, classifyRunnerFailure, isRunnerSpawnFailure, matchesSignature } from './sandbox-classify.ts'
 import type { ShellExecSpec, ShellProcess, ShellRunResult } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * What this layer reads from the deployment's policy service. Stating the two
  * members it uses keeps the seam free of a dependency on the policy package
@@ -103,17 +105,14 @@ export class ShellConfinement {
       return { ...result, sandbox: { mode, denied: false } }
     }
     const confined = this.confine(argv, { ...policy, mode })
-    let result: ShellRunResult
-    try {
-      result = await runArgv(confined.argv)
-    } catch (error) {
+    const result = await runArgv(confined.argv).then(undefined, (error: Thrown) => {
       // An upstream abort remains cancellation even when it prevents spawn.
       if (spec.signal?.aborted === true) spec.signal.throwIfAborted()
       if (isRunnerSpawnFailure(error, confined.argv[0], spec.workdir)) {
         throw new SandboxUnavailableError(mode, String(error))
       }
       throw error
-    }
+    })
     // Runner failure outranks denial because the command did not run. Carry
     // the matched fatal line, not an informational line that preceded it.
     const runnerFailure = classifyRunnerFailure(result.exitCode, result.stderr.text, confined.runnerFailureRules)
@@ -173,7 +172,7 @@ export class ShellConfinement {
    * @param spawnFailed - whether the spawn rejected before any process existed.
    * @param spawnError - the spawn rejection, when `spawnFailed`.
    */
-  settle(proc: ShellProcess, stderr: string, spawnFailed: boolean, spawnError?: unknown): void {
+  settle(proc: ShellProcess, stderr: string, spawnFailed: boolean, spawnError?: Thrown): void {
     const facts = this.processFacts.get(proc)
     if (facts === undefined) return
     this.processFacts.delete(proc)
