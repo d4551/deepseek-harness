@@ -29,7 +29,7 @@ import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Confirm child output is an array of merge-extensible content blocks. */
-function assertChildOutput(value: JsonValue): asserts value is ContentBlock[] {
+function assertChildOutput(value: JsonValue | ContentBlock[]): asserts value is ContentBlock[] {
   if (!Array.isArray(value)) {
     throw new TypeError('child result is not losslessly JSON-serializable')
   }
