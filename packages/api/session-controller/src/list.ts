@@ -19,6 +19,9 @@ import type {
   SessionSearchValue, SessionSummary,
 } from './types.ts'
 
+/** Values a Promise reject arm from cold list or search may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Default maximum artifact size eligible for one cold projection observation. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
 
@@ -154,7 +157,10 @@ export class ApiSessionList {
       const settled = await Promise.allSettled(cold.slice(offset, offset + COLD_SUMMARY_BATCH_SIZE)
         .map(header => this.summarizeCold(header, signal)))
       for (const result of settled) {
-        if (result.status === 'rejected') throw result.reason
+        if (result.status === 'rejected') {
+          const reason: Thrown = result.reason
+          throw reason
+        }
         items.push(result.value)
       }
     }
@@ -193,28 +199,33 @@ export class ApiSessionList {
     const location = persistence?.locate(header)
     if (location === undefined) return undefined
     signal?.throwIfAborted()
-    try {
-      if ((await stat(location.path)).size > this.coldBlankProbeMaxBytes) return undefined
-    } catch {
-      signal?.throwIfAborted()
-      return undefined
-    }
-    try {
-      using observation = await this.ctx.sessionQuery.observeSession(header.id, {
-        ...(signal === undefined ? {} : { signal }),
-        projectionMode: 'all',
-      })
-      const block = observation.projections
-      return block === undefined
-        ? undefined
-        : { asOfSeq: block.asOfSeq, values: block.values as SessionProjectionValues }
-    } catch (error: unknown) {
-      signal?.throwIfAborted()
-      this.ctx.logger.warn(
-        `api-session.list: small cold observation for "${header.id}" failed; serving it as visible: ${String(error)}`,
-      )
-      return undefined
-    }
+    const oversized = await stat(location.path).then(
+      info => info.size > this.coldBlankProbeMaxBytes,
+      (_error: Thrown) => {
+        signal?.throwIfAborted()
+        return true
+      },
+    )
+    if (oversized) return undefined
+    return await this.ctx.sessionQuery.observeSession(header.id, {
+      ...(signal === undefined ? {} : { signal }),
+      projectionMode: 'all',
+    }).then(
+      (observation) => {
+        using owned = observation
+        const block = owned.projections
+        return block === undefined
+          ? undefined
+          : { asOfSeq: block.asOfSeq, values: block.values as SessionProjectionValues }
+      },
+      (error: Thrown) => {
+        signal?.throwIfAborted()
+        this.ctx.logger.warn(
+          `api-session.list: small cold observation for "${header.id}" failed; serving it as visible: ${String(error)}`,
+        )
+        return undefined
+      },
+    )
   }
 
   /**
@@ -234,30 +245,28 @@ export class ApiSessionList {
         {},
       )
     }
-    try {
-      const visible = await provider.listSessions(signal)
-      signal.throwIfAborted()
-      const visibleIds = new Set(visible
-        .filter(record => record.header.cwd !== undefined)
-        .map(record => record.header.id))
-      if (visibleIds.size === 0) return { items: [], hasMore: false }
-      const authorized: SessionSearchItem[] = []
-      const acceptedIds = new Set<SessionId>()
-      const seenCursors = new Set<SessionSearchCursor>()
-      let cursor: SessionSearchCursor | undefined
-      let providerCalls = 0
-      let pageLimit = SESSION_SEARCH_RESULT_LIMIT
-      while (authorized.length <= SESSION_SEARCH_RESULT_LIMIT) {
+    return await provider.listSessions(signal).then(
+      async (visible) => {
         signal.throwIfAborted()
-        if (providerCalls >= SEARCH_PROVIDER_CALL_LIMIT) {
-          throw new Error(`session search provider exceeded the ${SEARCH_PROVIDER_CALL_LIMIT}-call work budget`)
-        }
-        providerCalls++
-        const requestedCursor = cursor
-        const requestedLimit = pageLimit
-        let page
-        try {
-          page = await provider.searchSessions({
+        const visibleIds = new Set(visible
+          .filter(record => record.header.cwd !== undefined)
+          .map(record => record.header.id))
+        if (visibleIds.size === 0) return { items: [], hasMore: false }
+        const authorized: SessionSearchItem[] = []
+        const acceptedIds = new Set<SessionId>()
+        const seenCursors = new Set<SessionSearchCursor>()
+        let cursor: SessionSearchCursor | undefined
+        let providerCalls = 0
+        let pageLimit = SESSION_SEARCH_RESULT_LIMIT
+        while (authorized.length <= SESSION_SEARCH_RESULT_LIMIT) {
+          signal.throwIfAborted()
+          if (providerCalls >= SEARCH_PROVIDER_CALL_LIMIT) {
+            throw new Error(`session search provider exceeded the ${SEARCH_PROVIDER_CALL_LIMIT}-call work budget`)
+          }
+          providerCalls++
+          const requestedCursor = cursor
+          const requestedLimit = pageLimit
+          const page = await provider.searchSessions({
             query: normalizedQuery,
             eventFilters: [
               { kind: 'type', values: ['user/message', 'assistant/message'] },
@@ -265,64 +274,70 @@ export class ApiSessionList {
             ],
             limit: requestedLimit,
             ...(requestedCursor === undefined ? {} : { cursor: requestedCursor }),
-          }, { signal })
-          signal.throwIfAborted()
-        } catch (error: unknown) {
-          signal.throwIfAborted()
-          if (requestedCursor === undefined
-            && error instanceof SessionQueryError
-            && error.code === 'SESSION_QUERY_INVALID_LIMIT'
-            && requestedLimit > 1) {
-            pageLimit = Math.max(1, Math.floor(requestedLimit / 2))
-            continue
+          }, { signal }).then(
+            (value) => {
+              signal.throwIfAborted()
+              return value
+            },
+            (error: Thrown) => {
+              signal.throwIfAborted()
+              if (requestedCursor === undefined
+                && error instanceof SessionQueryError
+                && error.code === 'SESSION_QUERY_INVALID_LIMIT'
+                && requestedLimit > 1) {
+                pageLimit = Math.max(1, Math.floor(requestedLimit / 2))
+                return undefined
+              }
+              if (requestedCursor !== undefined
+                && error instanceof SessionQueryError
+                && error.code === 'SESSION_QUERY_STALE_CURSOR') {
+                authorized.length = 0
+                acceptedIds.clear()
+                seenCursors.clear()
+                cursor = undefined
+                return undefined
+              }
+              throw error
+            },
+          )
+          if (page === undefined) continue
+          if (page.items.length > requestedLimit) {
+            throw new Error(`session search provider returned ${String(page.items.length)} items; maximum is ${String(requestedLimit)}`)
           }
-          if (requestedCursor !== undefined
-            && error instanceof SessionQueryError
-            && error.code === 'SESSION_QUERY_STALE_CURSOR') {
-            authorized.length = 0
-            acceptedIds.clear()
-            seenCursors.clear()
-            cursor = undefined
-            continue
+          for (const hit of page.items) {
+            if (authorized.length > SESSION_SEARCH_RESULT_LIMIT) continue
+            if (!visibleIds.has(hit.header.id)
+              || hit.bestMatch.sessionId !== hit.header.id
+              || hit.bestMatch.surface !== 'current'
+              || !MESSAGE_TYPES.has(hit.bestMatch.type)
+              || acceptedIds.has(hit.header.id)) continue
+            acceptedIds.add(hit.header.id)
+            authorized.push({
+              sessionId: hit.header.id,
+              snippet: truncateUnicodeCodePoints(hit.bestMatch.snippet, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS),
+            })
           }
-          throw error
-        }
-        if (page.items.length > requestedLimit) {
-          throw new Error(`session search provider returned ${String(page.items.length)} items; maximum is ${String(requestedLimit)}`)
-        }
-        for (const hit of page.items) {
-          if (authorized.length > SESSION_SEARCH_RESULT_LIMIT) continue
-          if (!visibleIds.has(hit.header.id)
-            || hit.bestMatch.sessionId !== hit.header.id
-            || hit.bestMatch.surface !== 'current'
-            || !MESSAGE_TYPES.has(hit.bestMatch.type)
-            || acceptedIds.has(hit.header.id)) continue
-          acceptedIds.add(hit.header.id)
-          authorized.push({
-            sessionId: hit.header.id,
-            snippet: truncateUnicodeCodePoints(hit.bestMatch.snippet, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS),
-          })
-        }
-        if (page.nextCursor !== undefined) {
-          if (seenCursors.has(page.nextCursor)) {
-            throw new Error('session search provider repeated a continuation cursor')
+          if (page.nextCursor !== undefined) {
+            if (seenCursors.has(page.nextCursor)) {
+              throw new Error('session search provider repeated a continuation cursor')
+            }
+            seenCursors.add(page.nextCursor)
           }
-          seenCursors.add(page.nextCursor)
+          if (authorized.length > SESSION_SEARCH_RESULT_LIMIT || page.nextCursor === undefined) break
+          cursor = page.nextCursor
         }
-        if (authorized.length > SESSION_SEARCH_RESULT_LIMIT || page.nextCursor === undefined) break
-        cursor = page.nextCursor
-      }
-      return {
-        items: authorized.slice(0, SESSION_SEARCH_RESULT_LIMIT),
-        hasMore: authorized.length > SESSION_SEARCH_RESULT_LIMIT,
-      }
-    } catch (error: unknown) {
+        return {
+          items: authorized.slice(0, SESSION_SEARCH_RESULT_LIMIT),
+          hasMore: authorized.length > SESSION_SEARCH_RESULT_LIMIT,
+        }
+      },
+    ).then(undefined, (error: Thrown) => {
       signal.throwIfAborted()
       if (error instanceof SessionQueryError && error.code === 'SESSION_QUERY_ABORTED') {
         reject('cancelled', 'session search was aborted', {})
       }
       reject('internal', `session search failed: ${String(error)}`, {})
-    }
+    })
   }
 
   private projectionsFor(

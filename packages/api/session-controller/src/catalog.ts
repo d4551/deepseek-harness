@@ -7,6 +7,9 @@ import type {
   ModelSelection,
 } from './types.ts'
 
+/** Values a Promise reject arm from provider catalog assembly may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Build the browser model catalog without requiring a Session.
  * @param ctx - Host context carrying the live LLM registry.
@@ -18,50 +21,44 @@ export async function buildModelCatalog(
   defaultSelection: ModelSelection = ctx.agentDefaultModel.currentSelection(),
 ): Promise<ModelCatalog> {
   const providers = ctx.llm.listProviders()
-  const catalog = await Promise.all(providers.map(async (provider) => {
-    try {
-      const models = await ctx.llm.listModels(provider.id)
-      const entries = await Promise.all(models.map(async (model) => {
-        const resolved = await ctx.llm.resolveModelInfo(provider.id, model.id)
-        const reasoning: ModelReasoning | undefined = resolved.reasoning === undefined
-          ? undefined
-          : {
-            efforts: resolved.reasoning.efforts.map(effort => ({
-              id: effort.id,
-              name: effort.name,
-              ...(effort.description === undefined ? {} : { description: effort.description }),
-            })),
-            ...(resolved.reasoning.defaultEffort === undefined
-              ? {}
-              : { defaultEffort: resolved.reasoning.defaultEffort }),
-          }
-        return {
-          id: model.id,
-          name: model.name,
-          ...(model.description === undefined ? {} : { description: model.description }),
-          ...(reasoning === undefined ? {} : { reasoning }),
+  const catalog = await Promise.all(providers.map(provider => ctx.llm.listModels(provider.id).then(
+    models => Promise.all(models.map(async (model) => {
+      const resolved = await ctx.llm.resolveModelInfo(provider.id, model.id)
+      const reasoning: ModelReasoning | undefined = resolved.reasoning === undefined
+        ? undefined
+        : {
+          efforts: resolved.reasoning.efforts.map(effort => ({
+            id: effort.id,
+            name: effort.name,
+            ...(effort.description === undefined ? {} : { description: effort.description }),
+          })),
+          ...(resolved.reasoning.defaultEffort === undefined
+            ? {}
+            : { defaultEffort: resolved.reasoning.defaultEffort }),
         }
-      }))
       return {
-        kind: 'group' as const,
-        group: {
-          id: provider.id,
-          name: provider.name,
-          models: entries,
-          ...(provider.hosting === undefined ? {} : { hosting: provider.hosting }),
-        },
+        id: model.id,
+        name: model.name,
+        ...(model.description === undefined ? {} : { description: model.description }),
+        ...(reasoning === undefined ? {} : { reasoning }),
       }
-    } catch (error) {
-      return {
-        kind: 'failure' as const,
-        failure: {
-          id: provider.id,
-          name: provider.name,
-          message: error instanceof Error ? error.message : String(error),
-        },
-      }
-    }
-  }))
+    })).then(entries => ({
+      kind: 'group' as const,
+      group: {
+        id: provider.id,
+        name: provider.name,
+        models: entries,
+        ...(provider.hosting === undefined ? {} : { hosting: provider.hosting }),
+      },
+    })),
+  ).then(undefined, (error: Thrown) => ({
+    kind: 'failure' as const,
+    failure: {
+      id: provider.id,
+      name: provider.name,
+      message: error instanceof Error ? error.message : String(error),
+    },
+  }))))
   return {
     default: { ...defaultSelection },
     routableProviders: providers.map(provider => provider.id),

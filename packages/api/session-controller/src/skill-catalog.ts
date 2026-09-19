@@ -10,6 +10,9 @@ import type { ScopeKey } from '@deepseek-ai/dsh-scope'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { SkillListRequest, SkillListValue } from './types.ts'
 
+/** Values a Promise reject arm from skill catalog inspection may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host owner of the Session-addressed `skills` Remote namespace. */
@@ -37,20 +40,22 @@ export class SessionSkillCatalog extends TypertRemoteService {
   async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue> {
     signal.throwIfAborted()
     const { sessionId } = request
-    let cwd: string | undefined
-    let additionalRoots: readonly string[] = []
-    let agentPreset: string | undefined
-    try {
-      using observation = await this.ctx.sessionQuery.observeSession(sessionId)
-      if (observation.projections === undefined) {
-        throw new Error('skill catalog requires a projected Session observation')
-      }
-      cwd = observation.header.cwd
-      // The human catalog spans the same directories the model's does: a user
-      // who adds a second folder expects its `/name` skills to appear.
-      additionalRoots = effectiveWorkspaceRoots(observation.events).filter((root: string) => root !== cwd)
-      agentPreset = observation.projections.values.agentPreset ?? undefined
-    } catch (error: unknown) {
+    const inspected = await this.ctx.sessionQuery.observeSession(sessionId).then(
+      (observation) => {
+        using owned = observation
+        if (owned.projections === undefined) {
+          throw new Error('skill catalog requires a projected Session observation')
+        }
+        const cwd = owned.header.cwd
+        return {
+          cwd,
+          // The human catalog spans the same directories the model's does: a user
+          // who adds a second folder expects its `/name` skills to appear.
+          additionalRoots: effectiveWorkspaceRoots(owned.events).filter((root: string) => root !== cwd),
+          agentPreset: owned.projections.values.agentPreset ?? undefined,
+        }
+      },
+    ).then(undefined, (error: Thrown) => {
       if (error instanceof SessionQueryError
         && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
         throw failure(
@@ -63,7 +68,8 @@ export class SessionSkillCatalog extends TypertRemoteService {
         'internal',
         `session "${sessionId}" could not be inspected: ${String(error)}`,
       )
-    }
+    })
+    const { cwd, additionalRoots, agentPreset } = inspected
     if (cwd === undefined) {
       throw failure('internal', `session "${sessionId}" has no project cwd`)
     }
@@ -80,18 +86,19 @@ export class SessionSkillCatalog extends TypertRemoteService {
     }
 
     const scope = await this.scopeFor(sessionId, agentPreset)
-    try {
-      const skills = (await skillRegistry.list({ cwd, additionalRoots, scope })).filter(isUserInvocable)
-      return {
-        skills: skills.map(skill => ({
-          name: skill.name,
-          description: skill.description,
-          ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
-          modelInvocable: skill.invocation.modelInvocable,
-        })),
-      }
-    } catch (error: unknown) {
-      throw failure('internal', `skill listing failed: ${String(error)}`)
+    const skills = await skillRegistry.list({ cwd, additionalRoots, scope }).then(
+      listed => listed.filter(isUserInvocable),
+      (error: Thrown) => {
+        throw failure('internal', `skill listing failed: ${String(error)}`)
+      },
+    )
+    return {
+      skills: skills.map(skill => ({
+        name: skill.name,
+        description: skill.description,
+        ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
+        modelInvocable: skill.invocation.modelInvocable,
+      })),
     }
   }
 
@@ -104,12 +111,11 @@ export class SessionSkillCatalog extends TypertRemoteService {
     if (live !== undefined) return live
     const presets = this.ctx.get('agentPresets')
     if (presets === undefined) return undefined
-    try {
-      return await presets.standingKeyFor(agentPreset)
-    } catch {
-      // An unknown or unusable recorded preset falls back to the global registry.
-      return undefined
-    }
+    // An unusable recorded preset falls back to the global registry.
+    return await presets.standingKeyFor(agentPreset).then(
+      undefined,
+      (_error: Thrown) => undefined,
+    )
   }
 }
 

@@ -21,6 +21,9 @@ import type {
   SessionWireEvent,
 } from './types.ts'
 
+/** Values a Promise reject arm from Session observation may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const DEFAULT_MAX_MESSAGES = 50
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
@@ -141,7 +144,7 @@ export class SessionHistoryController {
         const promotion = source.retain()
         try {
           this.promote(promotion)
-        } catch (error: unknown) {
+        } catch (error) {
           promotion[Symbol.dispose]()
           throw error
         }
@@ -174,27 +177,29 @@ export class SessionHistoryController {
     withProjections: boolean,
   ): Promise<SessionObservation> {
     const sessionId = addressId(address)
-    try {
-      const observation = await this.ctx.sessionQuery.observeSession(sessionId, {
-        signal,
-        projectionMode: withProjections || address.kind === 'subagent' ? 'all' : 'none',
-      })
-      if (observation.header.cwd === undefined) {
-        observation[Symbol.dispose]()
-        rejectNotFound(address)
-      }
-      try {
-        validateAddress(address, observation.header, observation.projections)
-      } catch (error: unknown) {
-        observation[Symbol.dispose]()
+    return await this.ctx.sessionQuery.observeSession(sessionId, {
+      signal,
+      projectionMode: withProjections || address.kind === 'subagent' ? 'all' : 'none',
+    }).then(
+      (observation) => {
+        if (observation.header.cwd === undefined) {
+          observation[Symbol.dispose]()
+          rejectNotFound(address)
+        }
+        try {
+          validateAddress(address, observation.header, observation.projections)
+        } catch (error) {
+          observation[Symbol.dispose]()
+          throw error
+        }
+        return observation
+      },
+      (error: Thrown) => {
+        if (error instanceof SessionQueryError
+          && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') rejectNotFound(address)
         throw error
-      }
-      return observation
-    } catch (error: unknown) {
-      if (error instanceof SessionQueryError
-        && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') rejectNotFound(address)
-      throw error
-    }
+      },
+    )
   }
 
 }

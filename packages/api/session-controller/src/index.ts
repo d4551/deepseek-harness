@@ -131,7 +131,7 @@ export class SessionController extends TypertRemoteService {
     // Registered before history so reverse-order teardown closes every
     // follower before waiting for already-admitted promotions.
     ctx.effect(() => async () => {
-      await Promise.allSettled([...this.promotions])
+      await Promise.allSettled(this.promotions)
     }, 'session-controller.promotions')
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
     this.listState = new ApiSessionList(
@@ -181,7 +181,7 @@ export class SessionController extends TypertRemoteService {
       this.ctx.logger.error(`session-controller: background activation for "${sessionId}" failed: ${errorChain(error)}`)
     })
     this.promotions.add(task)
-    task.then(() => { this.promotions.delete(task) }, () => { this.promotions.delete(task) })
+    task.then(() => { this.promotions.delete(task) }, (_error: Thrown) => { this.promotions.delete(task) })
   }
 
   /**
@@ -304,21 +304,21 @@ export class SessionController extends TypertRemoteService {
       })
     }
     signal.throwIfAborted()
-    try {
-      await this.openPath(request.path, signal)
-      return { opened: true }
-    } catch (error: unknown) {
-      if (signal.aborted) {
+    return await this.openPath(request.path, signal).then(
+      () => ({ opened: true }),
+      (error: Thrown) => {
+        if (signal.aborted) {
+          throw new TypertRemoteFailure({
+            code: 'cancelled', message: 'path open was aborted', details: {},
+          })
+        }
         throw new TypertRemoteFailure({
-          code: 'cancelled', message: 'path open was aborted', details: {},
+          code: 'internal',
+          message: `path open failed: ${error instanceof Error ? error.message : String(error)}`,
+          details: {},
         })
-      }
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: `path open failed: ${error instanceof Error ? error.message : String(error)}`,
-        details: {},
-      })
-    }
+      },
+    )
   }
 
   /**
