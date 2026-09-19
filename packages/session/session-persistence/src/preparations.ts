@@ -5,6 +5,9 @@
 
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 
+/** Values a Promise reject arm from a preparation load, reservation, or queued observation may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 interface PreparedSource {
   readonly session: Session
 }
@@ -78,7 +81,7 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
    * @param signal - optional cancellation signal while waiting.
    * @returns a caller-owned observation lease.
    */
-  async borrow(
+  borrow(
     id: SessionId,
     load: () => Promise<Source>,
     signal?: AbortSignal,
@@ -86,34 +89,33 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
     const entry = this.entryFor(id, load)
     const pinned = this.entries.get(id) === entry
     if (pinned) entry.pins += 1
-    let loaded: Source
-    try {
-      loaded = signal === undefined
-        ? await entry.result
-        : await observeQueuedAbort(entry.result, signal)
-    } catch (error: unknown) {
+    const pending = signal === undefined
+      ? entry.result
+      : observeQueuedAbort(entry.result, signal)
+    return pending.then((loaded) => {
+      const source = entry.source ?? loaded
+      if (this.entries.get(id) !== entry) {
+        return { source, [Symbol.dispose]: () => {} }
+      }
+      if (entry.phase === 'ready') this.touch(entry)
+      let released = false
+      return {
+        source,
+        [Symbol.dispose]: () => {
+          if (released) return
+          released = true
+          if (this.entries.get(id) !== entry) return
+          entry.pins -= 1
+          if (entry.phase === 'ready') this.touch(entry)
+        },
+      }
+    }, (error: Thrown) => {
       if (pinned && this.entries.get(id) === entry) {
         entry.pins -= 1
         if (entry.phase === 'ready') this.touch(entry)
       }
       throw error
-    }
-    const source = entry.source ?? loaded
-    if (this.entries.get(id) !== entry) {
-      return { source, [Symbol.dispose]: () => {} }
-    }
-    if (entry.phase === 'ready') this.touch(entry)
-    let released = false
-    return {
-      source,
-      [Symbol.dispose]: () => {
-        if (released) return
-        released = true
-        if (this.entries.get(id) !== entry) return
-        entry.pins -= 1
-        if (entry.phase === 'ready') this.touch(entry)
-      },
-    }
+    })
   }
 
   /**
@@ -145,33 +147,31 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
     entry.phase = 'committing'
     entry.reservationSettled = reservationSettled.promise
     entry.settleReservation = reservationSettled.resolve
-    let committed: { source: Source; state: CommitState } | undefined
-    try {
-      committed = await commit(source)
-    } catch (error: unknown) {
+    return commit(source).then((committed) => {
+      if (committed === undefined) {
+        this.remove(entry)
+        return undefined
+      }
+      entry.source = committed.source
+      try {
+        signal?.throwIfAborted()
+      } catch (error: unknown) {
+        this.makeReady(entry)
+        throw error
+      }
+      if (this.entries.get(id) !== entry) return undefined
+      const reservation: SessionPreparationReservation<Source, CommitState> = {
+        entry,
+        source: committed.source,
+        state: committed.state,
+      }
+      entry.phase = 'reserved'
+      entry.reservation = reservation
+      return reservation
+    }, (error: Thrown) => {
       this.remove(entry)
       throw error
-    }
-    if (committed === undefined) {
-      this.remove(entry)
-      return undefined
-    }
-    entry.source = committed.source
-    try {
-      signal?.throwIfAborted()
-    } catch (error: unknown) {
-      this.makeReady(entry)
-      throw error
-    }
-    if (this.entries.get(id) !== entry) return undefined
-    const reservation: SessionPreparationReservation<Source, CommitState> = {
-      entry,
-      source: committed.source,
-      state: committed.state,
-    }
-    entry.phase = 'reserved'
-    entry.reservation = reservation
-    return reservation
+    })
   }
 
   /**
@@ -309,7 +309,7 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
         this.makeReady(entry)
       }
       deferred.resolve(source)
-    }, (error: unknown) => {
+    }, (error: Thrown) => {
       this.remove(entry)
       deferred.reject(error)
     })
@@ -387,7 +387,7 @@ export function observeQueuedAbort<T>(
     signal.addEventListener('abort', onAbort, { once: true })
     operation.then(
       (value) => { finish(() => { resolve(value) }) },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         finish(() => { rejectObservation(reject, reason) })
       },
     )

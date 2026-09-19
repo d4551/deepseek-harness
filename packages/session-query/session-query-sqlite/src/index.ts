@@ -82,6 +82,9 @@ export const SESSION_QUERY_SQLITE_SNIPPET_CHARS = 240
 // One transient source change gets a retry; repeated churn fails rather than monopolizing the queue.
 const STABLE_OBSERVATION_ATTEMPTS = 2
 
+/** Values a Promise reject arm from index open, serialization, observation, or disposal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** SQLite module/handle opening phase; `never` disables full-text search entirely. */
 export type OpenAt = 'startup' | 'first-search' | 'never'
 
@@ -334,15 +337,19 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
   private async _close(): Promise<void> {
     this._closed = true
     await this._tail
-    if (this._ready !== undefined) {
-      try {
-        await this._ready
-      } catch {
-        // Opening already closed a partially-created handle; disposal only waits.
-      }
+    if (this._ready === undefined) {
+      this._db?.close()
+      this._db = undefined
+      return
     }
-    this._db?.close()
-    this._db = undefined
+    return this._ready.then(() => {
+      this._db?.close()
+      this._db = undefined
+    }, (_error: Thrown) => {
+      // Opening already closed a partially-created handle; disposal only waits.
+      this._db?.close()
+      this._db = undefined
+    })
   }
 
   private async _open(): Promise<void> {
@@ -354,42 +361,42 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     this._localGeneration = state.global_generation
   }
 
-  private async _ensureReady(signal: AbortSignal | undefined): Promise<void> {
+  private _ensureReady(signal: AbortSignal | undefined): Promise<void> {
     this._ready ??= this._open()
-    try {
-      await waitWithAbort(this._ready, signal)
-    } catch (error: unknown) {
-      if (isAbort(error)) throw error
-      throw new SessionQueryError(
-        `session-search SQLite index failed to open: ${errorMessage(error)}`,
-        'SESSION_QUERY_INDEX_FAILED',
-        { cause: error },
-      )
-    }
+    return waitWithAbort(this._ready, signal).then(
+      () => undefined,
+      (error: Thrown) => {
+        if (isAbort(error)) throw error
+        throw new SessionQueryError(
+          `session-search SQLite index failed to open: ${errorMessage(error)}`,
+          'SESSION_QUERY_INDEX_FAILED',
+          { cause: error },
+        )
+      },
+    )
   }
 
-  private async _serialized<T>(signal: AbortSignal | undefined, operation: () => Promise<T>): Promise<T> {
+  private _serialized<T>(signal: AbortSignal | undefined, operation: () => Promise<T>): Promise<T> {
     if (this._isClosed()) throw indexClosed()
     let release!: () => void
     const gate = new Promise<void>((resolve) => { release = resolve })
     const prior = this._tail
     this._tail = prior.then(() => gate)
-    try {
-      await waitWithAbort(prior, signal)
-    } catch (error: unknown) {
+    return waitWithAbort(prior, signal).then(async () => {
+      if (this._isClosed()) {
+        release()
+        throw indexClosed()
+      }
+      try {
+        assertNotAborted(signal)
+        return await operation()
+      } finally {
+        release()
+      }
+    }, (error: Thrown) => {
       release()
       throw error
-    }
-    if (this._isClosed()) {
-      release()
-      throw indexClosed()
-    }
-    try {
-      assertNotAborted(signal)
-      return await operation()
-    } finally {
-      release()
-    }
+    })
   }
 
   private async _reconcile(signal: AbortSignal | undefined): Promise<PersistenceBinding> {
@@ -493,38 +500,15 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       const initiallyLive = new Set(this.ctx.sessions.list().map(session => session.id))
       let persisted = new Map<SessionId, ObservedPersistedSession>()
       if (persistence !== undefined) {
-        try {
-          const canReuseIndexed = this._lastPersistenceIdentity === undefined
-            || this._lastPersistenceIdentity === persistenceBinding.identity
-          const before = await persistence.listSnapshots(signal)
-          assertNotAborted(signal)
-          persisted = materializePersistenceSnapshots(before)
-          for (const entry of persisted.values()) {
-            if (canReuseIndexed && indexed.get(entry.header.id)?.revision === entry.revision) continue
-            // Skip work already shadowed by a live owner. `inspect()` is
-            // non-mutating, so an owner attaching after this check cannot cause
-            // crash-repair side effects; the live-membership retry below makes
-            // the returned observation live-preferred.
-            if (initiallyLive.has(entry.header.id) || this.ctx.sessions.get(entry.header.id) !== undefined) continue
-            assertNotAborted(signal)
-            const loaded = await persistence.inspect(entry.header.id, signal)
-            assertNotAborted(signal)
-            assertSessionHeadersCompatible(entry.header, loaded.meta)
-            entry.loaded = observeSession(loaded.meta, loaded.events)
-          }
-          assertNotAborted(signal)
-          const afterSnapshots = await persistence.listSnapshots(signal)
-          assertNotAborted(signal)
-          const after = materializePersistenceSnapshots(afterSnapshots)
-          if (!samePersistenceSnapshots(persisted, after)) continue
-          if (this._persistenceBinding !== persistenceBinding) continue
-        } catch (error: unknown) {
+        const canReuseIndexed = this._lastPersistenceIdentity === undefined
+          || this._lastPersistenceIdentity === persistenceBinding.identity
+        const observationFailure = (error: Thrown): 'retry' => {
           if (isAbort(error) || signal?.aborted) {
             throw new SessionQueryError('session-search aborted', 'SESSION_QUERY_ABORTED', {
               cause: error,
             })
           }
-          if (this._persistenceBinding !== persistenceBinding) continue
+          if (this._persistenceBinding !== persistenceBinding) return 'retry'
           if (error instanceof SessionQueryError) throw error
           throw new SessionQueryError(
             `session-search persistence observation failed: ${errorMessage(error)}`,
@@ -532,6 +516,44 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
             { cause: error },
           )
         }
+        const loadFrom = (
+          observed: Map<SessionId, ObservedPersistedSession>,
+          entries: ObservedPersistedSession[],
+          index: number,
+        ): Promise<Map<SessionId, ObservedPersistedSession> | 'retry'> => {
+          for (let offset = index; offset < entries.length; offset += 1) {
+            const entry = entries[offset]
+            if (entry === undefined) continue
+            if (canReuseIndexed && indexed.get(entry.header.id)?.revision === entry.revision) continue
+            // Skip work already shadowed by a live owner. `inspect()` is
+            // non-mutating, so an owner attaching after this check cannot cause
+            // crash-repair side effects; the live-membership retry below makes
+            // the returned observation live-preferred.
+            if (initiallyLive.has(entry.header.id) || this.ctx.sessions.get(entry.header.id) !== undefined) continue
+            assertNotAborted(signal)
+            return persistence.inspect(entry.header.id, signal).then((loaded) => {
+              assertNotAborted(signal)
+              assertSessionHeadersCompatible(entry.header, loaded.meta)
+              entry.loaded = observeSession(loaded.meta, loaded.events)
+              return loadFrom(observed, entries, offset + 1)
+            }, observationFailure)
+          }
+          assertNotAborted(signal)
+          return persistence.listSnapshots(signal).then((afterSnapshots) => {
+            assertNotAborted(signal)
+            const after = materializePersistenceSnapshots(afterSnapshots)
+            if (!samePersistenceSnapshots(observed, after)) return 'retry'
+            if (this._persistenceBinding !== persistenceBinding) return 'retry'
+            return observed
+          }, observationFailure)
+        }
+        const outcome = await persistence.listSnapshots(signal).then((before) => {
+          assertNotAborted(signal)
+          const observed = materializePersistenceSnapshots(before)
+          return loadFrom(observed, [...observed.values()], 0)
+        }, observationFailure)
+        if (outcome === 'retry') continue
+        persisted = outcome
       }
       const live = new Map<SessionId, ObservedSession>()
       for (const session of this.ctx.sessions.list()) {
@@ -874,15 +896,26 @@ function observeSession(header: SessionHeader, events: readonly SessionEvent[]):
 function materializePersistenceSnapshots(
   snapshots: readonly SessionPersistenceSnapshot[],
 ): Map<SessionId, ObservedPersistedSession> {
-  if (!isRuntimeArray(snapshots)) throw new Error('persistence snapshots must be an array')
+  if (!isRuntimeArray(snapshots)) {
+    throw new SessionQueryError(
+      'session-search persistence observation failed: persistence snapshots must be an array',
+      'SESSION_QUERY_PERSISTENCE_FAILED',
+    )
+  }
   const result = new Map<SessionId, ObservedPersistedSession>()
   for (const snapshot of snapshots) {
     if (typeof snapshot.revision !== 'string') {
-      throw new Error('persistence snapshot revision must be a string')
+      throw new SessionQueryError(
+        'session-search persistence observation failed: persistence snapshot revision must be a string',
+        'SESSION_QUERY_PERSISTENCE_FAILED',
+      )
     }
     const header = structuredClone(snapshot.header)
     if (result.has(header.id)) {
-      throw new Error(`persistence listed duplicate session "${header.id}"`)
+      throw new SessionQueryError(
+        `session-search persistence observation failed: persistence listed duplicate session "${header.id}"`,
+        'SESSION_QUERY_PERSISTENCE_FAILED',
+      )
     }
     result.set(header.id, { header, revision: snapshot.revision })
   }
@@ -968,7 +1001,7 @@ function decodeCursor(
   let decoded: Partial<CursorPayload>
   try {
     decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<CursorPayload>
-  } catch (error: unknown) {
+  } catch (error) {
     throw invalidCursor(error)
   }
   if (
@@ -1076,7 +1109,7 @@ function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined):
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         signal.removeEventListener('abort', onAbort)
         reject(asError(error))
       },
