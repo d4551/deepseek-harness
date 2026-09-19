@@ -16,35 +16,13 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import { queueReadFaceOf } from './queue-store.ts'
 import type {
   ComposerKeyboard, DraftAttachmentId, InputTriggerController, SessionInputResolver, SessionInput,
-  SubmitImageAttachment, SubmitOutcome,
+  SubmitOutcome,
 } from '../contract/input.ts'
 import type { InputSubmitMode } from '../contract/composer-submission.ts'
+import type { IConversation } from '../service.ts'
 import type { PopupDismissFace } from './facade.ts'
 import { SessionInputShell } from './facade.ts'
-
-/** Structural command face for per-session popup resolution. */
-interface CommandFace {
-  popupFor(actx: Context): PopupDismissFace
-}
-
-/** Optional input-trigger service resolved without importing its implementation. */
-interface InputTriggerServiceFace {
-  /** @param actx - Session scope. @returns that Session's trigger provider. */
-  sessionOf(actx: Context): InputTriggerController
-}
-
-/** Attachment-send face resolved lazily to keep hub/service construction acyclic. */
-interface ConversationAttachmentFace {
-  sendSession(
-    session: SessionFace,
-    text: string,
-    imageIds: readonly DraftAttachmentId[],
-    mode: InputSubmitMode,
-    signal?: AbortSignal,
-  ): Promise<SubmitOutcome>
-  serializeDraftImages(imageIds: readonly DraftAttachmentId[]): Promise<readonly SubmitImageAttachment[]>
-  releaseDraftImage(id: DraftAttachmentId): void
-}
+import { commandPopupDismissOf, inputTriggerControllerOf, namedServiceOf } from './optional-services.ts'
 
 /** Session-addressed input facade registry (SessionInputResolver face + composer-layer extras). */
 export class InputHub implements SessionInputResolver {
@@ -89,16 +67,16 @@ export class InputHub implements SessionInputResolver {
       popup: () => this.popup(actx),
       queue: queueReadFaceOf(session),
       defaultSink: (text, imageIds, mode, signal) => this.sink(session, text, imageIds, mode, signal),
-      steerQueue: () => { this.steerQueue(session, shell).catch(actx.logger().error) },
+      steerQueue: () => this.steerQueue(session, shell),
       commandImages: {
         serialize: ids => this.conversation().serializeDraftImages(ids),
-        // Asymmetric with serialize on purpose: release settles AFTER the
-        // submit RPC, where session teardown may already have unloaded the
-        // conversation service (the same tolerance as the scope disposer
-        // above); leaked preview URLs then die with the document.
+        // Release settles after the submit RPC; session teardown may already
+        // have unloaded the conversation service. Leaked preview URLs then
+        // die with the document.
         release: (ids) => {
-          const conversation = this.rootCtx.get('conversation') as ConversationAttachmentFace | undefined
-          for (const imageId of ids) conversation?.releaseDraftImage(imageId)
+          const conversation = this.rootCtx.get('conversation')
+          if (conversation === undefined) return
+          for (const imageId of ids) conversation.releaseDraftImage(imageId)
         },
         unsupportedNotice: token => this.t('command.imagesUnsupported', {
           command: token.trim().replace(/^\//u, ''),
@@ -123,8 +101,9 @@ export class InputHub implements SessionInputResolver {
         for (const off of offs) off()
         const drafts = shell.dispose()
         this.shells.delete(id)
-        const conversation = this.rootCtx.get('conversation') as ConversationAttachmentFace | undefined
-        for (const imageId of drafts) conversation?.releaseDraftImage(imageId)
+        const conversation = this.rootCtx.get('conversation')
+        if (conversation === undefined) return
+        for (const imageId of drafts) conversation.releaseDraftImage(imageId)
       }
     }, 'conversation.input: session shell')
     return shell
@@ -208,13 +187,11 @@ export class InputHub implements SessionInputResolver {
   }
 
   private controller(actx: Context): InputTriggerController | undefined {
-    const inputTriggers = this.rootCtx.get('inputTriggers') as InputTriggerServiceFace | undefined
-    return inputTriggers?.sessionOf(actx)
+    return inputTriggerControllerOf(namedServiceOf(this.rootCtx, 'inputTriggers'), actx)
   }
 
   private popup(actx: Context): PopupDismissFace | undefined {
-    const command = this.rootCtx.get('commandUi') as CommandFace | undefined
-    return command?.popupFor(actx)
+    return commandPopupDismissOf(namedServiceOf(this.rootCtx, 'commandUi'), actx)
   }
 
   private sessions(): ISessions {
@@ -223,8 +200,8 @@ export class InputHub implements SessionInputResolver {
     return sessions
   }
 
-  private conversation(): ConversationAttachmentFace {
-    const conversation = this.rootCtx.get('conversation') as ConversationAttachmentFace | undefined
+  private conversation(): IConversation {
+    const conversation = this.rootCtx.get('conversation')
     if (conversation === undefined) throw new Error('conversation.input: conversation service unavailable')
     return conversation
   }

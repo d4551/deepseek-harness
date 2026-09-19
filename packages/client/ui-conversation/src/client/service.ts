@@ -21,8 +21,8 @@ import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ComposerAttachment } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './contract/composer-blocks.ts'
-import type {
-  DraftAttachmentId, SessionInputResolver, SubmitImageAttachment, SubmitOutcome,
+import {
+  DraftAttachmentId, type SessionInputResolver, type SubmitImageAttachment, type SubmitOutcome,
 } from './contract/input.ts'
 import type { InputSubmitMode } from './contract/composer-submission.ts'
 
@@ -89,13 +89,36 @@ export interface IConversation {
    * @param attachments - descriptors to release.
    */
   releaseDraftImages(attachments: readonly ComposerAttachment[]): void
+  /**
+   * Submit ordered draft images with text through one host admission.
+   * @param session - target session.
+   * @param text - serialized prompt text.
+   * @param imageIds - ordered draft-local attachment ids.
+   * @param mode - queue or steer delivery selected by composer policy.
+   * @param signal - optional cancellation for the complete Host admission.
+   * @returns the Host admission outcome; local attachment preparation failures reject.
+   */
+  sendSession(
+    session: SessionFace,
+    text: string,
+    imageIds: readonly DraftAttachmentId[],
+    mode: InputSubmitMode,
+    signal?: AbortSignal,
+  ): Promise<SubmitOutcome>
+  /**
+   * Serialize ordered draft images to command-submit wire payloads without
+   * sending or releasing them.
+   * @param imageIds - ordered draft-local attachment ids.
+   * @returns base64 payloads in id order.
+   */
+  serializeDraftImages(imageIds: readonly DraftAttachmentId[]): Promise<readonly SubmitImageAttachment[]>
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
   return {
     kind: 'image',
-    id: randomUUID() as DraftAttachmentId,
+    id: DraftAttachmentId(randomUUID()),
     previewUrl: URL.createObjectURL(file),
     file,
   }
@@ -142,12 +165,20 @@ function nextPaint(): Promise<void> {
   })
 }
 
+/** Claim a FileReader data-URL result. */
+function requireDataUrl(result: string | ArrayBuffer | null): string {
+  if (typeof result !== 'string' || result === '') {
+    throw new Error('conversation: image read produced no data URL')
+  }
+  return result
+}
+
 /** Native canonical base64 of one browser file (FileReader data-URL encode; no main-thread byte loop). */
 function base64Of(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
-      const url = reader.result as string
+      const url = requireDataUrl(reader.result)
       resolve(url.slice(url.indexOf(',') + 1))
     }
     reader.onerror = () => {

@@ -14,6 +14,17 @@ export const BUSY_ENTER_BEHAVIORS = ['queue', 'steer'] as const
 /** Configurable meaning of plain Enter while the addressed agent is busy. */
 export type BusyEnterBehavior = typeof BUSY_ENTER_BEHAVIORS[number]
 
+/**
+ * Claim a busy-Enter behavior token.
+ * @param id - menu or settings identifier.
+ * @returns the portable behavior.
+ * @throws {Error} when the token is not a configured busy-Enter behavior.
+ */
+export function requireBusyEnterBehavior(id: string): BusyEnterBehavior {
+  if (id === 'queue' || id === 'steer') return id
+  throw new Error(`unreachable busy-enter behavior: ${id}`)
+}
+
 /** Default preserves Enter-as-Queue for running conversations. */
 export const DEFAULT_BUSY_ENTER_BEHAVIOR: BusyEnterBehavior = 'queue'
 

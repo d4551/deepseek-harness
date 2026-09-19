@@ -58,9 +58,10 @@ export type {
   MessageImageLoader, MessageImageSource, MessageImagesOwnerProps, RenderMessageImages, UseConversation,
   UseConversationViews,
 } from './contract/slots.ts'
+export { DraftAttachmentId } from './contract/input.ts'
 export type {
   ArbitrateKey, ArbitrateOutcome, BeginCommandRequest, CommandClaim, ConsumeTokenRequest,
-  DraftAttachmentId, InputActions, InputState, InsertReferenceRequest, InsertTextRequest,
+  InputActions, InputState, InsertReferenceRequest, InsertTextRequest,
   PickOutcome, ReferenceInsert, SessionInput, SessionInputResolver, SubmitImageAttachment,
   SubmitOutcome, TokenSpan,
 } from './contract/input.ts'

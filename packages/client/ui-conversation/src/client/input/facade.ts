@@ -59,7 +59,7 @@ export interface SessionInputDeps {
    * Steer every still-pending queued message into the running turn, in FIFO
    * order (the empty-draft accelerated-Enter gesture); absent = unsupported.
    */
-  steerQueue?: (() => void) | undefined
+  steerQueue?: (() => void | Promise<void>) | undefined
   /** The plain-message sink (send choreography / materialize fork — the hub owns it). */
   defaultSink(
     text: string,
@@ -169,6 +169,8 @@ export class SessionInputShell implements SessionInput {
     readonly controller: AbortController
     readonly imageIds: readonly DraftAttachmentId[]
   }>()
+  /** In-flight empty-draft queue steer; rejects when updateQueue throws. */
+  private steerFlight: Promise<void> | undefined
 
   constructor(private readonly deps: SessionInputDeps) {
     this.editor = createEditor({
@@ -413,7 +415,15 @@ export class SessionInputShell implements SessionInput {
    * empty-draft no-op.
    */
   steerQueue(): void {
-    this.deps.steerQueue?.()
+    const run = this.deps.steerQueue
+    if (run === undefined) return
+    const flight = run()
+    if (flight instanceof Promise) this.steerFlight = flight
+  }
+
+  /** In-flight empty-draft queue steer started by {@link SessionInputShell.steerQueue}. */
+  get pendingSteer(): Promise<void> | undefined {
+    return this.steerFlight
   }
 
   /**

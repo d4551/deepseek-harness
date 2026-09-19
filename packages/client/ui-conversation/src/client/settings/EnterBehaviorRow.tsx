@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { BusyEnterBehavior } from '../contract/composer-submission.ts'
+import { requireBusyEnterBehavior, type BusyEnterBehavior } from '../contract/composer-submission.ts'
 import type { ConversationKey } from '../locales.ts'
 
 /** Registration-side preference face. */
@@ -53,7 +53,7 @@ export function EnterBehaviorRow({ useBusyEnter, setBusyEnter, t }: EnterBehavio
         selectedId={behavior}
         onSelect={(id) => {
           setOpen(false)
-          setBusyEnter(id as BusyEnterBehavior)
+          setBusyEnter(requireBusyEnterBehavior(id))
         }}
         align="end"
         portal

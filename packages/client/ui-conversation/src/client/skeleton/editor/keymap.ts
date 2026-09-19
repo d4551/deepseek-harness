@@ -50,6 +50,35 @@ function isComposingEvent(event: KeyboardEvent, recentlyComposing: () => boolean
   return event.isComposing || event.key === 'Process' || isImeProcessKey(event) || recentlyComposing()
 }
 
+/** Paste payload used by the composer keymap. */
+export interface ClipboardTransfer {
+  readonly items: ArrayLike<{ kind: string; getAsFile(): File | null }>
+  getData(format: string): string
+}
+
+function isClipboardTransfer(value: object): value is ClipboardTransfer {
+  return (
+    'getData' in value
+    && typeof value.getData === 'function'
+    && 'items' in value
+    && value.items !== null
+    && typeof value.items === 'object'
+  )
+}
+
+/**
+ * Claim clipboard data from a paste command payload.
+ * @param event - Lexical PASTE_COMMAND payload (ClipboardEvent or a test Event).
+ * @returns the transfer face, or undefined when the event carries none.
+ */
+export function clipboardTransferOf(event: Event): ClipboardTransfer | undefined {
+  if (!('clipboardData' in event)) return undefined
+  const data = event.clipboardData
+  if (data === null || data === undefined || typeof data !== 'object') return undefined
+  if (!isClipboardTransfer(data)) return undefined
+  return data
+}
+
 /**
  * Register the composer keymap on one editor.
  * @param editor - the shell-owned editor.
@@ -133,10 +162,8 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
       return true
     }, COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(PASTE_COMMAND, (event) => {
-      // Duck-typed: the payload union includes InputEvent, and test engines
-      // deliver clipboardData on plain events.
-      const clipboardData = (event as ClipboardEvent).clipboardData ?? null
-      if (clipboardData === null) return false
+      const clipboardData = clipboardTransferOf(event)
+      if (clipboardData === undefined) return false
       const files = Array.from(clipboardData.items)
         .filter(item => item.kind === 'file')
         .map(item => item.getAsFile())
