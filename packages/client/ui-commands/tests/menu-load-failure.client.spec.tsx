@@ -37,10 +37,7 @@ const t = makeTranslate(menuZh, commonZh)
 
 beforeEach(() => {
   // jsdom has no scrollIntoView; the menu calls it on the highlighted option.
-  Element.prototype.scrollIntoView = vi.fn()
-  // The pipeline records every source failure on the console; the assertions
-  // below read the rendered state instead, so keep the lane quiet.
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+  Element.prototype.scrollIntoView = vi.fn<Element['scrollIntoView']>()
 })
 
 afterEach(() => {
@@ -167,19 +164,19 @@ describe("a '/' catalog load the host refuses", () => {
     await type()
     expect(listCalls).toHaveLength(1)
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('button', { name: '重试' }))
+      fireEvent.click(screen.getByRole('button', { name: '重试' }))
       await tick()
     })
     expect(listCalls).toHaveLength(2)
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['planbare kind'])
+    expect(screen.getAllByRole('listitem').map(o => o.textContent)).toEqual(['planbare kind'])
   })
 
   it('a retry that fails again shows the new attempt, not a silent no-op', async () => {
     const { listCalls, type } = await bench(['error'])
     await type()
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('button', { name: '重试' }))
+      fireEvent.click(screen.getByRole('button', { name: '重试' }))
       await tick()
     })
     expect(listCalls).toHaveLength(2)
@@ -190,7 +187,7 @@ describe("a '/' catalog load the host refuses", () => {
     const { listCalls, type } = await bench(['ok'])
     await type()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['planbare kind'])
+    expect(screen.getAllByRole('listitem').map(o => o.textContent)).toEqual(['planbare kind'])
     expect(listCalls).toEqual([SESSION])
   })
 })

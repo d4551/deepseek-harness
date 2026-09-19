@@ -3,12 +3,12 @@
  * renders null, groups render in roster order under localized title rows
  * (unknown sources fall back to the raw name) with pending rows as skeleton
  * placeholders, pointer picks route (source, index) back without stealing
- * focus, the highlight is exposed through aria-activedescendant +
- * aria-selected, and the list height clamps to the space above the composer.
+ * focus, a status region announces the highlight, and the list height clamps
+ * to the space above the composer.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { page, userEvent } from 'vitest/browser'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -82,7 +82,7 @@ function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTrigg
   return { menu, headers, onPick, onCrumb, onHover, onRetry, onDismiss, view }
 }
 
-/** The bounded menu shell: it owns the height clamp, the listbox scrolls inside it. */
+/** The bounded menu shell: it owns the height clamp, the list scrolls inside it. */
 function menuShell(): HTMLElement {
   const shell = document.querySelector('[data-trigger-menu]')
   if (!(shell instanceof HTMLElement)) throw new Error('menu shell is not rendered')
@@ -91,7 +91,7 @@ function menuShell(): HTMLElement {
 
 /** The non-interactive group title rows (role=presentation), in document order. */
 function titles(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('div[role="presentation"][data-source]')]
+  return [...container.querySelectorAll('[role="presentation"][data-source]')]
     .map(el => el.textContent ?? '')
 }
 
@@ -107,7 +107,7 @@ describe('MenuView', () => {
     }))
     const label = screen.getByText('review').getBoundingClientRect()
     const detail = screen.getByText(description.trim())
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('listitem')
     const first = options[0]!.getBoundingClientRect()
     const second = options[1]!.getBoundingClientRect()
     expect(first.height).toBeGreaterThanOrEqual(40)
@@ -124,14 +124,14 @@ describe('MenuView', () => {
     expect(view.container.firstElementChild?.childElementCount).toBe(0)
     expect(view.container.querySelector('[data-trigger-menu]')).toBeNull()
     act(() => { menu.set(openState()) })
-    expect(screen.queryByRole('listbox')).not.toBeNull()
+    expect(screen.queryByRole('list')).not.toBeNull()
     act(() => { menu.set(CLOSED) })
     expect(view.container.firstElementChild?.childElementCount).toBe(0)
   })
 
-  it('renders ready groups as option rows and pending groups as two skeleton rows', () => {
+  it('renders ready groups as command rows and pending groups as two skeleton rows', () => {
     mount(openState())
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('listitem')
     expect(options.map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
     expect(options[0]?.getAttribute('data-icon')).toBe('file')
     expect(options[1]?.getAttribute('data-icon')).toBeNull()
@@ -178,13 +178,13 @@ describe('MenuView', () => {
     expect(screen.queryByText('reference')).toBeNull()
     expect(screen.getAllByText('文件与文件夹')).toHaveLength(1)
     expect(screen.getAllByText('对话')).toHaveLength(1)
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('listitem')
     expect(options.map(option => option.textContent)).toEqual([
       'Folder · src/',
       'File · README.md',
       'Session · Research',
     ])
-    fireEvent.mouseDown(options[2]!)
+    fireEvent.click(within(options[2]!).getByRole('button'))
     expect(onPick).toHaveBeenCalledWith('reference', 2)
   })
 
@@ -203,25 +203,24 @@ describe('MenuView', () => {
     const chevrons = screen.getAllByRole('button', { name: '进入目录' })
     expect(chevrons).toHaveLength(1)
     // The chevron drills; the row body still settles the pick untouched.
-    fireEvent.mouseDown(chevrons[0]!)
+    fireEvent.click(chevrons[0]!)
     expect(onPick).toHaveBeenCalledWith('reference', 0, 'drill')
-    fireEvent.mouseDown(screen.getAllByRole('option')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Folder · src/' }))
     expect(onPick).toHaveBeenCalledWith('reference', 0)
   })
 
-  it('exposes the highlight via aria-activedescendant and aria-selected', () => {
+  it('announces the highlighted command and marks its visual row', () => {
     mount(openState({ highlight: { source: 'command', index: 1 } }))
-    const listbox = screen.getByRole('listbox')
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('listitem')
     expect(options[1]!.id).toBeTruthy()
-    expect(listbox.getAttribute('aria-activedescendant')).toBe(options[1]!.id)
-    expect(options[1]!.getAttribute('aria-selected')).toBe('true')
-    expect(options[0]!.getAttribute('aria-selected')).toBe('false')
+    expect(screen.getByRole('status', { name: t('suggestions.aria') }).textContent).toBe('plan')
+    expect(options[1]!.getAttribute('data-highlighted')).toBe('true')
+    expect(options[0]!.getAttribute('data-highlighted')).toBe('false')
   })
 
-  it('omits aria-activedescendant without a highlight', () => {
+  it('clears the announcement without a highlight', () => {
     mount(openState({ highlight: null }))
-    expect(screen.getByRole('listbox').getAttribute('aria-activedescendant')).toBeNull()
+    expect(screen.getByRole('status', { name: t('suggestions.aria') }).textContent).toBe('')
   })
 
   it('scrolls the highlighted option into view when the highlight moves', () => {
@@ -229,10 +228,10 @@ describe('MenuView', () => {
       items: Array.from({ length: 30 }, (_, index) => ({ name: `Command ${index}` })),
     }] })
     const { menu } = mount(state)
-    const listbox = screen.getByRole('listbox')
+    const listbox = screen.getByRole('list')
     expect(listbox.scrollTop).toBe(0)
     act(() => { menu.set({ ...state, highlight: { source: 'command', index: 29 } }) })
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('listitem')
     const selected = options[29]
     if (!selected) throw new Error('Last command is missing')
     expect(listbox.scrollTop).toBeGreaterThan(0)
@@ -269,7 +268,7 @@ describe('MenuView', () => {
 
   it('pointerdown inside the list does not dismiss', () => {
     const { onDismiss } = mount(openState())
-    fireEvent.pointerDown(screen.getAllByRole('option')[0]!)
+    fireEvent.pointerDown(screen.getAllByRole('listitem')[0]!)
     expect(onDismiss).not.toHaveBeenCalled()
   })
 
@@ -312,18 +311,30 @@ describe('MenuView', () => {
     expect(onDismiss).not.toHaveBeenCalled()
   })
 
-  it('mousedown on a row picks (source, index) and prevents the focus steal', () => {
+  it('click picks (source, index) after mousedown preserves composer focus', () => {
     const { onPick } = mount(openState())
-    const options = screen.getAllByRole('option')
+    const options = within(screen.getByRole('list')).getAllByRole('button')
     const notPrevented = fireEvent.mouseDown(options[1]!)
     // fireEvent returns false when preventDefault was called.
     expect(notPrevented).toBe(false)
-    expect(onPick).toHaveBeenCalledWith('command', 1)
+    expect(onPick).not.toHaveBeenCalled()
+    fireEvent.click(options[1]!)
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('command', 1)
+  })
+
+  it.each(['{Enter}', ' '])('activates a focused command with %s', async (key) => {
+    const { onPick, onHover } = mount(openState())
+    const button = screen.getByRole('button', { name: 'plan' })
+    act(() => { button.focus() })
+    expect(document.activeElement).toBe(button)
+    expect(onHover).toHaveBeenCalledWith('command', 1)
+    await userEvent.keyboard(key)
+    expect(onPick).toHaveBeenCalledExactlyOnceWith('command', 1)
   })
 
   it('pointer motion over a row routes hover; the highlighted row stays silent', () => {
     const { onHover } = mount(openState())
-    const options = screen.getAllByRole('option')
+    const options = within(screen.getByRole('list')).getAllByRole('button')
     fireEvent.mouseMove(options[1]!)
     expect(onHover).toHaveBeenCalledWith('command', 1)
     onHover.mockClear()
@@ -341,21 +352,21 @@ describe('MenuView', () => {
     const nav = screen.getByRole('navigation', { name: '目录导航' })
     expect([...nav.querySelectorAll('button')].map(button => button.textContent))
       .toEqual(['Workspace', 'src', 'module1'])
-    // The listbox holds options alone; the header is its sibling, not a row.
-    expect(screen.getByRole('listbox').contains(nav)).toBe(false)
+    expect(screen.getByRole('list').contains(nav)).toBe(false)
   })
 
-  it('mousedown on a crumb routes (source, index) without stealing focus; the current step is inert', () => {
+  it('click on a crumb routes (source, index) without stealing focus; the current step is disabled', () => {
     const { onCrumb } = mount(openState(), new Map([['command', [
       { label: 'Workspace', value: 'root' },
       { label: 'src', value: 'src', current: true },
     ]]]))
     const crumbs = screen.getByRole('navigation', { name: '目录导航' }).querySelectorAll('button')
     expect(fireEvent.mouseDown(crumbs[0]!)).toBe(false)
+    fireEvent.click(crumbs[0]!)
     expect(onCrumb).toHaveBeenCalledWith('command', 0)
     onCrumb.mockClear()
     expect(crumbs[1]!.disabled).toBe(true)
-    fireEvent.mouseDown(crumbs[1]!)
+    fireEvent.click(crumbs[1]!)
     expect(onCrumb).not.toHaveBeenCalled()
   })
 
@@ -389,7 +400,7 @@ describe('MenuView group states', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('empty: a settled group with no rows shows neither a title nor a listbox row', () => {
+  it('empty: a settled group with no rows shows neither a title nor a list row', () => {
     const { view } = mount(openState({
       groups: [
         { source: 'command', status: 'ready', items: [] },
@@ -398,13 +409,13 @@ describe('MenuView group states', () => {
       highlight: { source: 'skill', index: 0 },
     }))
     expect(titles(view.container)).toEqual(['技能'])
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['review'])
+    expect(screen.getAllByRole('listitem').map(o => o.textContent)).toEqual(['review'])
   })
 
-  it('success: ready rows render as options under their group title', () => {
+  it('success: ready rows render under their group title', () => {
     const { view } = mount(openState())
     expect(titles(view.container)).toEqual(['指令', '技能'])
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
+    expect(screen.getAllByRole('listitem').map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
   })
 
   it('error: the failed group renders an alert with its title, the host message, and a retry action', () => {
@@ -414,22 +425,18 @@ describe('MenuView group states', () => {
     expect(alert.textContent).toContain('指令加载失败')
     expect(alert.textContent).toContain('resume failed for session "s1": preset "meowbao" failed to mount')
     expect(screen.getByRole('button', { name: '重试' })).toBeTruthy()
-    // The failed group keeps its seat and its title. A listbox may hold only
-    // options, so every non-ready block renders after it — the same place the
-    // pending skeletons already take.
     expect(titles(view.container)).toEqual(['技能', '指令'])
-    // A failure is not an option: the listbox holds the ready group alone.
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['review'])
-    expect(screen.getByRole('listbox').contains(alert)).toBe(false)
+    expect(screen.getAllByRole('listitem').map(o => o.textContent)).toEqual(['review'])
+    expect(screen.getByRole('list').contains(alert)).toBe(false)
   })
 
-  it('error: a failed-only roster still renders the alert, and no listbox', () => {
+  it('error: a failed-only roster still renders the alert, and no list', () => {
     mount(openState({
       groups: [{ source: 'command', status: 'failed', items: [], error: 'offline' }],
       highlight: null,
     }))
     expect(screen.getByRole('alert').textContent).toContain('offline')
-    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
   })
 
   it('error: an opted-out source title stays hidden while its group shows the failure', () => {
@@ -441,11 +448,13 @@ describe('MenuView group states', () => {
     expect(screen.getByRole('alert').textContent).toContain('offline')
   })
 
-  it('mousedown on retry routes the source without stealing composer focus', () => {
+  it('click on retry routes the source without stealing composer focus', () => {
     const { onRetry } = mount(failedState())
     const notPrevented = fireEvent.mouseDown(screen.getByRole('button', { name: '重试' }))
     // fireEvent returns false when preventDefault was called.
     expect(notPrevented).toBe(false)
+    expect(onRetry).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(onRetry).toHaveBeenCalledWith('command')
   })
 
@@ -461,7 +470,7 @@ describe('MenuView group states', () => {
         highlight: null,
       }))
     })
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('status', { name: '正在加载…' })).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('offline')
   })
 })

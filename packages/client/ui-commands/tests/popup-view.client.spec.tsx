@@ -8,9 +8,9 @@
  * clamps to the space above the composer.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import './popup-view.browser.css'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { accessibilityFailures, auditSurface } from '@deepseek-ai/dsh-client-a11y'
 import type { SelectOption } from '../src/client/contract.ts'
 import type { PopupSpec, TokenSegment } from '../src/client/popup.ts'
@@ -72,16 +72,16 @@ async function mountOpen(overrides: Partial<PopupSpec<string>> = {}, consumeResu
 }
 
 function rowLabels(): string[] {
-  return screen.getAllByRole('option').map(o => o.querySelector('span')!.textContent)
+  return within(screen.getByRole('list')).getAllByRole('button').map(o => o.querySelector('span')!.textContent)
 }
 
 describe('PopupSelectView', () => {
   it('keeps label and detail spacing inside the popup width', async () => {
     const detail = 'Detailed description of the choice. '.repeat(40)
     await mountOpen({ options: () => Promise.resolve([{ id: 'choice', label: 'Choice', detail }]) })
-    const label = screen.getByText('Choice').getBoundingClientRect()
+    const label = within(screen.getByRole('list')).getByText('Choice').getBoundingClientRect()
     const description = screen.getByText(detail.trim())
-    const row = screen.getByRole('option').getBoundingClientRect()
+    const row = screen.getByRole('button').getBoundingClientRect()
     expect(label.width).toBeGreaterThan(0)
     expect(description.getBoundingClientRect().left - label.right).toBeGreaterThanOrEqual(8)
     expect(description.scrollWidth).toBeGreaterThan(description.clientWidth)
@@ -107,21 +107,25 @@ describe('PopupSelectView', () => {
     const { search } = await mountOpen({ options })
     act(() => { fireEvent.change(search, { target: { value: 'li' } }) })
     expect(rowLabels()).toEqual(['Light'])
-    expect(screen.getByRole('option').getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('button').getAttribute('data-highlighted')).toBe('true')
     expect(options).toHaveBeenCalledTimes(1)
     act(() => { fireEvent.change(search, { target: { value: 'zzz' } }) })
-    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
     expect(screen.queryByText('无选项')).not.toBeNull()
   })
 
   it('ArrowUp/Down move the filtered highlight; ArrowLeft/Right are left to the native caret', async () => {
     const { search } = await mountOpen()
     act(() => { fireEvent.keyDown(search, { key: 'ArrowDown' }) })
-    let options = screen.getAllByRole('option')
-    expect(options[1]!.getAttribute('aria-selected')).toBe('true')
+    let options = screen.getAllByRole('button')
+    expect(options[1]!.getAttribute('data-highlighted')).toBe('true')
+    expect(screen.getByRole('status').textContent).toBe('Light')
     act(() => { fireEvent.keyDown(search, { key: 'ArrowUp' }) })
-    options = screen.getAllByRole('option')
-    expect(options[0]!.getAttribute('aria-selected')).toBe('true')
+    options = screen.getAllByRole('button')
+    expect(options[0]!.getAttribute('data-highlighted')).toBe('true')
+    expect(screen.getByRole('status').textContent).toBe('Dark')
+    expect(options[1]!.getAttribute('aria-current')).toBe('true')
+    expect(options[0]!.getAttribute('aria-current')).toBeNull()
     // fireEvent returns false when preventDefault was called: arrow left/right must NOT be intercepted.
     expect(fireEvent.keyDown(search, { key: 'ArrowLeft' })).toBe(true)
     expect(fireEvent.keyDown(search, { key: 'ArrowRight' })).toBe(true)
@@ -130,15 +134,15 @@ describe('PopupSelectView', () => {
   it('scrolls the highlighted row into view when the highlight moves', async () => {
     const rows = Array.from({ length: 30 }, (_, index) => ({ id: String(index), label: `Choice ${index}` }))
     const { search } = await mountOpen({ options: () => Promise.resolve(rows) })
-    const list = screen.getByRole('listbox')
+    const list = screen.getByRole('list')
     expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
     expect(list.scrollTop).toBe(0)
     for (let index = 0; index < rows.length - 1; index++) {
       act(() => { fireEvent.keyDown(search, { key: 'ArrowDown' }) })
     }
-    const active = screen.getByRole('option', { name: 'Choice 29' })
+    const active = screen.getByRole('button', { name: 'Choice 29' })
     const bounds = list.getBoundingClientRect()
-    expect(active.getAttribute('aria-selected')).toBe('true')
+    expect(active.getAttribute('data-highlighted')).toBe('true')
     expect(list.scrollTop).toBeGreaterThan(0)
     expect(active.getBoundingClientRect().top).toBeGreaterThanOrEqual(bounds.top)
     expect(active.getBoundingClientRect().bottom).toBeLessThanOrEqual(bounds.bottom)
@@ -173,12 +177,23 @@ describe('PopupSelectView', () => {
   it('click selects a row; mouseenter moves the highlight', async () => {
     const seen: SelectOption[] = []
     await mountOpen({ onSelect: (option) => { seen.push(option) } })
-    const options = screen.getAllByRole('option')
+    const options = screen.getAllByRole('button')
     act(() => { fireEvent.mouseEnter(options[2]!) })
-    expect(screen.getAllByRole('option')[2]!.getAttribute('aria-selected')).toBe('true')
+    expect(screen.getAllByRole('button')[2]!.getAttribute('data-highlighted')).toBe('true')
     await act(async () => { fireEvent.click(options[2]!) })
     expect(seen).toEqual([OPTIONS[2]])
     expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
+  })
+
+  it.each(['{Enter}', ' '])('activates a focused choice with %s exactly once', async (key) => {
+    const onSelect = vi.fn<PopupSpec<string>['onSelect']>()
+    await mountOpen({ onSelect })
+    const button = screen.getByRole('button', { name: 'Sepia warm' })
+    act(() => { button.focus() })
+    expect(document.activeElement).toBe(button)
+    expect(screen.getByRole('status').textContent).toBe('Sepia')
+    await userEvent.keyboard(key)
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(OPTIONS[2], 'ctx-A')
   })
 
   it('renders a gated option as an in-page modal and requires the checkbox before onSelect', async () => {
@@ -187,7 +202,7 @@ describe('PopupSelectView', () => {
       options: () => Promise.resolve([GATED]),
       onSelect,
     })
-    await act(async () => { fireEvent.click(screen.getByRole('option', { name: 'Full access' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Full access' })) })
     expect(screen.queryByLabelText('/theme 选项')).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Enable Full access?' })).toBeTruthy()
     const enable = screen.getByRole('button', { name: 'Enable Full access' }) as HTMLButtonElement
@@ -204,11 +219,11 @@ describe('PopupSelectView', () => {
 
   it('canceling a gated option returns to the picker with acknowledgement reset', async () => {
     await mountOpen({ options: () => Promise.resolve([GATED]) })
-    await act(async () => { fireEvent.click(screen.getByRole('option', { name: 'Full access' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Full access' })) })
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.getByLabelText('/theme 选项')).toBeTruthy()
-    await act(async () => { fireEvent.click(screen.getByRole('option', { name: 'Full access' })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Full access' })) })
     expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(false)
   })
 
@@ -221,7 +236,7 @@ describe('PopupSelectView', () => {
     expect((search as HTMLInputElement).readOnly).toBe(true)
     await act(async () => {
       fireEvent.keyDown(search, { key: 'Enter' })
-      fireEvent.click(screen.getAllByRole('option')[1]!)
+      fireEvent.click(screen.getAllByRole('button')[1]!)
     })
     expect(onSelect).toHaveBeenCalledTimes(1)
     await act(async () => {
@@ -239,14 +254,14 @@ describe('PopupSelectView', () => {
       await Promise.resolve()
     })
     expect(screen.getByText('正在加载选项…')).toBeTruthy()
-    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('empty: a settled load with no options shows the empty line inside an open shell', async () => {
     await mountOpen({ options: () => Promise.resolve([]) })
     expect(screen.getByText('无选项')).toBeTruthy()
-    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -254,7 +269,7 @@ describe('PopupSelectView', () => {
     const { search } = await mountOpen()
     act(() => { fireEvent.change(search, { target: { value: 'zzz' } }) })
     expect(screen.getByText('无选项')).toBeTruthy()
-    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
   })
 
   it('a failed options load shows the error with a retry button that reloads', async () => {
@@ -280,7 +295,7 @@ describe('PopupSelectView', () => {
     expect(screen.getByRole('alert').textContent).toContain('host rejected')
     expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
     expect(consume).not.toHaveBeenCalled()
-    expect(screen.getAllByRole('option').length).toBe(3)
+    expect(within(screen.getByRole('list')).getAllByRole('button')).toHaveLength(3)
   })
 
   it('Escape dismisses and restores composer focus', async () => {
@@ -292,7 +307,7 @@ describe('PopupSelectView', () => {
 
   it('an outside pointerdown dismisses without focusComposer; an inside one does not dismiss', async () => {
     const { focusComposer } = await mountOpen()
-    act(() => { fireEvent.pointerDown(screen.getAllByRole('option')[0]!) })
+    act(() => { fireEvent.pointerDown(screen.getAllByRole('button')[0]!) })
     expect(screen.getByRole('textbox', { name: '筛选选项' })).toBeTruthy()
     act(() => { fireEvent.pointerDown(document.body) })
     expect(screen.queryByRole('textbox', { name: '筛选选项' })).toBeNull()
