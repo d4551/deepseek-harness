@@ -42,7 +42,7 @@ export type {
 } from './types.ts'
 export { TerminalBackendCleanupError } from './types.ts'
 
-/** Values a Promise reject arm from backend registration dispose may deliver. */
+/** Values a Promise reject arm from backend dispose, send settlement, or cleanup may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Opaque identity minted by {@link TerminalSessionService} for one live PTY session. */
@@ -206,7 +206,7 @@ export class TerminalSessionService extends Service {
       if (session !== undefined && !this.sessions.has(sessionId)) {
         try {
           await session.close('PTY spawn rolled back')
-        } catch (closeError: unknown) {
+        } catch (closeError) {
           rollbackFailure = { error: closeError }
           cleanupFailure = rollbackFailure
         }
@@ -215,7 +215,7 @@ export class TerminalSessionService extends Service {
       try {
         signal?.throwIfAborted()
         spawnReservation.signal.throwIfAborted()
-      } catch (cancellation: unknown) {
+      } catch (cancellation) {
         failure = cancellation
       }
       if (rollbackFailure !== undefined && signal?.aborted !== true) {
@@ -253,7 +253,7 @@ export class TerminalSessionService extends Service {
     record.active = operation
     operation.done.then(
       () => { record.active = undefined },
-      () => { record.active = undefined },
+      (_error: Thrown) => { record.active = undefined },
     )
     return operation
   }
@@ -413,13 +413,13 @@ export class TerminalSessionService extends Service {
     const failures: unknown[] = []
     try {
       await this.abortPendingSpawns(owner, abortReason)
-    } catch (error: unknown) {
+    } catch (error) {
       failures.push(error)
     }
     const records = [...this.sessions.values()].filter(record => owner === undefined || record.owner === owner)
     try {
       await this.closeRecords(records, closeReason)
-    } catch (error: unknown) {
+    } catch (error) {
       failures.push(error)
     }
     if (failures.length > 0) throw new AggregateError(failures, 'failed to clean up PTY lifecycle')
@@ -442,6 +442,7 @@ export class TerminalSessionService extends Service {
     // Teardown is best-effort: a close failure still clears registries and runs
     // owner cleanups before the aggregated error propagates, so one stuck
     // session cannot orphan backends, reservations, or owner detachers.
+    let firstFailure: Thrown | undefined
     try {
       await this.abortAndClose(
         undefined,
@@ -452,10 +453,17 @@ export class TerminalSessionService extends Service {
       this.backends.clear()
       this.reservedNames.clear()
       this.pendingSpawns.clear()
-      const cleanups = [...this.ownerCleanups.values()]
+      const cleanups = Array.from(this.ownerCleanups.values())
       this.ownerCleanups.clear()
-      await Promise.all(cleanups.map(cleanup => Promise.resolve(cleanup())))
+      await Promise.all(cleanups.map((cleanup) => {
+        const result = cleanup()
+        if (result === undefined) return
+        return result.then(undefined, (error: Thrown) => {
+          if (firstFailure === undefined) firstFailure = error
+        })
+      }))
     }
+    if (firstFailure !== undefined) throw firstFailure
   }
 
   private async closeRecords(records: SessionRecord[], reason: string): Promise<void> {
@@ -465,7 +473,7 @@ export class TerminalSessionService extends Service {
       try {
         await closing
         this.sessions.delete(record.id)
-      } catch (error: unknown) {
+      } catch (error) {
         // A concurrent retry may already own a newer fence; never clear it.
         if (record.closing === closing) record.closing = undefined
         throw error
@@ -473,7 +481,7 @@ export class TerminalSessionService extends Service {
     }))
     const failures = results
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-      .map<unknown>(result => result.reason as unknown)
+      .map((result): Thrown => result.reason)
     if (failures.length > 0) throw new AggregateError(failures, `failed to close ${failures.length} PTY session(s)`)
   }
 }
