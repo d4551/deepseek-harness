@@ -90,7 +90,6 @@ function fakeRemote(
         if (options.throwRead === true) return Promise.reject(new Error('socket closed'))
         if (options.failRead !== undefined) return remoteFail(options.failRead)
         const preset = presets.get(agentPreset)
-        /* v8 ignore next -- every test reads an id the fake store holds */
         if (preset === undefined) return remoteFail(`unknown preset ${agentPreset}`)
         return remoteOk({
           agentPreset,
@@ -112,7 +111,6 @@ function fakeRemote(
         if (options.throwCopy === true) return Promise.reject(new Error('socket closed'))
         if (options.failCopy !== undefined) return await remoteFail(options.failCopy)
         const source = presets.get(from)
-        /* v8 ignore next -- every test copies a source the fake store holds */
         if (source === undefined) return remoteFail(`unknown preset ${from}`)
         presets.set(id, {
           trust: 'user',
@@ -140,7 +138,6 @@ function fakeRemote(
       update: (ns: string, patch: { default?: string }) => {
         record('settings.update', { ns, patch })
         if (options.failSettings !== undefined) return remoteFail(options.failSettings)
-        /* v8 ignore next -- the controller only ever sets `default` */
         defaultId.id = patch.default ?? defaultId.id
         return remoteOk({})
       },

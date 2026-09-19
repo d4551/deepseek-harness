@@ -185,12 +185,12 @@ export class AgentPresetSectionController {
     const described = await new Promise<Thrown>((resolve) => {
       resolve(opener)
     }).then(
-      (value: Thrown) => value,
-      (_reason: Thrown) => undefined,
+      (value: Thrown) => ({ kind: 'answered' as const, value }),
+      (reason: Thrown) => ({ kind: 'refused' as const, reason }),
     )
     if (roster === undefined) return
     const { presets, authorable } = roster
-    const hasDocument = openerHasDocument(described)
+    const hasDocument = described.kind === 'answered' && openerHasDocument(described.value)
     if (presets.length === 0) {
       // Nothing to manage leaves nothing to keep a dialog open over.
       this.set({ status: 'unavailable', rows: [], authorable, hasDocument, copy: null, view: null })
