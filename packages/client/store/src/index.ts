@@ -38,7 +38,7 @@ export interface SnapshotStore<T> extends ObservableSnapshot<T> {
 }
 
 /**
- * Notify an observer set without allowing one callback to starve the rest.
+ * Notify an observer set. A throwing listener stops the remaining listeners.
  * @param listeners - current observer callbacks; copied before dispatch.
  * @param label - diagnostic owner prefix.
  * @param args - callback arguments.

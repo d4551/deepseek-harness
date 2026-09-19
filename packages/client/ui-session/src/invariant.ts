@@ -1,4 +1,4 @@
-/** Package-owned invariant companion for the Session UI adapter. */
+/** Package-owned invariant companion for Session UI bindings. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
@@ -9,7 +9,7 @@ export const name = 'client-ui-session-invariant'
 /** Service required before the companion reserves package ownership. */
 export const inject = ['invariants']
 
-/** No runtime invariant: the adapter materialization path enforces Session binding consistency. */
+/** No runtime invariant: Session binding materialization enforces consistency. */
 const install: InvariantInstaller = () => {}
 
 /**
