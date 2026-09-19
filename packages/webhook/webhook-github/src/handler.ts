@@ -21,6 +21,9 @@ export interface GitHubWebhookHandlerConfig {
   readonly maxBodyBytes: number
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Require one unambiguous non-empty request header. */
 function requiredHeader(request: IncomingMessage, name: string): string {
   const values = request.headersDistinct[name]
@@ -58,7 +61,6 @@ function parsePayload(body: string): GitHubJsonObject {
   try {
     parsed = JSON.parse(body)
   } catch {
-    // JSON.parse is the only statement in the try; no other failure is normalized.
     throw new WebhookHttpError(400, 'request body is not valid JSON')
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -71,6 +73,61 @@ function parsePayload(body: string): GitHubJsonObject {
   return snapshot
 }
 
+/** Answer one handler rejection without leaking request or secret text. */
+function respondFailure(ctx: Context, response: ServerResponse, reason: Thrown): void {
+  if (reason instanceof WebhookHttpError) {
+    respond(response, reason.status, reason.message)
+    return
+  }
+  ctx.logger.warn('webhook-github: request failed')
+  respond(response, 503, 'webhook ingress is unavailable')
+}
+
+/** Dispatch in memory or refuse when the runtime is not accepting deliveries. */
+function dispatchVerified(ctx: Context, delivery: VerifiedWebhookDelivery<'github'>): void {
+  try {
+    ctx.webhookRuntime.dispatch(delivery)
+  } catch {
+    ctx.logger.warn('webhook-github: dispatch unavailable')
+    throw new WebhookHttpError(503, 'webhook runtime is unavailable')
+  }
+}
+
+/** Authenticate one body and dispatch the signed delivery. */
+function dispatchSignedBody(
+  ctx: Context,
+  config: GitHubWebhookHandlerConfig,
+  request: IncomingMessage,
+  response: ServerResponse,
+  body: string,
+): Promise<void> {
+  const signature = requiredHeader(request, 'x-hub-signature-256')
+  const deliveryId = requiredHeader(request, 'x-github-delivery')
+  const eventName = requiredHeader(request, 'x-github-event')
+  return ctx.credentials.resolve(config.secretEnv).then((credential) => {
+    if (credential === undefined || credential.value === '') {
+      throw new WebhookHttpError(503, 'GitHub webhook secret is unavailable')
+    }
+    return new Webhooks({ secret: credential.value }).verify(body, signature).then(
+      (verified) => {
+        if (!verified) throw new WebhookHttpError(401, 'invalid webhook signature')
+        const payload = parsePayload(body)
+        dispatchVerified(ctx, {
+          kind: 'github',
+          source: WebhookSourceId(config.source),
+          deliveryId: WebhookDeliveryId(deliveryId),
+          event: { name: eventName, payload },
+          receivedAt: Date.now(),
+        })
+        respond(response, 202)
+      },
+      (_reason: Thrown) => {
+        throw new WebhookHttpError(401, 'invalid webhook signature')
+      },
+    )
+  })
+}
+
 /**
  * Create one exact-route GitHub handler.
  * @param ctx - adapter context carrying credentials and webhook runtime.
@@ -81,52 +138,20 @@ export function createGitHubWebhookHandler(
   ctx: Context,
   config: GitHubWebhookHandlerConfig,
 ): WebRoute['handler'] {
-  return async (request, response) => {
-    try {
-      if (request.method !== 'POST') {
-        response.setHeader('allow', 'POST')
-        throw new WebhookHttpError(405, 'method not allowed')
-      }
-      if (!isJsonContentType(request.headers['content-type'])) {
-        throw new WebhookHttpError(415, 'content type must be application/json')
-      }
-      const body = await readBoundedUtf8Body(request, config.maxBodyBytes)
-      const signature = requiredHeader(request, 'x-hub-signature-256')
-      const deliveryId = requiredHeader(request, 'x-github-delivery')
-      const eventName = requiredHeader(request, 'x-github-event')
-      const credential = await ctx.credentials.resolve(config.secretEnv)
-      if (credential === undefined || credential.value === '') {
-        throw new WebhookHttpError(503, 'GitHub webhook secret is unavailable')
-      }
-      let verified = false
-      try {
-        verified = await new Webhooks({ secret: credential.value }).verify(body, signature)
-      } catch {
-        // Octokit verification errors carry no response detail safe or useful to the sender.
-      }
-      if (!verified) throw new WebhookHttpError(401, 'invalid webhook signature')
-      const payload = parsePayload(body)
-      const delivery: VerifiedWebhookDelivery<'github'> = {
-        kind: 'github',
-        source: WebhookSourceId(config.source),
-        deliveryId: WebhookDeliveryId(deliveryId),
-        event: { name: eventName, payload },
-        receivedAt: Date.now(),
-      }
-      try {
-        ctx.webhookRuntime.dispatch(delivery)
-      } catch {
-        ctx.logger.warn('webhook-github: dispatch unavailable')
-        throw new WebhookHttpError(503, 'webhook runtime is unavailable')
-      }
-      respond(response, 202)
-    } catch (error: unknown) {
-      if (error instanceof WebhookHttpError) {
-        respond(response, error.status, error.message)
-        return
-      }
-      ctx.logger.warn('webhook-github: request failed')
-      respond(response, 503, 'webhook ingress is unavailable')
+  return (request, response) => {
+    if (request.method !== 'POST') {
+      response.setHeader('allow', 'POST')
+      respond(response, 405, 'method not allowed')
+      return
     }
+    if (!isJsonContentType(request.headers['content-type'])) {
+      respond(response, 415, 'content type must be application/json')
+      return
+    }
+    return readBoundedUtf8Body(request, config.maxBodyBytes).then(
+      body => dispatchSignedBody(ctx, config, request, response, body),
+    ).then(undefined, (reason: Thrown) => {
+      respondFailure(ctx, response, reason)
+    })
   }
 }
