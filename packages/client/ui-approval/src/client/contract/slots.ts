@@ -98,17 +98,18 @@ export class PendingApproval {
     this.result = completion.promise
     this.#resolve = completion.resolve
     this.#reject = completion.reject
-    this.#signal = request.signal
-    if (request.signal === undefined) {
+    const signal = request.signal
+    this.#signal = signal
+    if (signal === undefined) {
       this.#onAbort = undefined
       return
     }
     const onAbort = (): void => {
-      this.abort(request.signal.reason ?? new Error('approval request was aborted'))
+      this.abort(signal.reason ?? new Error('approval request was aborted'))
     }
     this.#onAbort = onAbort
-    request.signal.addEventListener('abort', onAbort, { once: true })
-    if (request.signal.aborted) onAbort()
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
   }
 
   /**
