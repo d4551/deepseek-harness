@@ -591,7 +591,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             deleteTarget,
           )}
         className={styles['deleteDialog']}
-        initialFocus="footer"
+        initialFocus={deleting ? 'dialog' : 'footer'}
         footer={(
           <>
             <Button variant="outline" disabled={deleting} onClick={closeDelete}>

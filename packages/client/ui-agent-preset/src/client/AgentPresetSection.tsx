@@ -391,7 +391,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         title={t('deleteTitle')}
         closeLabel={t('close')}
         description={t('deleteDescription')}
-        initialFocus="footer"
+        initialFocus={state.deleting ? 'dialog' : 'footer'}
         className={css.deleteDialog}
         footer={(
           <>
