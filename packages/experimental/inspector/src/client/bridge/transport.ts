@@ -26,6 +26,9 @@ import { ClientBridgePublisher } from './publisher.ts'
 import { ClientBridgeRpc } from './rpc.ts'
 import { dispatchBridgeFrame } from './dispatcher.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Reconnecting Client source whose bounded queue never blocks page work. */
 export class ClientInspectorSource extends InspectorSourceConnection {
   private readonly realmSource: ClientRealmSource
@@ -172,8 +175,8 @@ export class ClientInspectorSource extends InspectorSourceConnection {
             socket.close(1008, 'source rejected')
           },
           runtime: (request) => {
-            this.executeRuntime(socket, generation, request).catch((error: unknown) => {
-              console.error('[inspector] Client Runtime transport failed:', error)
+            this.executeRuntime(socket, generation, request).then(undefined, (reason: Thrown) => {
+              console.error('[inspector] Client Runtime transport failed:', reason)
               socket.close(1011, 'Client Runtime transport failed')
             })
           },
@@ -192,8 +195,8 @@ export class ClientInspectorSource extends InspectorSourceConnection {
           },
           consoleDisabled: (disabled) => { this.console.disable(disabled.sessionId) },
           sources: (request) => {
-            this.executeSourceRequest(socket, generation, request).catch((error: unknown) => {
-              console.error('[inspector] Client Sources transport failed:', error)
+            this.executeSourceRequest(socket, generation, request).then(undefined, (reason: Thrown) => {
+              console.error('[inspector] Client Sources transport failed:', reason)
               socket.close(1011, 'Client Sources transport failed')
             })
           },

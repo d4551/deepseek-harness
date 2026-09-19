@@ -11,6 +11,9 @@ import type { ClientSourcesCapability } from '../../shared/bridge/messages/sourc
 import { inspectorId } from '../../shared/identity.ts'
 import type { RuntimeScriptKey } from '../../shared/cdp/ids.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const PACKAGE_ID = '@deepseek-ai/dsh-experimental-inspector'
 const CLIENT_SCRIPT_KEY = inspectorId<'RuntimeScriptKey'>('client-bundle', 'scriptKey')
 
@@ -135,8 +138,8 @@ export class ClientSourceCatalog {
   }
 
   private source(entry: LoadedAsset, maxContentBytes: number): Promise<string> {
-    entry.source ??= entry.asset.loadSource().catch((error: unknown) => {
-      throw new ClientSourceCatalogError('load-failed', `Cannot load Client script: ${renderError(error)}`)
+    entry.source ??= entry.asset.loadSource().then(undefined, (reason: Thrown) => {
+      throw new ClientSourceCatalogError('load-failed', `Cannot load Client script: ${thrownMessage(reason)}`)
     })
     return entry.source.then((source) => {
       if (new TextEncoder().encode(source).byteLength > maxContentBytes) {
@@ -155,8 +158,8 @@ export class ClientSourceCatalog {
     if (entry.asset.loadSourceMap === undefined) return Promise.resolve(undefined)
     entry.sourceMapBytes ??= entry.asset.loadSourceMap().then(value =>
       value === undefined ? undefined : new TextEncoder().encode(value),
-    ).catch((error: unknown) => {
-      throw new ClientSourceCatalogError('load-failed', `Cannot load Client source map: ${renderError(error)}`)
+    ).then(undefined, (reason: Thrown) => {
+      throw new ClientSourceCatalogError('load-failed', `Cannot load Client source map: ${thrownMessage(reason)}`)
     })
     return entry.sourceMapBytes.then((bytes) => {
       if (bytes !== undefined && bytes.byteLength > maxContentBytes) {
@@ -218,8 +221,22 @@ function countNewlines(value: string): number {
   return count
 }
 
-function renderError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 function normalizedUrl(value: string): string {

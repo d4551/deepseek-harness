@@ -17,6 +17,9 @@ import { parseCallFrameEvaluation, requestScriptId } from './cdp-params.ts'
 import { debuggerEvent, scriptParsedEvent } from './projector.ts'
 import { DebuggerScriptRegistry } from './script-registry.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Owns Debugger lifecycle, shared script projection, and Host-native fallback. */
 export class DebuggerDomainSession {
   private readonly scripts = new DebuggerScriptRegistry()
@@ -237,8 +240,8 @@ export class DebuggerDomainSession {
 
   private receiveRealm(event: InspectorRealmSessionEvent): void {
     if (event.type === 'opened') {
-      if (this.enabled) this.enableRealm(event.session).catch((error: unknown) => {
-        console.error(`Inspector could not enable Debugger realm ${event.session.descriptor.label}:`, error)
+      if (this.enabled) this.enableRealm(event.session).then(undefined, (reason: Thrown) => {
+        console.error(`Inspector could not enable Debugger realm ${event.session.descriptor.label}:`, reason)
       })
       return
     }
