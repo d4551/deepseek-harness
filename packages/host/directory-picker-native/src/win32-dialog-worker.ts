@@ -38,21 +38,21 @@ const post = (message: Win32DialogWorkerMessage): void => {
 /* v8 ignore next 3 -- the handler exits(0), which would kill the unit lane; built-worker.e2e.ts owns the real disconnect lifecycle. */
 process.on('disconnect', () => process.exit(0))
 
-// No top-level await: the built worker ships as CJS, which cannot carry TLA.
-function failWorker(error: unknown): never {
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function failWorker(error: Thrown): never {
   console.error(error)
   process.exit(1)
 }
 
-;(async () => {
-  try {
-    const bindings = await loadWin32DialogBindings()
-    const path = runFolderDialog(bindings, title, (threadId) => {
-      post({ kind: 'showing', threadId } satisfies Win32DialogWorkerMessage)
-    })
-    post({ kind: 'done', path } satisfies Win32DialogWorkerMessage)
-  } catch (error: unknown) {
-    const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
-    post({ kind: 'error', message } satisfies Win32DialogWorkerMessage)
-  }
-})().then(undefined, failWorker)
+// No top-level await: the built worker ships as CJS, which cannot carry TLA.
+loadWin32DialogBindings().then((bindings) => {
+  const path = runFolderDialog(bindings, title, (threadId) => {
+    post({ kind: 'showing', threadId } satisfies Win32DialogWorkerMessage)
+  })
+  post({ kind: 'done', path } satisfies Win32DialogWorkerMessage)
+}).then(undefined, (error: Thrown) => {
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
+  post({ kind: 'error', message } satisfies Win32DialogWorkerMessage)
+}).then(undefined, failWorker)
