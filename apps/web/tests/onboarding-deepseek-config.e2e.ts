@@ -23,7 +23,9 @@ const MISSING_EXPECTED = join(SNAPSHOT_DIR, 'missing.expected.md')
 const MODELS_EXPECTED = join(SNAPSHOT_DIR, 'models.expected.md')
 const MODE = webSnapshotMode()
 
-describe.skipIf(MODE === 'record')('web e2e: first-run DeepSeek credential setup', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] onboarding-deepseek-config.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: first-run DeepSeek credential setup', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

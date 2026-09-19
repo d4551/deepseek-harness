@@ -127,7 +127,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     return { settled }
   }
 
-  it.skipIf(MODE !== 'record')('records the base fixture live through the composer', async () => {
+  const SKIP_UNLESS_RECORD_MODE = MODE !== 'record'
+  if (SKIP_UNLESS_RECORD_MODE) console.info('[skip] live-interactions.e2e.ts: replay mode; this record-only capture runs in record mode')
+  it.skipIf(SKIP_UNLESS_RECORD_MODE)('records the base fixture live through the composer', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-interactions-record'))
     const { settled } = await sendPrompt(180_000)
@@ -135,13 +137,17 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     await recordFixture(scaffold!, sessionId, FIXTURE)
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('matches the canonical persisted session', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('matches the canonical persisted session', async () => {
     await launch()
     const { settled } = await sendPrompt(30_000)
     await settled
   })
 
-  it.skipIf(MODE === 'record')('cancels a hung stream deterministically via the readyFile marker', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('cancels a hung stream deterministically via the readyFile marker', async () => {
     expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     let marker = ''
     await launch((sidecarHome) => {
@@ -197,7 +203,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('surfaces a non-retryable AUTH failure without retrying', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('surfaces a non-retryable AUTH failure without retrying', async () => {
     await launch(() => ({
       patches: [{ at: 0, entry: { kind: 'throw', chunks: [], message: AUTH_PROVIDER_MESSAGE, code: 'AUTH' } }],
     }))
@@ -226,7 +234,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('keeps a terminal request marker inside the trajectory table', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('keeps a terminal request marker inside the trajectory table', async () => {
     await launch(() => ({
       patches: [{ at: 0, entry: { kind: 'throw', chunks: [], message: AUTH_PROVIDER_MESSAGE, code: 'AUTH' } }],
     }))
@@ -252,7 +262,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('recovers a transient SERVER failure through llm-retry and completes', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('recovers a transient SERVER failure through llm-retry and completes', async () => {
     const derived = deriveReplayScript(parseSessionLog(await readFile(FIXTURE, 'utf8')))
     expect(derived).toHaveLength(1)
     await launch(() => ({
@@ -286,7 +298,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('surfaces the terminal turn error after transient retries exhaust', async () => {
+  const SKIP_IN_RECORD_MODE_6 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_6) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_6)('surfaces the terminal turn error after transient retries exhaust', async () => {
     // A whole-script replacement: three throw entries cover the first request
     // plus both budgeted retries (patches cannot reach past the one-call
     // derived script). The scenario-owned policy keeps exhaustion fast and
@@ -319,7 +333,9 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE_7 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_7) console.info('[skip] live-interactions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_7)('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.jsonl', 'cancel.expected.md', 'cancel-expanded.expected.md',
       'loading.expected.md', 'running-draft.expected.md', 'error-auth.expected.md',

@@ -683,7 +683,9 @@ describe('writeFileAtomic — temp-file safety', () => {
     expect((await readdir(dir)).filter(n => n.includes('.tmp'))).toEqual([])
   })
 
-  it.skipIf(process.platform !== 'win32')('protects staged content with the existing target DACL and preserves it after replacement', async () => {
+  const SKIP_WHEN_NOT_WIN32 = process.platform !== 'win32'
+  if (SKIP_WHEN_NOT_WIN32) console.info('[skip] fsio.spec.ts: non-Windows host; this exercises the Win32-only surface')
+  it.skipIf(SKIP_WHEN_NOT_WIN32)('protects staged content with the existing target DACL and preserves it after replacement', async () => {
     const file = join(dir, 'protected.txt')
     await writeFile(file, 'old')
     await copyFileDaclWin32(file, file)
@@ -832,7 +834,9 @@ describe('writeFileAtomic — temp-file safety', () => {
     expect(await readFile(file, 'utf8')).toBe('ours')
   })
 
-  it.skipIf(!posixModes)('creates new files owner-only by default', async () => {
+  const SKIP_WITHOUT_POSIX_MODES = !posixModes
+  if (SKIP_WITHOUT_POSIX_MODES) console.info('[skip] fsio.spec.ts: POSIX mode bits are unavailable on this host')
+  it.skipIf(SKIP_WITHOUT_POSIX_MODES)('creates new files owner-only by default', async () => {
     const file = join(dir, 'a.txt')
     await writeFileAtomic(file, 'hello', undefined, undefined)
     expect((await stat(file)).mode & 0o777).toBe(0o600)

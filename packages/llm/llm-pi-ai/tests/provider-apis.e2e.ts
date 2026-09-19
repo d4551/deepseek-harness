@@ -166,7 +166,9 @@ const lookupTool: ToolSchema = {
 }
 
 for (const profile of providerCases) {
-  describe.skipIf(profile.apiKey === undefined)(
+  const SKIP_WITHOUT_PROVIDER_API_KEY = profile.apiKey === undefined
+  if (SKIP_WITHOUT_PROVIDER_API_KEY) console.info('[skip] provider-apis.e2e.ts: provider API key is unset; live provider e2e stays keyless')
+  describe.skipIf(SKIP_WITHOUT_PROVIDER_API_KEY)(
     `llm-pi-ai ${profile.provider} e2e (${profile.api})`,
     () => {
       it('streams text with usage and native replay metadata', async () => {

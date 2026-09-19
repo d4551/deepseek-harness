@@ -137,7 +137,9 @@ describe('default sandbox composition keyless smoke (real cordis.yml via the Loa
 
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY || !hasRunner)('default sandbox composition e2e: the live approval loop', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY_OR_RUNNER = !process.env.DEEPSEEK_API_KEY || !hasRunner
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY_OR_RUNNER) console.info('[skip] escalation.e2e.ts: DEEPSEEK_API_KEY or the model runner is unavailable; live e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY_OR_RUNNER)('default sandbox composition e2e: the live approval loop', () => {
   it('denial → model escalation → machine allow-once → the retried write lands on disk', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'sandbox-acp-e2e-'))
     spawned = launchExampleAcpAgent(workdir, 'allow-once', 'read-only')

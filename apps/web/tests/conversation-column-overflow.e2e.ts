@@ -336,7 +336,9 @@ describe('web e2e: the conversation column scrolls on one axis', () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['geometry.expected.md'])
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] conversation-column-overflow.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('issued zero model calls and stayed clean', () => {
     expect(tripwire.warnings).toEqual([])
     expect(tripwire.pageErrors).toEqual([])
   })

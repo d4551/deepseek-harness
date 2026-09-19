@@ -74,7 +74,9 @@ afterEach(async () => {
 })
 
 describe('local attachment store', () => {
-  it.skipIf(process.platform === 'win32')('syncs every object ancestor up to the durable boundary before returning', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] store.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('syncs every object ancestor up to the durable boundary before returning', async () => {
     const storageRoot = await root()
     const base = join(storageRoot, '..', '..')
     const sha256 = createHash('sha256').update(PNG).digest('hex')
@@ -141,7 +143,9 @@ describe('local attachment store', () => {
     await expect(readImageFile(storageRoot, first)).resolves.toEqual({ ref: first, data: PNG })
   })
 
-  it.skipIf(process.platform !== 'win32')('publishes a new object on Windows', async () => {
+  const SKIP_WHEN_NOT_WIN32 = process.platform !== 'win32'
+  if (SKIP_WHEN_NOT_WIN32) console.info('[skip] store.spec.ts: non-Windows host; this exercises the Win32-only surface')
+  it.skipIf(SKIP_WHEN_NOT_WIN32)('publishes a new object on Windows', async () => {
     const storageRoot = await root()
 
     const ref = await saveImageFile(storageRoot, { data: PNG, mediaType: 'image/png' }, LIMITS, POLICY)

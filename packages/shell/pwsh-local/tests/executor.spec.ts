@@ -189,7 +189,9 @@ describe('spawn construction (pure, every platform)', () => {
   })
 })
 
-describe.skipIf(!hasPwsh)('PwshLocalExecutor.run', () => {
+const SKIP_WITHOUT_PWSH = !hasPwsh
+if (SKIP_WITHOUT_PWSH) console.info('[skip] executor.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH)('PwshLocalExecutor.run', () => {
   it('resolves with output and the effective timeout', { timeout: 15_000 }, async () => {
     const { bash } = await setup({ timeoutMs: 10_000 })
     const result = await bash.run(bash.resolve({ command: 'Write-Output hi' }))
@@ -317,7 +319,9 @@ describe.skipIf(!hasPwsh)('PwshLocalExecutor.run', () => {
   })
 })
 
-describe.skipIf(!hasPwsh)('PwshLocalExecutor.start (background process handles)', () => {
+const SKIP_WITHOUT_PWSH_2 = !hasPwsh
+if (SKIP_WITHOUT_PWSH_2) console.info('[skip] executor.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH_2)('PwshLocalExecutor.start (background process handles)', () => {
   it('start returns immediately with a running handle that settles as completed', async () => {
     const { bash } = await setup()
     const before = Date.now()
@@ -426,7 +430,9 @@ describe.skipIf(!hasPwsh)('PwshLocalExecutor.start (background process handles)'
     expect(proc.status).toBe('killed')
   })
 
-  it.skipIf(process.platform === 'win32')('a self-signal exit settles the handle as killed, not completed (POSIX)', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] executor.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('a self-signal exit settles the handle as killed, not completed (POSIX)', async () => {
     const { bash } = await setup()
     const proc = bash.start(bash.resolve({ command: 'Stop-Process -Id $PID' }))
     await proc.done
@@ -446,7 +452,9 @@ describe.skipIf(!hasPwsh)('PwshLocalExecutor.start (background process handles)'
   })
 })
 
-describe.skipIf(!hasPwsh)('process lifecycle ownership (the subprocess service, not the executor)', () => {
+const SKIP_WITHOUT_PWSH_3 = !hasPwsh
+if (SKIP_WITHOUT_PWSH_3) console.info('[skip] executor.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH_3)('process lifecycle ownership (the subprocess service, not the executor)', () => {
   it('a background process survives executor-fiber disposal and dies with the subprocess service', async () => {
     const ctx = new Context()
     const managerFiber = await ctx.plugin(LocalSubprocessRuntime)

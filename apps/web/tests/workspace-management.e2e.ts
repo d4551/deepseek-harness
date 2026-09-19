@@ -623,7 +623,9 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] workspace-management.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('issued zero model calls and stayed clean', async () => {
     expect(tripwire.warnings).toEqual([])
     // The directory-browser aria golden is this spec's one owned artifact;
     // the seed it reuses is owned (and inventory-guarded) by seeded-history.

@@ -195,7 +195,9 @@ function assistantKey(event: SessionEvent<'assistant/message'>): string {
   return conversationContextKey('assistant-step', `${String(event.data.turn)}:${String(event.data.step)}`)
 }
 
-describe.skipIf(MODE === 'record')('web e2e: conversational reminders', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] schedule-after.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: conversational reminders', () => {
   let scaffold: WebScaffold
   let afterHandle: AgentHandle
   let atHandle: AgentHandle

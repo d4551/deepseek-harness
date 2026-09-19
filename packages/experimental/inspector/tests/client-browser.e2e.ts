@@ -92,7 +92,9 @@ class BrowserTestCdpClient {
   }
 }
 
-describe.skipIf(!built)('Inspector built Client in Chromium', () => {
+const SKIP_WITHOUT_BUILT_LIB = !built
+if (SKIP_WITHOUT_BUILT_LIB) console.info('[skip] client-browser.e2e.ts: built lib artifact is absent; run the package build to exercise the load path')
+describe.skipIf(SKIP_WITHOUT_BUILT_LIB)('Inspector built Client in Chromium', () => {
   let inspector: InspectorHandle | undefined
   let server: Server | undefined
   let browser: Browser | undefined

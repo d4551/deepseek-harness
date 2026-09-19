@@ -142,11 +142,15 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     }
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('the durable log carries one complete Cordis lifecycle', () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] cordis-tool-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('the durable log carries one complete Cordis lifecycle', () => {
     assertCompleteCordisLifecycle(sessionEvents)
   })
 
-  it.skipIf(MODE === 'record')('renders localized Cordis lifecycle cards', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] cordis-tool-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('renders localized Cordis lifecycle cards', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-rows'))
     await expect.poll(() => page.getByText('CORDIS_UI_DONE', { exact: true }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
@@ -182,7 +186,9 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     await expect.poll(() => page.locator('[data-snapshot-probe]').count(), { timeout: 15_000 }).toBe(0)
   })
 
-  it.skipIf(MODE === 'record')('matches the conversation aria golden', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] cordis-tool-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('matches the conversation aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-aria'))
     // Final Assistant text precedes turn/end. Three footers prove every turn
     // reached the render state covered by the ARIA golden.
@@ -200,7 +206,9 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean: no page errors or reconnect churn', () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] cordis-tool-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('stayed clean: no page errors or reconnect churn', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

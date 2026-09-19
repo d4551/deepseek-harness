@@ -80,7 +80,9 @@ function textCompletion(text: string): object {
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: composer interrupt for a running continuable child', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] subagent-interrupt-ui.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: composer interrupt for a running continuable child', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

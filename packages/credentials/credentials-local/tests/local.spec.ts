@@ -167,7 +167,9 @@ describe('layer ladder', () => {
     expect(await stored.credentials.resolve(KEY)).toEqual({ value: 'stored', source: 'file' })
   })
 
-  it.skipIf(process.platform === 'win32')('refuses a document other OS users can read', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] local.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('refuses a document other OS users can read', async () => {
     const dir = await tempDir()
     const path = join(dir, '.credentials.yaml')
     await writeFile(path, 'version: 1\nrefs:\n  DSH_CRED_TEST: leaked\n', { mode: 0o644 })

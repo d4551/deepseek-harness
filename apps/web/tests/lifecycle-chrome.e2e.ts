@@ -65,7 +65,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('opens the shared slash menu from plus with only Command candidates', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('opens the shared slash menu from plus with only Command candidates', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-command-menu-launcher'))
     const launcher = page.getByRole('button', { name: 'Commands' })
     await launcher.click()
@@ -99,7 +101,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     await expect.poll(() => menu.count()).toBe(0)
   })
 
-  it.skipIf(MODE === 'record')('shows active Plan as the warn-state status action', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('shows active Plan as the warn-state status action', async () => {
     const activeScaffold = await launchWebScaffold()
     const activePage = await newEnglishPage(browser)
     const activeTripwire = watchConsole(activePage)
@@ -200,7 +204,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     }
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('materialized a real Workspace and Session over the wire', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('materialized a real Workspace and Session over the wire', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-lifecycle-materialize'))
     // Browser: the sidebar tree now carries the auto-created workspace group
     // with its one session, and the opened session is the selected row. The
@@ -224,7 +230,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     expect((turnEnds[0] as SessionEvent & { data: { reason: { kind: string } } }).data.reason.kind).toBe('completed')
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('recovers the whole surface across a reload from the log alone', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('recovers the whole surface across a reload from the log alone', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-lifecycle-reload'))
     const warningStart = tripwire.warnings.length
     await page.reload({ waitUntil: 'load' })
@@ -249,7 +257,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('cascades the dark theme from the body attribute to painted surfaces', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('cascades the dark theme from the body attribute to painted surfaces', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-lifecycle-dark'))
     // This scenario pins the ThemeRuntime's DOM contract directly (the
     // body[data-ds-dark-theme] attribute -> stylesheet cascade); the REAL
@@ -281,7 +291,9 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE_6 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_6) console.info('[skip] lifecycle-chrome.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_6)('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.jsonl', 'replay.override.json', 'command-menu.expected.md',

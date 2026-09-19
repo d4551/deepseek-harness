@@ -41,7 +41,9 @@ async function liveAgent(scaffold: WebScaffold, sessionId: SessionId): Promise<A
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: background job list', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] background-job-list.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: background job list', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

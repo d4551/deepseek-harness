@@ -677,7 +677,9 @@ describe('dsh web keyless CLI smoke', () => {
   })
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('web smoke (real host, real key)', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] smoke-real.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('web smoke (real host, real key)', () => {
   let child: ChildProcess
   let sessionsDir: string
   let baseUrl: string

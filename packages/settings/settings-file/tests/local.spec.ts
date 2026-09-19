@@ -128,7 +128,9 @@ describe('boot and reads', () => {
     expect(scope.get()).toEqual({ theme: 'dark', fontSize: 14 })
   })
 
-  it.skipIf(process.platform === 'win32')('fails loud at boot when the document exists but is unreadable', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] local.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('fails loud at boot when the document exists but is unreadable', async () => {
     const dir = await tempDir()
     const path = join(dir, 'settings.yaml')
     await writeFile(path, 'ui-theme:\n  theme: light\n')

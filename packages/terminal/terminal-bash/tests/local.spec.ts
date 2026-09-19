@@ -131,7 +131,9 @@ function canReadLinuxProcessSyscall(pid: number): boolean {
 
 // The real-shell suite drives a POSIX bash over the actual node-pty terminal;
 // Windows has no bash, and its pwsh counterpart lives in the describe below.
-describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => {
+const SKIP_ON_WIN32 = process.platform === 'win32'
+if (SKIP_ON_WIN32) console.info('[skip] local.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+describe.skipIf(SKIP_ON_WIN32)('terminal-bash real shell', () => {
   it('persists cwd and environment across sends, scrubs secrets, and closes', async () => {
     const previous = process.env.DSH_TEST_SECRET
     process.env.DSH_TEST_SECRET = 'must-not-leak'
@@ -174,7 +176,9 @@ describe.skipIf(process.platform === 'win32')('terminal-bash real shell', () => 
     await ctx.terminals.kill(agent, created.sessionId)
   }, 20_000)
 
-  it.skipIf(process.platform !== 'linux')('recognizes a foreground read opened through /dev/tty', async () => {
+  const SKIP_WHEN_NOT_LINUX = process.platform !== 'linux'
+  if (SKIP_WHEN_NOT_LINUX) console.info('[skip] local.spec.ts: non-Linux host; this exercises Linux-only semantics')
+  it.skipIf(SKIP_WHEN_NOT_LINUX)('recognizes a foreground read opened through /dev/tty', async () => {
     const { ctx, root, agent } = await harness('danger-full-access', {
       idleSilenceMs: 5_000,
       timeoutMs: 8_000,
@@ -320,7 +324,9 @@ const hasPwsh = spawnSync(
 // probe there is a broken host, which the first spawn below reports. A POSIX
 // host that happens to have pwsh runs it as a portability check; one that does
 // not has no pwsh dialect to exercise.
-describe.skipIf(!hasPwsh && process.platform !== 'win32')('terminal-bash pwsh real shell', () => {
+const SKIP_WITHOUT_PWSH_ON_POSIX = !hasPwsh && process.platform !== 'win32'
+if (SKIP_WITHOUT_PWSH_ON_POSIX) console.info('[skip] local.spec.ts: no usable pwsh on this POSIX host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH_ON_POSIX)('terminal-bash pwsh real shell', () => {
   it('bootstraps a persistent pwsh, persists state, and scrubs secrets', async () => {
     const previous = process.env.DSH_TEST_SECRET
     process.env.DSH_TEST_SECRET = 'must-not-leak'

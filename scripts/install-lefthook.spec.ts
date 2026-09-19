@@ -392,7 +392,9 @@ describe('worktree-local Lefthook installer', () => {
     )
   }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
-  it.skipIf(process.platform === 'win32')('refuses a multiply linked ownership marker before relocation rewrites it', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('refuses a multiply linked ownership marker before relocation rewrites it', async () => {
     const fixture = createFixture()
     const oldRoot = fixture.main
     const first = await runInstaller(fixture, oldRoot)
@@ -412,7 +414,9 @@ describe('worktree-local Lefthook installer', () => {
     expect(readFileSync(externalMarker, 'utf8')).toBe(externalContent)
   }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
-  it.skipIf(process.platform === 'win32')('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
+  const SKIP_ON_WIN32_2 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_2) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_2)('refuses aliased generated hooks before Lefthook can overwrite their targets', async () => {
     for (const kind of ['symlink', 'hardlink'] as const) {
       const fixture = createFixture()
       const first = await runInstaller(fixture, fixture.main)
@@ -484,7 +488,9 @@ describe('worktree-local Lefthook installer', () => {
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')('refuses a symlinked common repository config before writing through it', async () => {
+  const SKIP_ON_WIN32_3 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_3) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_3)('refuses a symlinked common repository config before writing through it', async () => {
     const fixture = createFixture()
     const commonConfig = join(commonDirectory(fixture), 'config')
     const externalConfig = join(fixture.container, 'external-common.gitconfig')
@@ -560,7 +566,9 @@ describe('worktree-local Lefthook installer', () => {
     expect(readFileSync(lockPath, 'utf8')).toBe(replacementRecord)
   }, MULTI_PROCESS_TEST_TIMEOUT_MS)
 
-  it.skipIf(process.platform === 'win32')('preserves trailing spaces in worktree paths', async () => {
+  const SKIP_ON_WIN32_4 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_4) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_4)('preserves trailing spaces in worktree paths', async () => {
     const fixture = createFixture({ main: 'main ', linked: 'linked ' })
 
     for (const root of [fixture.main, fixture.linked]) {
@@ -643,7 +651,9 @@ describe('worktree-local Lefthook installer', () => {
     expect(existsSync(hooksPath(fixture, fixture.main))).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')('refuses an active symlinked worktree config before writing through it', async () => {
+  const SKIP_ON_WIN32_5 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_5) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_5)('refuses an active symlinked worktree config before writing through it', async () => {
     const fixture = createFixture()
     const commonConfig = join(commonDirectory(fixture), 'config')
     const worktreeConfig = join(gitDirectory(fixture, fixture.main), 'config.worktree')
@@ -870,7 +880,9 @@ describe('worktree-local Lefthook installer', () => {
     expect(gitResult(fixture, fixture.main, ['config', '--get', 'extensions.worktreeConfig']).status).toBe(1)
   })
 
-  it.skipIf(process.platform === 'win32')('rejects Git without config-scope support before mutation', async () => {
+  const SKIP_ON_WIN32_6 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_6) console.info('[skip] install-lefthook.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_6)('rejects Git without config-scope support before mutation', async () => {
     const fixture = createFixture()
     const realGit = commandResult('which', ['git'], fixture.main, fixture.env).stdout.trim()
     const fakeBin = join(fixture.container, 'fake-bin')

@@ -65,7 +65,9 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     }
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('the durable log carries run_code with full-content sub-dispatches', () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] ptc-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('the durable log carries run_code with full-content sub-dispatches', () => {
     const calls = sessionEvents.filter(event => event.type === 'tool/call')
     expect(calls.length).toBeGreaterThanOrEqual(1)
     expect(new Set(calls.map(call => (call.data as { name: string }).name))).toEqual(new Set(['run_code']))
@@ -89,7 +91,9 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     expect(bashContent.filter(block => block.type === 'text').map(block => block.text).join('')).toContain('CODE_ROUND_OK')
   })
 
-  it.skipIf(MODE === 'record')('renders the code parent row with always-visible nested sub-rows', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] ptc-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('renders the code parent row with always-visible nested sub-rows', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-rows'))
     await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
     // The parent run_code row wears the code variant with the model-authored
@@ -103,7 +107,9 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     expect(await nest.locator('[data-state="error"]').count()).toBeGreaterThanOrEqual(1)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('a bash sub-row click leaves the default details panel closed', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] ptc-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('a bash sub-row click leaves the default details panel closed', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-details'))
     const nest = page.locator('[data-subcalls]').first()
     const frame = page.locator('[style*="grid-template-columns"]').first()
@@ -113,7 +119,9 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     await expect.poll(() => frame.getAttribute('data-details-collapsed'), { timeout: 5_000 }).toBe('true')
   })
 
-  it.skipIf(MODE === 'record')('matches the expanded conversation aria golden with stable anchors', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] ptc-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('matches the expanded conversation aria golden with stable anchors', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-aria'))
     const snapshot = await captureExpandedTurnProcessAria(
       page,
@@ -123,7 +131,9 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean: no page errors, no reconnect churn', () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] ptc-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('stayed clean: no page errors, no reconnect churn', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

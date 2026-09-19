@@ -147,13 +147,17 @@ describe('pickWin32Directory', () => {
 
   // POSIX hosts exercise the REAL default plumbing end to end: the tsx-bootstrapped
   // worker spawns, loads koffi, fails to load ole32.dll, and reports the error.
-  it.skipIf(process.platform === 'win32')('rejects through the real worker where the Win32 surface is unavailable', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] win32-dialog.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('rejects through the real worker where the Win32 surface is unavailable', async () => {
     await expect(pickWin32Directory(live())).rejects.toThrow('win32 folder dialog failed')
   }, 30_000)
 
   // win32 hosts run the true COM smoke instead: a real dialog opens briefly
   // and the abort service closes it (the same lever a disconnecting client pulls).
-  it.skipIf(process.platform !== 'win32')('opens and abort-closes a real dialog', async () => {
+  const SKIP_WHEN_NOT_WIN32 = process.platform !== 'win32'
+  if (SKIP_WHEN_NOT_WIN32) console.info('[skip] win32-dialog.spec.ts: non-Windows host; this exercises the Win32-only surface')
+  it.skipIf(SKIP_WHEN_NOT_WIN32)('opens and abort-closes a real dialog', async () => {
     const controller = new AbortController()
     setTimeout(() => {
       controller.abort()

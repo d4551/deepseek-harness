@@ -132,14 +132,18 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     return settled
   }
 
-  it.skipIf(MODE !== 'record')('records the two-round Goal through the real model', async () => {
+  const SKIP_UNLESS_RECORD_MODE = MODE !== 'record'
+  if (SKIP_UNLESS_RECORD_MODE) console.info('[skip] goal-multi-turn-actions.e2e.ts: replay mode; this record-only capture runs in record mode')
+  it.skipIf(SKIP_UNLESS_RECORD_MODE)('records the two-round Goal through the real model', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-goal-multi-turn-actions-record'))
     const sessionId = await runGoal(360_000)
     await recordFixture(scaffold!, sessionId, FIXTURE)
   }, 380_000)
 
-  it.skipIf(MODE === 'record')('keeps actions on both completed Goal turn tails', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] goal-multi-turn-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('keeps actions on both completed Goal turn tails', async () => {
     const fixtureEvents = parseSessionLog(await readFile(FIXTURE, 'utf8'))
     expect(createdObjectives(fixtureEvents)).toEqual([PROMPT])
     expect(goalRounds(fixtureEvents)).toEqual([1, 2])
@@ -175,7 +179,9 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     expect(tripwire.warnings).toEqual([])
   }, 140_000)
 
-  it.skipIf(MODE === 'record')('keeps a closed fixture inventory', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] goal-multi-turn-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('keeps a closed fixture inventory', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'replay.override.json', 'session.jsonl', 'ui.expected.md', 'ui-expanded.expected.md',
     ])

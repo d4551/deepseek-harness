@@ -18,7 +18,9 @@ const MODE = webSnapshotMode()
 const SEED_ID = 'skill-tool-row-web-e2e'
 const PROMPT = 'Load the editing-cordis-compositions skill with the skill tool, then reply DONE.'
 
-describe.skipIf(MODE === 'record')('web e2e: dedicated Skill tool row', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] skill-tool-row.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: dedicated Skill tool row', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

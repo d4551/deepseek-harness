@@ -349,7 +349,9 @@ function waitForIdle(harness: Context, agent: Agent): Promise<void> {
   })
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('PTC mode: real model writes a program over real tools', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] ptc.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('PTC mode: real model writes a program over real tools', () => {
   it('collapses the wire tool list to [run_code], bridges sub-calls, and returns curated output', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-ptc-e2e-'))
     ctx = await ptcModeHarness(workdir)
