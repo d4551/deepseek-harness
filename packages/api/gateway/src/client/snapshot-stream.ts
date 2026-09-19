@@ -2,6 +2,9 @@
 
 import type { RemoteStream } from './remote-stream.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Domain operations for one snapshot stream. */
 export interface RemoteSnapshotStreamOptions<Snapshot, Delta> {
   /** Diagnostic stream name used in protocol failures. */
@@ -40,7 +43,9 @@ export class RemoteSnapshotStream<Snapshot, Delta> {
   start(): void {
     if (this.started) return
     this.started = true
-    this.done = this.consume()
+    this.done = this.consume().then(undefined, (error: Thrown) => {
+      if (!this.disposed) this.options.failed(error)
+    })
   }
 
   /** Replace the active physical generation without discarding the published snapshot. */
@@ -61,28 +66,24 @@ export class RemoteSnapshotStream<Snapshot, Delta> {
   private async consume(): Promise<void> {
     let generation = 0
     let snapshotSeen = false
-    try {
-      for await (const item of this.stream) {
-        if (item.generation !== generation) {
-          generation = item.generation
-          snapshotSeen = false
-        }
-        if (this.options.isSnapshot(item.value)) {
-          if (snapshotSeen) {
-            throw new Error(`${this.options.name} emitted more than one opening snapshot`)
-          }
-          this.options.replace(item.value)
-          snapshotSeen = true
-          item.accept()
-          continue
-        }
-        if (!snapshotSeen) {
-          throw new Error(`${this.options.name} emitted an update before its opening snapshot`)
-        }
-        this.options.update(item.value)
+    for await (const item of this.stream) {
+      if (item.generation !== generation) {
+        generation = item.generation
+        snapshotSeen = false
       }
-    } catch (error) {
-      if (!this.disposed) this.options.failed(error)
+      if (this.options.isSnapshot(item.value)) {
+        if (snapshotSeen) {
+          throw new Error(`${this.options.name} emitted more than one opening snapshot`)
+        }
+        this.options.replace(item.value)
+        snapshotSeen = true
+        item.accept()
+        continue
+      }
+      if (!snapshotSeen) {
+        throw new Error(`${this.options.name} emitted an update before its opening snapshot`)
+      }
+      this.options.update(item.value)
     }
   }
 }

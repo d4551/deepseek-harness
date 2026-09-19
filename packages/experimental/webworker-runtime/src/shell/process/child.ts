@@ -13,6 +13,32 @@ import { filesystemError } from '../fs-access.ts'
 import type { ShellDirent, ShellFileSystem, ShellStats } from '../types.ts'
 import type { FilesystemOperation, FromProcessFrame, ShellStartFrame, ToProcessFrame } from './protocol.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected child-side promise.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the Error text, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** The messaging face this module needs from a worker scope. */
 export interface ProcessScope {
   postMessage(frame: FromProcessFrame): void
@@ -29,7 +55,7 @@ export interface ProcessScope {
  * @param scope - the worker scope to message through (`self`).
  */
 export function runShellProcess(start: ShellStartFrame, scope: ProcessScope): void {
-  const pending = new Map<number, { settle: (value: unknown) => void; fail: (error: unknown) => void }>()
+  const pending = new Map<number, { settle: (value: unknown) => void; fail: (error: Thrown) => void }>()
   const stopping = new AbortController()
   let nextCall = 0
 
@@ -83,10 +109,10 @@ export function runShellProcess(start: ShellStartFrame, scope: ProcessScope): vo
       scope.postMessage({ t: 'shell-exit', code: outcome.exitCode })
       scope.close()
     },
-    (error: unknown) => {
+    (error: Thrown) => {
       // The interpreter contains its own failures; reaching here means the
       // shell machinery itself broke, which the host reports as a failed spawn.
-      scope.postMessage({ t: 'shell-out', stream: 'stderr', text: `bash: ${String(error)}\n` })
+      scope.postMessage({ t: 'shell-out', stream: 'stderr', text: `bash: ${thrownMessage(error)}\n` })
       scope.postMessage({ t: 'shell-exit', code: 1 })
       scope.close()
     },

@@ -25,6 +25,9 @@ type QuestionItem = AskUserQuestionItem
 /** One option the asker offered on a question. */
 type QuestionOption = NonNullable<QuestionItem['options']>[number]
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * A request narrowed to the `plan-review` presentation intent: everything the
  * decision card renders and answers with, so the panel never re-reads the
@@ -65,8 +68,8 @@ export interface PlanReview {
  */
 export function planReviewOf(questions: readonly QuestionItem[]): PlanReview | undefined {
   if (questions.length !== 1) return undefined
-  // Length-checked above; the index read is the narrowing tax, not a guess.
-  const question = questions[0] as QuestionItem
+  const question = questions[0]
+  if (question === undefined) return undefined
   const intent = question.intent
   if (intent?.kind !== 'plan-review' || question.detail === undefined) return undefined
   if (question.multiSelect === true) return undefined
@@ -106,7 +109,7 @@ export class PendingQuestion {
   readonly result: Promise<QuestionAnswer>
 
   readonly #resolve: (answer: QuestionAnswer) => void
-  readonly #reject: (reason: unknown) => void
+  readonly #reject: (reason: Thrown) => void
   readonly #signal: AbortSignal | undefined
   readonly #onAbort: (() => void) | undefined
   readonly #delegated = Symbol('pending question delegated')
@@ -179,9 +182,9 @@ export class PendingQuestion {
 
   /**
    * End an unanswered presentation when its transport, scope, or plugin lifetime ends.
-   * @param reason - rejection exposed to the waiting Remote Event listener.
+   * @param reason - Thrown rejection exposed to the waiting Remote Event listener.
    */
-  abort(reason: unknown): void {
+  abort(reason: Thrown): void {
     if (this.#settled) return
     this.finish(() => { this.#reject(reason) })
   }

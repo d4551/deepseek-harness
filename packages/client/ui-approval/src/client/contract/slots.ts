@@ -46,11 +46,19 @@ export interface ApprovalPresentationRequest {
   /** Human-readable reason supplied by the requester. */
   readonly reason?: string
   /** Cancellation projected from the Host waterfall. */
-  readonly signal?: AbortSignal
+  readonly signal?: ApprovalAbortSignal
 }
 
 /** Decisions this interactive Client presentation can return. */
 export type ApprovalDecision = 'allowed-once' | 'rejected'
+
+/** Values a Promise reject arm or abort may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Host cancellation whose abort reason is claimed as Thrown. */
+type ApprovalAbortSignal = Omit<AbortSignal, 'reason'> & {
+  readonly reason?: Thrown
+}
 
 let nextApprovalKey = 0
 
@@ -70,8 +78,8 @@ export class PendingApproval {
   readonly result: Promise<ApprovalDecision>
 
   readonly #resolve: (outcome: ApprovalDecision) => void
-  readonly #reject: (reason: unknown) => void
-  readonly #signal: AbortSignal | undefined
+  readonly #reject: (reason: Thrown) => void
+  readonly #signal: ApprovalAbortSignal | undefined
   readonly #onAbort: (() => void) | undefined
   readonly #delegated = Symbol('pending approval delegated')
   #settled = false
@@ -96,7 +104,7 @@ export class PendingApproval {
       return
     }
     const onAbort = (): void => {
-      this.abort(request.signal?.reason ?? new Error('approval request was aborted'))
+      this.abort(request.signal.reason ?? new Error('approval request was aborted'))
     }
     this.#onAbort = onAbort
     request.signal.addEventListener('abort', onAbort, { once: true })
@@ -130,9 +138,9 @@ export class PendingApproval {
 
   /**
    * End an unanswered presentation when its transport, scope, or plugin lifetime ends.
-   * @param reason - rejection exposed to the waiting Remote Event listener.
+   * @param reason - Thrown rejection exposed to the waiting Remote Event listener.
    */
-  abort(reason: unknown): void {
+  abort(reason: Thrown): void {
     if (this.#settled) return
     this.finish(() => { this.#reject(reason) })
   }

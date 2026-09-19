@@ -7,6 +7,9 @@ import { requireActiveVfs } from '../../../storage/active.ts'
 import type { VfsBigIntStats, VfsMutation, VfsStats } from '../../../storage/types.ts'
 import { abortError } from './abort-error.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type PathArg = string | URL | Uint8Array
 type WatchListener = (eventType: 'rename' | 'change', filename: string | Buffer | null) => void
 type WatchStats = VfsStats | VfsBigIntStats
@@ -346,7 +349,7 @@ export function watchAsync(
   type WatchEvent = { eventType: 'rename' | 'change'; filename: string | Buffer | null }
   type Waiting = {
     resolve(result: IteratorResult<WatchEvent>): void
-    reject(reason: unknown): void
+    reject(reason: Thrown): void
   }
   const queued: WatchEvent[] = []
   const waiting: Waiting[] = []

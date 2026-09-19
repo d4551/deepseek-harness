@@ -16,8 +16,34 @@ import type { MemoryVfs } from '../storage/memory.ts'
 import type { ModuleBody } from './module-loader.ts'
 import { join } from './posix-path.ts'
 
+/** Values a Promise reject arm from a generated `data:` import may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a leftover generated-module refusal.
+ * @param reason - the Thrown the import rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Root subtrees that hold data, never lowered code, so they never compile. */
-const DATA_DIRECTORIES = new Set(IMAGE_EMPTY_DIRECTORIES.map(name => name.replace(/\/$/, '')))
+const DATA_DIRECTORIES = new Set(Array.from(IMAGE_EMPTY_DIRECTORIES, name => name.replace(/\/$/, '')))
 
 /** Upper bound on bodies per compiled `data:` module, keeping each import small. */
 const COMPILE_CHUNK = 100
@@ -64,6 +90,22 @@ export async function precompileImage(
   return factories
 }
 
+/**
+ * Refuse a missing compiled factory for one image path.
+ * @param path - Absolute VFS path the factory belongs to.
+ * @param factory - Compiled body, when the generated module exported one.
+ * @param fail - Loader failure reporter, which never returns.
+ * @returns The compiled body.
+ */
+export function requireCompiledBody(
+  path: string,
+  factory: ModuleBody | undefined,
+  fail: (message: string) => never,
+): ModuleBody {
+  if (factory === undefined) fail(`module ${path} produced no compiled body`)
+  return factory
+}
+
 /** Collect lowered-body paths, skipping the image's data-only subtrees. */
 function collectModulePaths(vfs: MemoryVfs, root: string): string[] {
   const paths: string[] = []
@@ -95,47 +137,40 @@ async function compileRange(
   factories: Map<string, ModuleBody>,
   fail: (message: string) => never,
 ): Promise<void> {
-  const sources = paths.map(path => vfs.readFileSync(path, 'utf8') as string)
-  const bodies = await importBodies(sources).then(
+  const modules = paths.map((path) => {
+    const text = vfs.readFileSync(path, 'utf8')
+    if (typeof text !== 'string') fail(`module ${path} was not read`)
+    return { path, source: text }
+  })
+  const bodies = await importBodies(modules.map(module => module.source)).then(
     compiled => compiled,
-    () => compileIndividually(paths, sources, fail),
+    () => compileIndividually(modules, fail),
   )
-  for (let index = 0; index < paths.length; index += 1) {
-    const path = paths[index]
-    const factory = bodies[index]
-    if (path === undefined || factory === undefined) fail(`module ${String(paths[index])} produced no compiled body`)
-    factories.set(path, factory)
+  for (const [index, module] of modules.entries()) {
+    factories.set(module.path, requireCompiledBody(module.path, bodies[index], fail))
   }
 }
 
 /**
  * Compile each body alone; the first refusal names its module and stops the
  * boot, because one unlowered body means the image was not packer-built.
- * @param vfs - Image filesystem holding the lowered bodies.
- * @param paths - Absolute VFS paths, parallel to {@link sources}.
- * @param sources - Lowered bodies as the image holds them.
+ * @param modules - Absolute VFS paths paired with the lowered bodies.
  * @param fail - Loader failure reporter, which never returns.
  * @returns One factory per source, in the same order.
  */
 async function compileIndividually(
-  paths: readonly string[],
-  sources: readonly string[],
+  modules: ReadonlyArray<{ readonly path: string; readonly source: string }>,
   fail: (message: string) => never,
 ): Promise<ModuleBody[]> {
   const bodies: ModuleBody[] = []
-  for (let index = 0; index < paths.length; index += 1) {
-    const path = paths[index]
-    const source = sources[index]
-    if (path === undefined || source === undefined) fail(`module ${String(path)} was not read`)
+  for (const { path, source } of modules) {
     const body = await importBodies([source]).then(
-      compiled => compiled[0],
-      (reason: unknown) => {
-        const detail = reason instanceof Error ? reason.message : String(reason)
+      compiled => requireCompiledBody(path, compiled[0], fail),
+      (reason: Thrown) => {
         throw new Error(`${path} still carries module syntax, so the image was not lowered by the packer `
-          + `(${detail}); rebuild the image`)
+          + `(${thrownMessage(reason)}); rebuild the image`)
       },
     )
-    if (body === undefined) fail(`${path} produced no compiled body`)
     bodies.push(body)
   }
   return bodies
