@@ -9,7 +9,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConnectionHandle, JsonValue, SettingsNamespaceView, SettingsPathOpView,
+  JsonValue, SettingsNamespaceView, SettingsPathOpView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only, and deliberately NOT `@deepseek-ai/dsh-api-remotes/client`: this
@@ -28,6 +28,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/types'
 // never — the owning package's client-safe, type-only subpath supplies the
 // cordis `Events` entry (and with it the branded `SettingsNamespace`).
 import type {} from '@deepseek-ai/dsh-settings/types'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type { SettingsSchemaService } from './schema.ts'
 import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './settings-contract.ts'
 import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
@@ -131,23 +132,25 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
       const revision = expectedRevision ?? this.pendingRevision ?? this.getSnapshot().revision
-      let response: Awaited<ReturnType<SettingsFace['settings']['mutate']>>
-      try {
-        response = await this.api.settings.mutate(this.spec.namespace, ownedOps, revision)
-      } catch (_settingsWriteFailure) {
+      const flight = this.api.settings.mutate(this.spec.namespace, ownedOps, revision)
+      const response = await flight.then(
+        value => ({ kind: 'answered' as const, value }),
+        (_reason: Thrown) => ({ kind: 'failed' as const }),
+      )
+      if (response.kind === 'failed') {
         await this.recover(generation)
         return
       }
-      if (!response.ok) {
+      if (!response.value.ok) {
         await this.recover(generation)
         return
       }
       if (this.disposed) return
       if (generation === this.writeGeneration) {
         this.pendingRevision = undefined
-        this.mirror.acceptView(response.value)
+        this.mirror.acceptView(response.value.value)
       } else {
-        this.pendingRevision = response.value.revision
+        this.pendingRevision = response.value.value.revision
       }
     })
   }
@@ -294,7 +297,7 @@ export class SettingsScopeBinder extends Service {
    */
   bind<T>(spec: SettingsScopeSpec<T>): SettingsScope<T> {
     const ctx = this.ctx
-    const connection = ctx.get('connection') as ConnectionHandle
+    const connection = ctx.connection
     const controller = new SettingsScopeController<T>(
       this.wire,
       spec,
