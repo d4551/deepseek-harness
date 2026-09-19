@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { Context, Service, symbols } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import type { WebUpgradeRoute } from '@deepseek-ai/dsh-host-webserver'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import z from '@deepseek-ai/schemastery'
 import {
@@ -558,7 +559,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
 
   private removeRemoteEventClient(client: RemoteEventClient): void {
     this.remoteEventClients.delete(client.id)
-    for (const pending of [...client.deliveries.values()]) this.removeRemoteEventDelivery(pending, client)
+    for (const pending of client.deliveries.values()) this.removeRemoteEventDelivery(pending, client)
     client.queue.end()
   }
 
@@ -587,10 +588,10 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   private closeRemoteEvents(reason: unknown): void {
-    for (const pending of [...this.pendingRemoteEvents.values()]) {
+    for (const pending of this.pendingRemoteEvents.values()) {
       this.cancelRemoteEvent(pending, reason)
     }
-    for (const client of [...this.remoteEventClients.values()]) client.queue.end()
+    for (const client of this.remoteEventClients.values()) client.queue.end()
   }
 
   private async invokeRpc(endpoint: string, payload: unknown, signal: AbortSignal): Promise<ConnectionRpcResult> {
@@ -977,7 +978,7 @@ async function *cancellableStream(
   const iterator = typeof asyncFactory === 'function'
     ? Reflect.apply(asyncFactory, source, []) as AsyncIterator<unknown>
     : Reflect.apply(syncFactory as (...args: never[]) => Iterator<unknown>, source, [])
-  let rejectAbort: ((error: unknown) => void) | undefined
+  let rejectAbort: ((error: Thrown) => void) | undefined
   const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
   const onAbort = (): void => {
     rejectAbort?.(new RemoteInvocationCancelled(endpoint, signal.reason))

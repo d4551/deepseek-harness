@@ -43,6 +43,29 @@ export interface RetryInternals {
 
 import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
+/**
+ * Human text for a rejected downstream recovery.
+ * @param reason - the Thrown downstream recovery rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 type DownstreamOutcome =
   | { readonly type: 'decision'; readonly decision: RequestErrorAction }
   | { readonly type: 'error'; readonly error: Thrown }
@@ -168,8 +191,7 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
       if (fusedSignal.aborted) return
       if (downstream.type === 'error') {
         ctx.logger.warn(
-          `llm-retry: provider "${provider}" always policy ignored a downstream recovery failure: %o`,
-          downstream.error,
+          `llm-retry: provider "${provider}" always policy ignored a downstream recovery failure: ${thrownMessage(downstream.error)}`,
         )
       }
       if (downstream.type === 'decision' && downstream.decision?.kind === 'retry') {

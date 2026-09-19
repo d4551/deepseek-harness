@@ -389,7 +389,7 @@ export class PlanModeController extends Service {
           agent,
           signal: exec.signal,
         }).then(
-          answer => answer,
+          undefined,
           (reason: Thrown) => {
             // A dismissed review is not a failed one: the user took the turn back
             // to say something the two options do not cover. Say so, because the

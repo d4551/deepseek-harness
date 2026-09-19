@@ -9,6 +9,8 @@ import {
   type RemoteStreamServerMessage,
 } from './stream-protocol.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Open one validated Remote stream for a decoded wire request. */
 export type RemoteStreamOpener = (
   endpoint: string,
@@ -64,7 +66,7 @@ export class RemoteStreamMuxServer {
       else closed.reject(error)
     })
     await closed.promise
-    await Promise.all(this.connections)
+    await waitAllThrown(this.connections)
   }
 
   /** Start one `unref()` timer after the first upgrade; it spans empty-client periods until close(). */
@@ -113,7 +115,7 @@ class RemoteStreamMuxConnection {
     await closed
     const active = [...this.streams.values()]
     for (const stream of active) stream.abort.abort(new Error('Remote stream socket closed'))
-    await Promise.all(active.map(stream => stream.done))
+    await waitAllThrown(active.map(stream => stream.done))
   }
 
   private receive(text: string): void {
@@ -182,6 +184,23 @@ class RemoteStreamMuxConnection {
     this.writes = delivery.catch(() => undefined)
     return delivery
   }
+}
+
+/**
+ * Wait for every promise to settle, then throw retained rejections.
+ * @param promises - independent teardown or pump completions.
+ */
+async function waitAllThrown(promises: Iterable<Promise<void>>): Promise<void> {
+  const outcomes = await Promise.all([...promises].map(done =>
+    done.then(
+      () => ({ ok: true as const }),
+      (error: Thrown) => ({ ok: false as const, error }),
+    ),
+  ))
+  const reasons = outcomes.flatMap(outcome => outcome.ok ? [] : [outcome.error])
+  if (reasons.length === 0) return
+  if (reasons.length === 1) throw reasons[0]
+  throw new AggregateError(reasons)
 }
 
 /**
