@@ -16,7 +16,7 @@ export { redactSecrets } from './redact.ts'
 export type { RedactedSecret, RedactedValue } from './redact.ts'
 export type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
 
-/** Values a Promise reject arm from document-updated listeners, updated listeners, or watchers may deliver. */
+/** Values a Promise reject arm from write-queue predecessors, document-updated listeners, updated listeners, or watchers may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/
@@ -70,8 +70,6 @@ export interface SettingsRegisterOptions<T> extends SettingsFlowMembership {
 export interface SettingsDescriptor extends SettingsFlowMembership {
   /** Owner-reported runtime readiness, when the namespace configures a capability. */
   available?: boolean
-  // TODO(settings-namespace-vocabulary): Rename `ns` to `namespace` across the
-  // public API, provider contract, implementations, tests, and consumers.
   /** The registered namespace. */
   ns: SettingsNamespace
   /** Serialized schemastery schema (`schema.toJSON()`). */
@@ -332,7 +330,7 @@ function deepFreeze<T>(value: T): T {
 
 /** One registered watcher and its serialized invocation chain. */
 interface SettingsWatcher {
-  callback: (next: never, prev: never) => void | Promise<void>
+  onCommit: (next: never, prev: never) => void | Promise<void>
   /** Settled tail: invocations of this callback run one at a time, in commit order. */
   tail: Promise<void>
   /** Cleared by the disposer: a queued invocation checks this before starting. */
@@ -394,6 +392,7 @@ export abstract class SettingsProvider extends Service {
    * becomes injectable, and register the write-drain teardown. Providers with
    * their own init (watchers, connections) delegate here first via
    * `yield* super[Service.init]()`; their disposers then run before the drain.
+   * @yields the write-queue and watcher-tail drain disposer.
    */
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
     yield async () => {
@@ -502,7 +501,7 @@ export abstract class SettingsProvider extends Service {
       },
       get: () => registration.resolved as T,
       watch: (callback) => {
-        const watcher: SettingsWatcher = { callback: callback, tail: Promise.resolve(), active: true }
+        const watcher: SettingsWatcher = { onCommit: callback, tail: Promise.resolve(), active: true }
         registration.watchers.add(watcher)
         return () => {
           watcher.active = false
@@ -656,7 +655,7 @@ export abstract class SettingsProvider extends Service {
     const previous = this.writeQueues.get(ns) ?? Promise.resolve()
     // Chain past a failed predecessor: one rejected write must not poison the
     // namespace queue for every later caller.
-    const run = previous.catch(() => undefined).then(async () => {
+    const run = previous.catch((_error: Thrown) => undefined).then(async () => {
       if (this.isStopped()) {
         throw new Error(`settings service was disposed before the queued "${ns}" ${verb} ran`)
       }
@@ -807,12 +806,12 @@ export abstract class SettingsProvider extends Service {
   }
 
   /** Commit a resolved value when changed: swap, notify watchers, emit the event. */
-  private commit(registration: SettingsRegistration, next: unknown, source: SettingsUpdateSource): void {
-    const prev = registration.resolved
-    if (deepEqualJson(next, prev)) return
-    registration.resolved = next
-    for (const watcher of [...registration.watchers]) {
-      // Serialize per watcher: invocations of one callback run one at a time
+  private commit(registration: SettingsRegistration, committed: unknown, source: SettingsUpdateSource): void {
+    const previous = registration.resolved
+    if (deepEqualJson(committed, previous)) return
+    registration.resolved = committed
+    for (const watcher of Array.from(registration.watchers)) {
+      // Serialize per watcher: invocations of one observer run one at a time
       // in commit order, so a slow stale invocation can never apply after a
       // newer one. Sync throws and async rejections land in the same handler.
       // The activity check runs when the queued invocation would start, so a
@@ -821,7 +820,7 @@ export abstract class SettingsProvider extends Service {
       const segment = watcher.tail
         .then(() => {
           if (!watcher.active || this.isStopped()) return
-          return watcher.callback(next as never, prev as never)
+          return watcher.onCommit(committed as never, previous as never)
         })
         .then(() => undefined, (error: Thrown) => {
           this.warnWatcherFailure(registration.ns, error)
@@ -841,10 +840,10 @@ export abstract class SettingsProvider extends Service {
     // failure is contained so one broken observer cannot wedge the commit
     // path (and, through it, a provider's reload loop).
     let invariantFailure: unknown
-    const args = ['settings/updated', registration.ns, next, prev, source]
+    const args = ['settings/updated', registration.ns, committed, previous, source]
     for (const listener of this.ctx.events.dispatch('emit', args) as Array<(...listenerArgs: unknown[]) => unknown>) {
       try {
-        const returned = listener(registration.ns, next, prev, source)
+        const returned = listener(registration.ns, committed, previous, source)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
           // An emit listener may still be an async function; its rejection
           // cannot reach the synchronous INVARIANT rethrow below, so it is
