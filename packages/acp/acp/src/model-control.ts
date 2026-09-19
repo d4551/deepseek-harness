@@ -23,6 +23,16 @@ interface ConfigState {
   options: SessionConfigOption[]
 }
 
+interface CatalogGroup {
+  group: string
+  name: string
+  options: Array<{
+    value: SessionConfigValueId
+    name: string
+    description?: string
+  }>
+}
+
 /** Caller-correctable session configuration failure. */
 export class AcpModelConfigError extends Error {
   constructor(message: string) {
@@ -161,7 +171,7 @@ export class AcpModelControl {
     const choices = new Map<SessionConfigValueId, ModelSelection>()
     const groups = await Promise.all(this.llm.listProviders().map(provider =>
       this.llm.listModels(provider.id).then(
-        (models) => {
+        (models): CatalogGroup => {
           const entries = models.map((model) => {
             const choice: ModelChoice = {
               value: modelValue(provider.id, model.id),
@@ -176,7 +186,11 @@ export class AcpModelControl {
           })
           return { group: provider.id, name: provider.name, options: entries }
         },
-        (_providerCatalogUnavailable: Thrown) => ({ group: provider.id, name: provider.name, options: [] }),
+        (_providerCatalogUnavailable: Thrown): CatalogGroup => ({
+          group: provider.id,
+          name: provider.name,
+          options: [],
+        }),
       ),
     ))
     const currentValue = modelValue(resolved.provider, resolved.model)
