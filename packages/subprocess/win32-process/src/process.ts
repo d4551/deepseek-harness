@@ -256,28 +256,36 @@ export function drainPipe(
     freeNative(countSlot)
     api.closeHandle(handle)
   }
-  const drain = (slot: NativePtr): Promise<Buffer> => {
-    const peeked = api.peekNamedPipe(handle, null, 0, null, slot, null)
-    if (peeked === 0) {
-      const win32Code = api.getLastError()
-      if (win32Code === abi.ERROR_BROKEN_PIPE || win32Code === abi.ERROR_NO_DATA) {
-        return Promise.resolve(Buffer.concat(chunks))
-      }
-      throwLastError(api, 'PeekNamedPipe', `drain failure after ${chunks.length} chunk(s)`)
+  return new Promise<Buffer>((resolve, reject) => {
+    const slot = allocUint32()
+    countSlot = slot
+    const poll = (): void => {
+      new Promise<void>((advance) => {
+        const peeked = api.peekNamedPipe(handle, null, 0, null, slot, null)
+        if (peeked === 0) {
+          const win32Code = api.getLastError()
+          if (win32Code === abi.ERROR_BROKEN_PIPE || win32Code === abi.ERROR_NO_DATA) {
+            resolve(Buffer.concat(chunks))
+            advance()
+            return
+          }
+          throwLastError(api, 'PeekNamedPipe', `drain failure after ${chunks.length} chunk(s)`)
+        }
+        const available = decodeUint32(slot)
+        if (available > 0) {
+          const chunk = Buffer.alloc(available)
+          if (api.readFile(handle, chunk, chunk.length, slot, null) === 0) {
+            throwLastError(api, 'ReadFile', `drain failure after ${chunks.length} chunk(s)`)
+          }
+          chunks.push(chunk.subarray(0, decodeUint32(slot)))
+        }
+        setTimeout(poll, 1)
+        advance()
+      }).then(undefined, (error: Error) => {
+        reject(error)
+      })
     }
-    const available = decodeUint32(slot)
-    if (available > 0) {
-      const chunk = Buffer.alloc(available)
-      if (api.readFile(handle, chunk, chunk.length, slot, null) === 0) {
-        throwLastError(api, 'ReadFile', `drain failure after ${chunks.length} chunk(s)`)
-      }
-      chunks.push(chunk.subarray(0, decodeUint32(slot)))
-    }
-    return new Promise<void>(resolve => setTimeout(resolve, 1)).then(() => drain(slot))
-  }
-  return new Promise<Buffer>((resolve) => {
-    countSlot = allocUint32()
-    resolve(drain(countSlot))
+    poll()
   }).then(
     (buffer) => {
       release()

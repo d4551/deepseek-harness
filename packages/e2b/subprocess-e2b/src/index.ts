@@ -21,6 +21,9 @@ import { E2BSubprocessHandle } from './process.ts'
 import { asError, signalOpts } from './remote.ts'
 import { spawnE2BTerminal } from './terminal.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Configuration for the E2B subprocess adapter. */
 export interface Config {
   /** Remote status/liveness poll cadence in milliseconds; each tick is one control-plane request. */
@@ -157,7 +160,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
       await handle.waitForExit()
       this.live.delete(handle)
     }
-    handle.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
+    handle.done.then(release, release).catch((_automaticReleaseFailure: Thrown) => {
       // Retain the handle so service disposal can retry its cleanup transaction.
     })
     return handle
@@ -196,7 +199,7 @@ export class E2BSubprocessRuntime extends SubprocessRuntime {
         await terminal.terminate()
         this.terminals.delete(terminal)
       }
-      terminal.done.then(release, release).catch((_automaticReleaseFailure: unknown) => {
+      terminal.done.then(release, release).catch((_automaticReleaseFailure: Thrown) => {
         // Retain the terminal so service disposal can retry its cleanup transaction.
       })
       return terminal
