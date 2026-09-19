@@ -24,10 +24,11 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
 // (the settings invalidation rides the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type { CommandUiContract, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { PermissionSelect, PresetOption } from '@deepseek-ai/dsh-permission-presets/client'
 import type { ClientSessionContext } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { PermissionSelect } from '@deepseek-ai/dsh-permission-presets/client'
 import { PermissionRow } from './PermissionRow.tsx'
 import type { PermissionRowInjected } from './PermissionRow.tsx'
 import {
@@ -57,9 +58,37 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+function isPresetOption(value: unknown): value is PresetOption {
+  if (value === undefined || value === null || typeof value !== 'object') return false
+  if (!('value' in value) || typeof value.value !== 'string') return false
+  if (!('name' in value) || typeof value.name !== 'string') return false
+  return true
+}
+
+/**
+ * Claim a permissions projection snapshot.
+ * @param value - stored projection payload.
+ * @returns the select, or undefined when the payload is absent or not that face.
+ */
+export function permissionSelectOf(value: unknown): PermissionSelect | undefined {
+  if (value === undefined || value === null || typeof value !== 'object') return undefined
+  if (!isPermissionSelect(value)) return undefined
+  return value
+}
+
+function isPermissionSelect(value: object): value is PermissionSelect {
+  return (
+    'currentValue' in value
+    && typeof value.currentValue === 'string'
+    && 'options' in value
+    && Array.isArray(value.options)
+    && value.options.every(isPresetOption)
+  )
+}
+
 /** Read one session's current permissions projection value (undefined = capability absent). */
 function selectOf(session: SessionFace | undefined): PermissionSelect | undefined {
-  return session?.projections.faceOf('permissions').getSnapshot() as PermissionSelect | undefined
+  return permissionSelectOf(session?.projections.faceOf('permissions').getSnapshot())
 }
 
 /** Flatten the projection select into popup rows; `custom` is display state, never a target. */
@@ -91,7 +120,8 @@ function optionsOf(value: PermissionSelect, t: TranslateNS<typeof ACCESS_NS>): S
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const command = ctx.get('commandUi') as CommandUiContract
+  const command = ctx.get('commandUi')
+  if (command === undefined) throw new Error('ui-permission: commandUi service unavailable')
   const sessions = ctx.sessions
   // This optional bundle and ui-conversation can load independently, so each
   // owns the same safety copy under its own locale namespace.

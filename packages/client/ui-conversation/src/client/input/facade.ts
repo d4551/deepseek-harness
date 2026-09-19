@@ -791,43 +791,40 @@ export class SessionInputShell implements SessionInput {
       }
     }
     this.restoringFailures = true
-    try {
-      this.editor.update(() => {
-        const root = $getRoot()
-        root.clear()
-        let paragraph = $createParagraphNode()
-        root.append(paragraph)
-        const appendText = (text: string): void => {
-          const lines = text.split('\n')
-          for (let i = 0; i < lines.length; i += 1) {
-            const line = lines[i]
-            if (line !== '') paragraph.append($createTextNode(line))
-            if (i < lines.length - 1) {
-              paragraph = $createParagraphNode()
-              root.append(paragraph)
-            }
+    this.editor.update(() => {
+      const root = $getRoot()
+      root.clear()
+      let paragraph = $createParagraphNode()
+      root.append(paragraph)
+      const appendText = (text: string): void => {
+        const lines = text.split('\n')
+        for (let i = 0; i < lines.length; i += 1) {
+          const line = lines[i]
+          if (line !== '') paragraph.append($createTextNode(line))
+          if (i < lines.length - 1) {
+            paragraph = $createParagraphNode()
+            root.append(paragraph)
           }
         }
-        let cursor = 0
-        for (const occurrence of occurrences) {
-          appendText(draft.slice(cursor, occurrence.offset))
-          paragraph.append(new ReferenceChipNode({
-            source: occurrence.source,
-            ref: occurrence.ref,
-            label: occurrence.label,
-            ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
-            clipboardText: occurrence.clipboardText,
-          }, occurrence.invalid === true))
-          cursor = occurrence.offset + occurrence.length
-        }
-        appendText(draft.slice(cursor))
-        root.selectEnd()
-      }, { discrete: true, tag: HISTORY_MERGE_TAG })
-      this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
-      this.failedRestoreRev = this.rev
-    } finally {
-      this.restoringFailures = false
-    }
+      }
+      let cursor = 0
+      for (const occurrence of occurrences) {
+        appendText(draft.slice(cursor, occurrence.offset))
+        paragraph.append(new ReferenceChipNode({
+          source: occurrence.source,
+          ref: occurrence.ref,
+          label: occurrence.label,
+          ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
+          clipboardText: occurrence.clipboardText,
+        }, occurrence.invalid === true))
+        cursor = occurrence.offset + occurrence.length
+      }
+      appendText(draft.slice(cursor))
+      root.selectEnd()
+    }, { discrete: true, tag: HISTORY_MERGE_TAG })
+    this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
+    this.failedRestoreRev = this.rev
+    this.restoringFailures = false
   }
 
   /** Return failed-send images to the head of the rail (ids still resolve — release happens only after success). */

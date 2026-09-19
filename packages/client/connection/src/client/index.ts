@@ -130,6 +130,13 @@ export interface ConnectionHandle {
   start(sinks: ConnectionSinks, config?: ConnectionConfig): { stop(): Promise<void> }
 }
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Browser Connection transport and generation face. */
+    connection: ConnectionHandle
+  }
+}
+
 interface ConnectionOwner {
   readonly token: object
   readonly source: ConnectionGenerationSource
@@ -158,12 +165,8 @@ export function apply(ctx: Context): void {
   const publishGeneration = (next: ConnectionGeneration | undefined): void => {
     if (Object.is(generation, next)) return
     generation = next
-    for (const listener of [...generationListeners]) {
-      try {
-        listener()
-      } catch (error) {
-        console.error('[connection] generation listener threw:', error)
-      }
+    for (const listener of generationListeners) {
+      listener()
     }
   }
   const releaseOwner = async (current: ConnectionOwner): Promise<void> => {

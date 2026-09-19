@@ -14,7 +14,8 @@
 import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type { CommandUiContract, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.model seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -124,7 +125,8 @@ export function apply(ctx: ClientContext): void {
   // description is registry-held text: it reads t() once at registration and
   // refreshes only on re-registration, not on locale change.
   ctx.inject(['commandUi', 'modelDirectories'], (scope: ClientContext) => {
-    const command = scope.get('commandUi') as CommandUiContract
+    const command = scope.get('commandUi')
+    if (command === undefined) throw new Error('ui-model-selection: commandUi service unavailable')
     const models = scope.modelDirectories
     const sessions = scope.sessions
     scope.effect(() => command.register({
