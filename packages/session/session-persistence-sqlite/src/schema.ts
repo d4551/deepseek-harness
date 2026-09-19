@@ -19,6 +19,9 @@ import {
 } from '@deepseek-ai/dsh-session'
 import { sql } from './sql.ts'
 
+/** Values a Promise reject arm from database open or schema ownership setup may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Current physical-record schema with packed and compressed event rows. */
 export const SCHEMA_VERSION = 19
 /** Application id reserved for DeepSeek Harness SQLite session databases. */
@@ -94,7 +97,7 @@ export async function openDatabase(
     })
     configureDurability(db, database)
     return db
-  } catch (error: unknown) {
+  } catch (error) {
     db.close()
     throw error
   }
@@ -131,13 +134,13 @@ function configureDatabase(
     validateRequiredSchema(Database, db, path)
     db.exec(sql('commit'))
     began = false
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore else -- a failed begin leaves no transaction to roll back. */
     if (began) {
       /* v8 ignore next 5 -- retain the original ownership failure if rollback fails too. */
       try {
         db.exec(sql('rollback'))
-      } catch {
+      } catch (_error: Thrown) {
         // The original database-ownership failure remains actionable.
       }
     }

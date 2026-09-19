@@ -16,6 +16,9 @@ import {
 } from './codec.ts'
 import type { EventRow } from './schema.ts'
 
+/** Values a Promise reject arm from physical-row decode during scan may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** One physical row ready for SQLite parameter binding. */
 export interface BoundRecord {
   readonly seq: number
@@ -341,7 +344,7 @@ export function scanRows(
         lastTurnEndRow = index
         break
       }
-    } catch {
+    } catch (_error: Thrown) {
       // A malformed row cannot prove that an earlier physical prefix committed.
     }
   }
@@ -354,7 +357,7 @@ export function scanRows(
     let logicalEvents: object[] | undefined
     try {
       logicalEvents = decodeRow(physical)
-    } catch {
+    } catch (_error: Thrown) {
       // The committed-prefix rule below owns whether this invalid row is fatal or repairable.
     }
     if (logicalEvents === undefined) {

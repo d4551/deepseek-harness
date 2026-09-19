@@ -47,6 +47,9 @@ import {
 } from './schema.ts'
 import { sql } from './sql.ts'
 
+/** Values a Promise reject arm from store open, mutation rollback, or path validation may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Storage options resolved by the service provider. */
 export interface SqliteStoreOptions {
   readonly path: string
@@ -117,7 +120,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       let storeId: string
       try {
         storeId = decodeStoreIdentity(row)
-      } catch (error: unknown) {
+      } catch (error) {
         throw new Error(`session database at "${this.databasePath}" has no valid store identity`, { cause: error })
       }
       if (this.databasePath === ':memory:') {
@@ -127,7 +130,7 @@ export class SqliteStore implements PersistenceBackend<number> {
         this.storeIdentity = `file:${identity.dev}:${identity.ino}:${identity.birthtimeNs}:store:${storeId}`
       }
       this.opened = true
-    } catch (error: unknown) {
+    } catch (error) {
       this.db.close()
       throw error
     }
@@ -196,7 +199,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       for (const record of packChunkRuns(events)) this.insertRecord(insert, sessionKey, bindRecord(record))
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'append')
     }
   }
@@ -208,7 +211,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
       this.writeRow(meta)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       /* v8 ignore next -- validate/write failure uses the same transaction rollback path covered by append and repair. */
       this.rollback(error, 'materialize empty session')
     }
@@ -249,7 +252,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       }
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'repair')
     }
   }
@@ -310,7 +313,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       const value = read()
       this.db.exec(sql('commit'))
       return value
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'read')
     }
   }
@@ -322,7 +325,7 @@ export class SqliteStore implements PersistenceBackend<number> {
   private rollback(error: unknown, operation: string): never {
     try {
       this.db.exec(sql('rollback'))
-    } catch (rollbackError: unknown) {
+    } catch (rollbackError) {
       /* v8 ignore next -- requires SQLite to fail both an operation and its immediate rollback. */
       throw new AggregateError([error, rollbackError], `${this.name} ${operation} failed and rollback also failed`)
     }
@@ -357,7 +360,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       try {
         const last = decodeRow(predecessor).at(-1)
         if (last !== undefined && storedEventSeq(last) >= fromSeq) base = Math.min(base, predecessor.seq)
-      } catch {
+      } catch (_error: Thrown) {
         // A malformed bounded predecessor may cover fromSeq; include it so the scanner fails closed.
         base = Math.min(base, predecessor.seq)
       }
@@ -454,7 +457,7 @@ async function validateDatabaseFile(path: string): Promise<void> {
 async function validateDatabaseFileIfPresent(path: string): Promise<void> {
   try {
     await validateDatabaseFile(path)
-  } catch (error: unknown) {
+  } catch (error) {
     if (typeof error !== 'object' || error === null || Reflect.get(error, 'code') !== 'ENOENT') throw error
   }
 }
