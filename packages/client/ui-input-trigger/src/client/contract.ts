@@ -12,6 +12,8 @@ import type { InputTriggerController } from './controller.ts'
 export interface InputTriggerServiceContract {
   /**
    * Register one trigger source; duplicate trigger/name pairs throw.
+   * A `{ hookFailed: true, message }` answer from a live controller's
+   * `warm` or `subscribeLexicon` is recorded and does not unwind registration.
    * @param src - source that discovers and resolves slash or reference candidates.
    * @returns effect disposer removing this source.
    */

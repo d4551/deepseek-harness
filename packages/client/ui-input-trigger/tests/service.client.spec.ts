@@ -30,7 +30,7 @@ interface PendingFetch {
 /** Deferred-candidates source: settle each fetch by hand; warm is a spy. */
 function deferredSource(trigger: TriggerChar, name: string, over: Partial<InputTriggerSource> = {}) {
   const pending: PendingFetch[] = []
-  const warm = vi.fn()
+  const warm = vi.fn<NonNullable<InputTriggerSource['warm']>>()
   const source: InputTriggerSource = {
     trigger,
     name,
@@ -794,24 +794,6 @@ describe('header / drilled descent', () => {
     expect(controller.headers.getSnapshot().size).toBe(0)
   })
 
-  it('drops a source whose header throws and keeps the rest of the menu', async () => {
-    const failing: InputTriggerSource = {
-      trigger: '@',
-      name: 'broken',
-      candidates: () => Promise.resolve([{ name: 'x' }]),
-      header: () => { throw new Error('header boom') },
-      onPick: () => undefined,
-    }
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { controller } = controllerBench([failing])
-    controller.track('@x', 2, { tier: 'plain' }, 1)
-    await tick()
-    expect(controller.headers.getSnapshot().size).toBe(0)
-    expect(controller.menu.getSnapshot().open).toBe(true)
-    expect(spy).toHaveBeenCalled()
-    spy.mockRestore()
-  })
-
   it('tells candidate fetches how the menu was reached', async () => {
     const seen: boolean[] = []
     const source: InputTriggerSource = {
@@ -920,7 +902,7 @@ describe('lexicon', () => {
   it('a source registered after scope birth is warmed and folded into the live lexicon', () => {
     const { controller, sources } = controllerBench([])
     expect(controller.lexicon.getSnapshot().size).toBe(0)
-    const warm = vi.fn()
+    const warm = vi.fn<NonNullable<InputTriggerSource['warm']>>()
     const late: InputTriggerSource = {
       trigger: '/',
       name: 'late',
@@ -1128,7 +1110,7 @@ describe('adjudicate', () => {
   })
 
   it('skips sources of another trigger; all-undefined answers undefined', async () => {
-    const atHook = vi.fn(() => Promise.resolve('handled' as const))
+    const atHook = vi.fn<NonNullable<InputTriggerSource['matchEnter']>>(() => Promise.resolve('handled'))
     const { controller } = controllerBench([
       enterSource('@', 'subagent', atHook),
       enterSource('/', 'command', () => Promise.resolve(undefined)),
@@ -1165,7 +1147,7 @@ describe('adjudicate', () => {
   })
 
   it('an aborted attempt signal stops the poll', async () => {
-    const hook = vi.fn(() => Promise.resolve(undefined))
+    const hook = vi.fn<NonNullable<InputTriggerSource['matchEnter']>>(() => Promise.resolve(undefined))
     const { controller } = controllerBench([enterSource('/', 'command', hook)])
     const abort = new AbortController()
     abort.abort(new Error('attempt released'))
