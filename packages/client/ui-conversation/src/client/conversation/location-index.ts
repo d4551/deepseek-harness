@@ -86,28 +86,34 @@ const SESSION_LOCATION = { kind: 'session' } as const
 const UNRESOLVED_LOCATION = { kind: 'unresolved' } as const
 
 function payloadCoordinates(event: SessionEventLike): Coordinates {
-  const data = event.data as unknown as { turn?: unknown; step?: unknown }
-  if (data.turn === null) return { session: true }
-  const turn = Number.isSafeInteger(data.turn) && (data.turn as number) >= 0
-    ? data.turn as number
+  const data: unknown = event.data
+  if (typeof data !== 'object' || data === null) return {}
+  const turn: unknown = Reflect.get(data, 'turn')
+  const step: unknown = Reflect.get(data, 'step')
+  if (turn === null) return { session: true }
+  const turnNumber = typeof turn === 'number' && Number.isSafeInteger(turn) && turn >= 0
+    ? turn
     : undefined
-  const step = Number.isSafeInteger(data.step) && (data.step as number) >= 0
-    ? data.step as number
+  const stepNumber = typeof step === 'number' && Number.isSafeInteger(step) && step >= 0
+    ? step
     : undefined
-  return { ...turn === undefined ? {} : { turn }, ...step === undefined ? {} : { step } }
+  return {
+    ...turnNumber === undefined ? {} : { turn: turnNumber },
+    ...stepNumber === undefined ? {} : { step: stepNumber },
+  }
 }
 
 function sameReferences<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
-function sameStep(left: StepLocation | undefined, right: StepLocation): boolean {
+function sameStep(left: StepLocation | undefined, right: StepLocation): left is StepLocation {
   return left !== undefined
     && left.start === right.start && left.end === right.end && left.status === right.status
     && left.data === right.data
 }
 
-function sameTurn(left: TurnLocation | undefined, right: TurnLocation): boolean {
+function sameTurn(left: TurnLocation | undefined, right: TurnLocation): left is TurnLocation {
   return left !== undefined
     && left.start === right.start && left.end === right.end && left.status === right.status
     && left.data === right.data && sameReferences(left.steps, right.steps)
@@ -300,7 +306,7 @@ export class ConversationLocationIndex {
             data: this.stepData(candidate.turn, candidate.step),
           }
           const previous = previousSteps.get(candidate.step)
-          return sameStep(previous, value) ? previous as StepLocation : value
+          return sameStep(previous, value) ? previous : value
         })
       const value: TurnLocation = {
         turn: draft.turn,
@@ -310,7 +316,7 @@ export class ConversationLocationIndex {
         steps,
         data: this.turnData(draft.turn),
       }
-      nextTurns.set(draft.turn, sameTurn(previousTurn, value) ? previousTurn as TurnLocation : value)
+      nextTurns.set(draft.turn, sameTurn(previousTurn, value) ? previousTurn : value)
     }
 
     const nextOrder = orderedDrafts.map(draft => draft.turn)
@@ -398,7 +404,7 @@ export class ConversationLocationIndex {
         status: event.type === 'step/end' || previousStep?.end !== undefined ? 'closed' : 'open',
         data: this.stepData(turnNumber, number),
       }
-      const nextStep = sameStep(previousStep, candidate) ? previousStep as StepLocation : candidate
+      const nextStep = sameStep(previousStep, candidate) ? previousStep : candidate
       const index = steps.findIndex(step => step.step === number)
       steps = index < 0
         ? [...steps, nextStep]
@@ -414,7 +420,7 @@ export class ConversationLocationIndex {
       steps,
       data: this.turnData(turnNumber),
     }
-    const turn = sameTurn(previousTurn, candidate) ? previousTurn as TurnLocation : candidate
+    const turn = sameTurn(previousTurn, candidate) ? previousTurn : candidate
     const turns = new Map(this.timeline.turns)
     turns.set(turnNumber, turn)
     const turnOrder = previousTurn === undefined

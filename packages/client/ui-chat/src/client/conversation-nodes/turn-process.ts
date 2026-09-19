@@ -48,8 +48,10 @@ function isChunkRunEvent(event: ConversationEvent): event is ChunkRowEvent {
 }
 
 function eventTurn(event: ConversationEvent): number | undefined {
-  const data = event.data as unknown as { turn?: unknown }
-  return typeof data.turn === 'number' ? data.turn : undefined
+  const data: unknown = event.data
+  if (typeof data !== 'object' || data === null) return undefined
+  const turn: unknown = Reflect.get(data, 'turn')
+  return typeof turn === 'number' ? turn : undefined
 }
 
 function visibleAssistantEvent(event: ConversationEvent): boolean {
