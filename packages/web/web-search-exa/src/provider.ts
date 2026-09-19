@@ -13,7 +13,36 @@ import type {
   WebSearchResult,
   WebSearchSource,
 } from '@deepseek-ai/dsh-web'
-import type { ExaError, ExaResult, ExaSearchResponse } from './types.ts'
+import type { ExaResult, ExaSearchResponse } from './types.ts'
+
+/** Values a Promise reject arm from search dispatch or body parse may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected search or parse operation.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** Stable id this provider registers under. */
 export const EXA_PROVIDER_ID = 'exa'
@@ -91,60 +120,62 @@ export class ExaSearchProvider implements WebSearchProvider {
       && (options.numResults === undefined || isPositiveInteger(options.numResults))
   }
 
-  async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+  search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     const options = this.readOptions()
     // A per-request bound wins over the configured default; either may be absent.
     const numResults = request.maxResults ?? options.numResults
-    let response: Response
-    try {
-      response = await fetch(`${options.baseURL}/search`, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          'authorization': `Bearer ${options.apiKey}`,
-          'content-type': 'application/json',
-          'accept': 'application/json',
-          'user-agent': WEB_USER_AGENT,
-        },
-        body: JSON.stringify({
-          query: request.query,
-          type: options.searchType,
-          contents: { highlights: { highlightsPerUrl: options.highlightsPerResult } },
-          ...numResults !== undefined ? { numResults } : {},
-        }),
-        ...signal !== undefined ? { signal } : {},
-      })
-    } catch (error: unknown) {
-      if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
-      throw new WebError(`Exa search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
-
-    if (!response.ok) {
-      const status = response.status
-      let message = `Exa API error (HTTP ${status})`
-      try {
-        const parsed = await response.json() as ExaError
-        const detail = parsed.error ?? parsed.message
-        if (detail !== undefined && detail.length > 0) message = detail
-      } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+    return fetch(`${options.baseURL}/search`, {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        'authorization': `Bearer ${options.apiKey}`,
+        'content-type': 'application/json',
+        'accept': 'application/json',
+        'user-agent': WEB_USER_AGENT,
+      },
+      body: JSON.stringify({
+        query: request.query,
+        type: options.searchType,
+        contents: { highlights: { highlightsPerUrl: options.highlightsPerResult } },
+        ...numResults !== undefined ? { numResults } : {},
+      }),
+      ...signal !== undefined ? { signal } : {},
+    }).then(
+      (response) => {
+        if (!response.ok) {
+          const statusMessage = `Exa API error (HTTP ${response.status})`
+          return response.json().then(
+            (parsed: unknown) => {
+              throw new WebError(exaErrorMessage(parsed, statusMessage), 'WEB_PROVIDER_ERROR')
+            },
+            (error: Thrown) => {
+              // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
+              // into a generic HTTP-error message — cancellation is not a provider
+              // error (the seam's cancellation contract).
+              if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
+              throw new WebError(statusMessage, 'WEB_PROVIDER_ERROR')
+            },
+          )
+        }
+        return response.json().then(
+          (payload: unknown) => {
+            if (!isExaSearchResponse(payload)) {
+              const error = new TypeError('Exa response body is not an object')
+              throw new WebError(`Exa returned an unprocessable response body: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+            }
+            return mapExaResponse(payload)
+          },
+          (error: Thrown) => {
+            if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
+            throw new WebError(`Exa returned an unprocessable response body: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+          },
+        )
+      },
+      (error: Thrown) => {
         if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
-      }
-      throw new WebError(message, 'WEB_PROVIDER_ERROR')
-    }
-
-    try {
-      const payload = await response.json() as ExaSearchResponse
-      return mapExaResponse(payload)
-    } catch (error: unknown) {
-      if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
-      throw new WebError(`Exa returned an unprocessable response body: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
+        throw new WebError(`Exa search request failed: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      },
+    )
   }
 }
 
@@ -161,4 +192,27 @@ function isPositiveInteger(value: number): boolean {
 /** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
+}
+
+/** Whether a JSON value can be mapped as an Exa search envelope. */
+function isExaSearchResponse(value: unknown): value is ExaSearchResponse {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('results' in value) || value.results === undefined) return true
+  return Array.isArray(value.results) && value.results.every(isExaResult)
+}
+
+/** Whether one `results[]` entry can be read by {@link mapExaResult} without throwing. */
+function isExaResult(item: unknown): item is ExaResult {
+  if (typeof item !== 'object' || item === null) return false
+  if (!('highlights' in item) || item.highlights === undefined) return true
+  return Array.isArray(item.highlights)
+}
+
+/** Provider error text from an error envelope, or the HTTP status line. */
+function exaErrorMessage(parsed: unknown, statusMessage: string): string {
+  if (typeof parsed !== 'object' || parsed === null) return statusMessage
+  const errorField = 'error' in parsed && typeof parsed.error === 'string' ? parsed.error : undefined
+  const messageField = 'message' in parsed && typeof parsed.message === 'string' ? parsed.message : undefined
+  const detail = errorField ?? messageField
+  return detail !== undefined && detail.length > 0 ? detail : statusMessage
 }

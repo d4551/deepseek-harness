@@ -13,7 +13,36 @@ import type {
   WebSearchResult,
   WebSearchSource,
 } from '@deepseek-ai/dsh-web'
-import type { PerplexityError, PerplexityResponse, PerplexitySearchResult } from './types.ts'
+import type { PerplexityResponse, PerplexitySearchResult } from './types.ts'
+
+/** Values a Promise reject arm from search dispatch or body parse may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected search or parse operation.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** Stable id this provider registers under. */
 export const PERPLEXITY_PROVIDER_ID = 'perplexity'
@@ -93,65 +122,92 @@ export class PerplexitySearchProvider implements WebSearchProvider {
       && isPositiveInteger(this.options.maxTokens)
   }
 
-  async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    let response: Response
-    try {
-      response = await fetch(`${this.options.baseURL}/chat/completions`, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          'authorization': `Bearer ${this.options.apiKey}`,
-          'content-type': 'application/json',
-          'accept': 'application/json',
-          'user-agent': WEB_USER_AGENT,
-        },
-        body: JSON.stringify({
-          model: this.options.model,
-          max_tokens: this.options.maxTokens,
-          messages: [{ role: 'user', content: request.query }],
-          ...this.options.searchRecency !== undefined ? { search_recency_filter: this.options.searchRecency } : {},
-        }),
-        ...signal !== undefined ? { signal } : {},
-      })
-    } catch (error: unknown) {
-      if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
-      throw new WebError(`Perplexity search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
-
-    if (!response.ok) {
-      const status = response.status
-      let message = `Perplexity API error (HTTP ${status})`
-      try {
-        const parsed = await response.json() as PerplexityError
-        const detail = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.message
-        if (detail !== undefined && detail.length > 0) message = detail
-      } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+  search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+    return fetch(`${this.options.baseURL}/chat/completions`, {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        'authorization': `Bearer ${this.options.apiKey}`,
+        'content-type': 'application/json',
+        'accept': 'application/json',
+        'user-agent': WEB_USER_AGENT,
+      },
+      body: JSON.stringify({
+        model: this.options.model,
+        max_tokens: this.options.maxTokens,
+        messages: [{ role: 'user', content: request.query }],
+        ...this.options.searchRecency !== undefined ? { search_recency_filter: this.options.searchRecency } : {},
+      }),
+      ...signal !== undefined ? { signal } : {},
+    }).then(
+      (response) => {
+        if (!response.ok) {
+          const statusMessage = `Perplexity API error (HTTP ${response.status})`
+          return response.json().then(
+            (parsed: unknown) => {
+              throw new WebError(perplexityErrorMessage(parsed, statusMessage), 'WEB_PROVIDER_ERROR')
+            },
+            (error: Thrown) => {
+              // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
+              // into a generic HTTP-error message — cancellation is not a provider
+              // error (the seam's cancellation contract).
+              if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
+              throw new WebError(statusMessage, 'WEB_PROVIDER_ERROR')
+            },
+          )
+        }
+        return response.json().then(
+          (payload: unknown) => {
+            if (!isPerplexityResponse(payload)) {
+              const error = new TypeError('Perplexity response body is not an object')
+              throw new WebError(`Perplexity returned an unprocessable response body: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+            }
+            return mapPerplexityResponse(payload)
+          },
+          (error: Thrown) => {
+            if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
+            throw new WebError(`Perplexity returned an unprocessable response body: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+          },
+        )
+      },
+      (error: Thrown) => {
         if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
-      }
-      throw new WebError(message, 'WEB_PROVIDER_ERROR')
-    }
-
-    try {
-      const payload = await response.json() as PerplexityResponse
-      return mapPerplexityResponse(payload)
-    } catch (error: unknown) {
-      if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
-      throw new WebError(`Perplexity returned an unprocessable response body: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
+        throw new WebError(`Perplexity search request failed: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      },
+    )
   }
 }
 
-// These two predicates are intentionally local: exporting generic internals
-// from the public web seam would add more API than these pure checks.
 /** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
+}
+
+/** Whether a JSON value can be mapped as a Perplexity search envelope. */
+function isPerplexityResponse(value: unknown): value is PerplexityResponse {
+  if (typeof value !== 'object' || value === null) return false
+  if ('search_results' in value && value.search_results !== undefined) {
+    return Array.isArray(value.search_results)
+      && value.search_results.every(item => typeof item === 'object' && item !== null)
+  }
+  if ('citations' in value && value.citations !== undefined) {
+    return Array.isArray(value.citations)
+  }
+  return true
+}
+
+/** Provider error text from an error envelope, or the HTTP status line. */
+function perplexityErrorMessage(parsed: unknown, statusMessage: string): string {
+  if (typeof parsed !== 'object' || parsed === null) return statusMessage
+  const errorField = 'error' in parsed ? parsed.error : undefined
+  const messageField = 'message' in parsed && typeof parsed.message === 'string' ? parsed.message : undefined
+  const detail = typeof errorField === 'string'
+    ? errorField
+    : typeof errorField === 'object' && errorField !== null && 'message' in errorField
+      && typeof errorField.message === 'string'
+      ? errorField.message
+      : messageField
+  return detail !== undefined && detail.length > 0 ? detail : statusMessage
 }
 
 /** True for a request limit that can be sent to Perplexity (a positive whole number). */
