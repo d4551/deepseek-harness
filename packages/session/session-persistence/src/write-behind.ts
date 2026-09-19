@@ -70,7 +70,9 @@ export class SessionWriteBehind {
     this.automaticPaused = false
     const barrier = Promise.withResolvers<void>()
     this.barrier = barrier.promise
-    this.drainBarrier(barrier.resolve, barrier.reject).then(undefined, barrier.reject)
+    this.drainBarrier(barrier.resolve, barrier.reject).then(undefined, (error: Thrown) => {
+      barrier.reject(error)
+    })
     return barrier.promise
   }
 
@@ -105,7 +107,7 @@ export class SessionWriteBehind {
   /** Start one detached write whose failure is reported and retained. */
   private startBackground(): void {
     const active = this.startWrite(true)
-    active.then(() => { this.continueAutomatic() }, () => {})
+    active.then(() => { this.continueAutomatic() }, (_error: Thrown) => {})
   }
 
   /** Continue immediately after an over-budget active write, otherwise keep its timer. */
@@ -126,7 +128,7 @@ export class SessionWriteBehind {
         this.automaticPaused = false
       }
       while (this.pending.length > 0) await this.startWrite(false)
-    } catch (error: unknown) {
+    } catch (error) {
       this.barrier = undefined
       reject(error)
       return

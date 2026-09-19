@@ -46,7 +46,11 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
  * @returns the message to log.
  */
 function thrownMessage(reason: Thrown): string {
-  if (reason instanceof Error) return reason.message
+  if (reason instanceof Error) {
+    const line = reason.stack?.split('\n', 1)[0]
+    if (line === `Error: ${reason.message}`) return reason.message
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
   switch (typeof reason) {
     case 'string': return reason
     case 'number':
@@ -965,7 +969,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         if (this.preparations.discardReady(id, source) === 'retained') {
           return source.inspection
         }
-      } catch (error: unknown) {
+      } catch (error) {
         signal?.throwIfAborted()
         const attached = this.ctx.sessions.get(id)
         if (attached !== undefined) return this.inspectLive(attached)
@@ -1019,7 +1023,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
             [Symbol.dispose]: () => { observation[Symbol.dispose]() },
           }
         }
-      } catch (error: unknown) {
+      } catch (error) {
         observation[Symbol.dispose]()
         signal?.throwIfAborted()
         const attached = this.ctx.sessions.get(id)
@@ -1080,7 +1084,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       let suffix: StoredSuffix | undefined
       try {
         suffix = await this.backend.loadStoredFrom(id, fromSeq, signal)
-      } catch (error: unknown) {
+      } catch (error) {
         if (signal?.aborted) signal.throwIfAborted()
         throw error
       }
@@ -1151,12 +1155,12 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         tornMarker,
         closers,
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // An unsupported format is a refusal over an intact log, not damage —
       // surface it unwrapped so callers can point at the raw artifact.
       if (error instanceof SessionFormatUnsupportedError) throw error
       throw new SessionPersistenceCorruptionError(
-        `stored session "${id}" failed validation: ${String(error)}`,
+        `stored session "${id}" failed validation: ${thrownMessage(error)}`,
         { cause: error },
       )
     }
@@ -1250,15 +1254,15 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       started = true
       return op()
     }
-    const next = prior.then(run, run)
+    const next = prior.then(run, (_error: Thrown) => run())
     // Keep the chain alive but swallow this op's rejection for the NEXT waiter
     // (the caller still sees the real rejection via `next`).
-    const tail = next.then(() => undefined, () => undefined)
+    const tail = next.then(() => undefined, (_error: Thrown) => undefined)
     this.chains.set(id, tail)
     // Settled tails carry no serialization value. Delete only the exact tail
     // installed above: a later operation may already have replaced it.
     const forget = (): void => { if (this.chains.get(id) === tail) this.chains.delete(id) }
-    tail.then(forget, forget)
+    tail.then(forget, (_error: Thrown) => { forget() })
     return signal === undefined ? next : observeQueuedAbort(next, signal, () => started)
   }
 
@@ -1365,7 +1369,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     const forget = (): void => {
       if (this.retirements.get(session.id) === retirement) this.retirements.delete(session.id)
     }
-    retirement.then(forget, forget)
+    retirement.then(forget, (_error: Thrown) => { forget() })
     retirement.then(undefined, (error: Thrown) => {
       this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${thrownMessage(error)}`)
     })
@@ -1399,7 +1403,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     }
     this.live.set(session, live)
     live.init = this.serialize(session.header.id, () => this.onCreated(session, seed))
-    live.init.catch(() => { /* observed by flush/dispose through the controller */ })
+    live.init.catch((_error: Thrown) => { /* observed by flush/dispose through the controller */ })
     return live
   }
 
@@ -1423,7 +1427,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     }
     if (suffix.length > 0) {
       live.init = this.serialize(session.id, () => this.appendCore(session.id, suffix))
-      live.init.catch(() => { /* observed by flush/dispose through the controller */ })
+      live.init.catch((_error: Thrown) => { /* observed by flush/dispose through the controller */ })
     }
     return live
   }
@@ -1545,7 +1549,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     live.writes.cancelAutomaticWait()
     try {
       await live.init
-    } catch (error: unknown) {
+    } catch (error) {
       // Admission is closed during retirement/teardown, but an ordinary flush
       // may have raced one last enqueue while initialization was pending.
       live.writes.cancelAutomaticWait()

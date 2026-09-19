@@ -155,7 +155,7 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
       entry.source = committed.source
       try {
         signal?.throwIfAborted()
-      } catch (error: unknown) {
+      } catch (error) {
         this.makeReady(entry)
         throw error
       }
@@ -298,7 +298,7 @@ export class SessionPreparations<Source extends PreparedSource, CommitState> {
       // Start immediately so a same-tick serialized append queues behind this
       // read. The deferred result settles only after the entry becomes ready.
       loading = load()
-    } catch (error: unknown) {
+    } catch (error) {
       this.remove(entry)
       deferred.reject(error)
       return entry
@@ -376,7 +376,7 @@ export function observeQueuedAbort<T>(
       finish(() => {
         try {
           signal.throwIfAborted()
-        } catch (reason: unknown) {
+        } catch (reason) {
           rejectObservation(reject, reason)
           return
         }
