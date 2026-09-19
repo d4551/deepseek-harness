@@ -440,6 +440,49 @@ describe('LocalPtySession readiness and output', () => {
     await expect(leftoverInspectOperation.done).rejects.toThrow('inspect string')
   })
 
+  it('contains leftover sync inspect and signal throws so a successor send can start', async () => {
+    vi.useFakeTimers()
+    const inspectTerminal = new FakeTerminal()
+    const inspectSession = new LocalPtySession(inspectTerminal, config())
+    await initialize(inspectSession, inspectTerminal)
+    inspectTerminal.inspectForeground = () => { throw new Error('sync inspect') }
+    const inspectOperation = inspectSession.startSend({ text: 'must fail', submit: true })
+    await expect(inspectOperation.done).rejects.toThrow('sync inspect')
+    inspectTerminal.inspectForeground = FakeTerminal.prototype.inspectForeground.bind(inspectTerminal)
+    const inspectSuccessor = inspectSession.startSend({ text: '', submit: false })
+    await inspectSession.close('release inspect successor')
+    expect((await inspectSuccessor.done).waitReason).toBe('session_exit')
+
+    const pollTerminal = new FakeTerminal()
+    const pollSession = new LocalPtySession(pollTerminal, config())
+    await initialize(pollSession, pollTerminal)
+    const pollOperation = pollSession.startSend({ text: '', submit: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    pollTerminal.inspectForeground = () => { throw new Error('sync poll inspect') }
+    const pollInternal = pollSession as unknown as {
+      pollReadiness(operation: TerminalSendOperation): Promise<void>
+    }
+    await pollInternal.pollReadiness(pollOperation)
+    await expect(pollOperation.done).rejects.toThrow('sync poll inspect')
+    pollTerminal.inspectForeground = FakeTerminal.prototype.inspectForeground.bind(pollTerminal)
+    const pollSuccessor = pollSession.startSend({ text: '', submit: false })
+    await pollSession.close('release poll successor')
+    expect((await pollSuccessor.done).waitReason).toBe('session_exit')
+
+    const signalTerminal = new FakeTerminal()
+    const signalInspector = new FakeInspector()
+    const signalSession = makeSession(signalTerminal, signalInspector, config())
+    await initialize(signalSession, signalTerminal)
+    signalTerminal.signalForeground = () => { throw new Error('sync signal') }
+    const signalOperation = signalSession.startSend({ text: '', submit: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(signalOperation.cancel()).toBe(true)
+    await expect(signalOperation.done).rejects.toThrow('sync signal')
+    expect(signalSession.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
+  })
+
   it('ignores terminal-protocol failures after closing starts and drains changing queues', async () => {
     const terminal = new FakeTerminal()
     const session = new LocalPtySession(terminal, config())

@@ -351,12 +351,14 @@ export class LocalPtySession implements TerminalBackendSession {
   ): Promise<void> {
     const emulatorWrites = this.emulatorWrites
     const responseWrites = this.responseWrites
-    return this.terminal.inspectForeground().then((foreground) => {
-      if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
-        return this.inspectForegroundAfterProtocol().then(resolved =>
-          this.writeSendInput(operation, request, resolved))
-      }
-      return this.writeSendInput(operation, request, foreground)
+    return new Promise<void>((resolve) => {
+      resolve(this.terminal.inspectForeground().then((foreground) => {
+        if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
+          return this.inspectForegroundAfterProtocol().then(resolved =>
+            this.writeSendInput(operation, request, resolved))
+        }
+        return this.writeSendInput(operation, request, foreground)
+      }))
     })
   }
 
@@ -562,13 +564,15 @@ export class LocalPtySession implements TerminalBackendSession {
   private inspectAndApplyReadiness(operation: LocalSendOperation): Promise<void> {
     const emulatorWrites = this.emulatorWrites
     const responseWrites = this.responseWrites
-    return this.terminal.inspectForeground().then((foreground) => {
-      if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
-        return this.inspectForegroundAfterProtocol().then((resolved) => {
-          this.applyReadiness(operation, resolved)
-        })
-      }
-      this.applyReadiness(operation, foreground)
+    return new Promise<void>((resolve) => {
+      resolve(this.terminal.inspectForeground().then((foreground) => {
+        if (this.protocolStateChanged(emulatorWrites, responseWrites)) {
+          return this.inspectForegroundAfterProtocol().then((resolved) => {
+            this.applyReadiness(operation, resolved)
+          })
+        }
+        this.applyReadiness(operation, foreground)
+      }))
     })
   }
 
@@ -756,7 +760,9 @@ export class LocalPtySession implements TerminalBackendSession {
   private interruptOnce(operation: LocalSendOperation): Promise<void> {
     const activeWrite = this.activeWrite
     const signaled = activeWrite === undefined
-      ? this.terminal.signalForeground('SIGINT').then((): 'signaled' => 'signaled')
+      ? new Promise<'signaled'>((resolve) => {
+        resolve(this.terminal.signalForeground('SIGINT').then((): 'signaled' => 'signaled'))
+      })
       : activeWrite.then((writeOk): 'skipped' | Promise<'signaled'> => {
         if (!writeOk) return 'skipped'
         return this.terminal.signalForeground('SIGINT').then((): 'signaled' => 'signaled')

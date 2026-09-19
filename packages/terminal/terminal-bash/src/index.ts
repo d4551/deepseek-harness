@@ -140,9 +140,14 @@ function startupSession(
     session.motd = viewport
   }
   let startSucceeded = false
+  let sawReject = false
   let firstFailure: Thrown | undefined
   const claimFulfill = (): void => { startSucceeded = true }
-  const claimReject = (error: Thrown): void => { firstFailure ??= error }
+  const claimReject = (error: Thrown): void => {
+    if (sawReject) return
+    sawReject = true
+    firstFailure = error
+  }
   const races: Promise<void>[] = []
   let onAbort: (() => void) | undefined
   if (signal !== undefined) {
@@ -170,7 +175,7 @@ function startupSession(
       start().then(claimFulfill, claimReject),
       ...races,
     ]).then(() => {
-      if (!startSucceeded && firstFailure !== undefined) throw firstFailure
+      if (!startSucceeded && sawReject) throw firstFailure
     }).then(resolve, reject)
   })
   return raced.then(
