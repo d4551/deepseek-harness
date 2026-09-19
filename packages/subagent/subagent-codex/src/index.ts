@@ -87,7 +87,7 @@ class CodexProvider implements SubagentProvider {
         undefined,
         parentCwd,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       if (request.signal.aborted) {
         throw new Error(
           'subagent-codex: request was aborted before app-server startup',

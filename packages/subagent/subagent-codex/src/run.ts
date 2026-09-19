@@ -251,7 +251,7 @@ export async function startCodexRun(
       graceMs: spec.disposeGraceMs,
       env: spec.env,
     })
-  } catch (error: unknown) {
+  } catch (error) {
     throw new CodexRunFailure({
       stage: 'initialize',
       category: 'unknown',
