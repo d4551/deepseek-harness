@@ -625,7 +625,7 @@ export class AgentPresets extends TypertRemoteService {
     })
     try {
       this.ctx.emit('tools/change')
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`agent-presets: tools/change listener failed after recomposing an Agent: ${thrownMessage(error)}`)
     }
     return preset

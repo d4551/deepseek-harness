@@ -15,6 +15,9 @@ import { createScope, scopeOf, type Scope, type ScopeKey } from '@deepseek-ai/ds
 import { mountPreset } from './mount.ts'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 
+/** Values a Promise reject arm from composition stamp or generation retirement may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** The composition file identity one standing generation was mounted from. */
 export interface CompositionStamp {
   /** Modification time in milliseconds, as `stat` reports it. */
@@ -49,7 +52,7 @@ export interface StandingMount {
 export function compositionStamp(path: string): Promise<CompositionStamp | undefined> {
   return stat(path).then(
     ({ mtimeMs, size }) => ({ mtimeMs, size }),
-    () => undefined,
+    (_error: Thrown) => undefined,
   )
 }
 
@@ -141,7 +144,7 @@ export class StandingMounts {
         mounted.superseded = true
         this.reclaimIfIdle(mounted)
       },
-      () => undefined,
+      (_error: Thrown) => undefined,
     )
   }
 

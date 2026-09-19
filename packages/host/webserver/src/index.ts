@@ -1,9 +1,10 @@
 /**
- * @deepseek-ai/dsh-host-webserver — node:http route registration with optional
- * gzip, index injection, and one fallback seat. It knows no harness concepts
- * and serves no files; the composing application owns dist serving. Electron
- * uses file:// plus IPC instead, and this package never prints the URL.
- * Route handlers retain direct response ownership.
+ * node:http route registration with optional gzip, index injection, and one
+ * fallback seat. It knows no harness concepts and serves no files; the
+ * composing application owns dist serving. Electron uses file:// plus IPC
+ * instead, and this package never prints the URL. Route handlers retain
+ * direct response ownership.
+ * @module @deepseek-ai/dsh-host-webserver
  */
 
 import { createServer } from 'node:http'
@@ -82,7 +83,6 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
  * @returns the message to wrap for the logger.
  */
 function thrownMessage(reason: Thrown): string {
-  if (reason instanceof Error) return reason.message
   switch (typeof reason) {
     case 'string': return reason
     case 'number':
@@ -267,8 +267,8 @@ export class WebServer extends Service {
     // never a process exit.
     this.server = createServer((req, res) => {
       const next = (): void => {
-        handle(req, res).then(undefined, (reason: Thrown) => {
-          this.ctx.logger.warn(reason instanceof Error ? reason : new Error(thrownMessage(reason)))
+        handle(req, res).then(undefined, (error: Thrown) => {
+          this.ctx.logger.warn(error instanceof Error ? error : new Error(thrownMessage(error)))
           if (res.headersSent) {
             res.destroy()
             return
@@ -304,15 +304,10 @@ export class WebServer extends Service {
         return
       }
       this.upgradedSockets.add(socket)
-      try {
-        Promise.resolve(route.handler(req, socket, head)).then(undefined, (reason: Thrown) => {
-          this.ctx.logger.warn(reason instanceof Error ? reason : new Error(thrownMessage(reason)))
-          socket.destroy()
-        })
-      } catch (error) {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+      new Promise((resolve) => { resolve(route.handler(req, socket, head)) }).then(undefined, (error: Thrown) => {
+        this.ctx.logger.warn(error instanceof Error ? error : new Error(thrownMessage(error)))
         socket.destroy()
-      }
+      })
     })
 
     await new Promise<void>((resolve, reject) => {
