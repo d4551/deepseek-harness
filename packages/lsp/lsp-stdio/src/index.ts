@@ -284,9 +284,7 @@ class LocalLspProvider implements LspProvider {
       // synchronous get-or-create so every spawned process remains owned by teardown.
       this.assertActive(querySignal)
       let instance = this.instanceFor(workspaceKey, workspace)
-      try {
-        return await instance.query(request, source, querySignal)
-      } catch (error) {
+      return await instance.query(request, source, querySignal).then(undefined, async (error: Thrown) => {
         // A selected child can have died while idle or fail during the next write. Queries are
         // read-only, so replace that transport once and retry transparently.
         if (!instance.isTransportFailure(error)) throw error
@@ -295,13 +293,13 @@ class LocalLspProvider implements LspProvider {
         this.assertActive(querySignal)
         instance = this.instanceFor(workspaceKey, workspace)
         return await instance.query(request, source, querySignal)
-      } finally {
+      }).finally(async () => {
         // Reach quiescence before dropping a dead slot; a replacement must survive this ownership check.
         if (instance.dead) {
           await instance.dispose()
           this.evictIfCurrent(workspaceKey, instance)
         }
-      }
+      })
     })
   }
 

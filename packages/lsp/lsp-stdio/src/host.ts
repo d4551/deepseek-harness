@@ -37,13 +37,10 @@ export async function canonicalizeWorkspace(
   signal?: AbortSignal,
 ): Promise<HostWorkspace> {
   throwIfAborted(signal)
-  let target: FsTarget
-  try {
-    target = await fs.resolve(workspaceRoot, signal === undefined ? {} : { signal })
-  } catch (error) {
+  const target = await fs.resolve(workspaceRoot, signal === undefined ? {} : { signal }).then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
     throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${messageOf(error)}`, { cause: error })
-  }
+  })
   throwIfAborted(signal)
   const info = await fs.stat(target, signal).then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
@@ -79,23 +76,20 @@ export async function readHostSource(
   signal?: AbortSignal,
 ): Promise<HostSource> {
   throwIfAborted(signal)
-  let target: FsTarget
-  try {
-    target = await fs.resolve(filePath, {
-      cwd: workspace.canonicalPath,
-      ...signal === undefined ? {} : { signal },
-    })
-  } catch (error) {
+  const target = await fs.resolve(filePath, {
+    cwd: workspace.canonicalPath,
+    ...signal === undefined ? {} : { signal },
+  }).then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" cannot be resolved: ${messageOf(error)}`, { cause: error })
-  }
+  })
   throwIfAborted(signal)
   if (!fs.contains(workspace.target, target)) {
     throw new Error(`source "${filePath}" resolves outside the workspace`)
   }
   const chunks: string[] = []
   let bytes = 0
-  try {
+  await (async () => {
     // XXX(lsp-source-replacement): Revisit stable-handle identity only if a real query observes
     // replacement between canonical containment and the provider opening this stream.
     const stream = await fs.streamText(target, signal)
@@ -105,10 +99,10 @@ export async function readHostSource(
       if (bytes > maxDocumentBytes) break
       chunks.push(chunk)
     }
-  } catch (error) {
+  })().then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" could not be read: ${messageOf(error)}`, { cause: error })
-  }
+  })
   if (bytes > maxDocumentBytes) {
     throw new Error(
       `source "${filePath}" exceeds the ${maxDocumentBytes}-byte limit; reading stopped after ${bytes} bytes`,
