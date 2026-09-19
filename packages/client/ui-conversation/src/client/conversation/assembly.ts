@@ -26,7 +26,7 @@ export interface ConversationBinding {
   /**
    * Resolve one target-owned snapshot source.
    * @param target - registered Conversation target.
-   * @returns identity-stable source following the target.
+   * @returns source following the target through the binding snapshot store.
    */
   target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
     target: Target,
@@ -36,10 +36,9 @@ export interface ConversationBinding {
 class BoundConversation implements ConversationBinding {
   readonly snapshot: SnapshotStore<ConversationSnapshot>
   private readonly viewStore: ConversationViewSnapshotStore
-  private readonly targetSources = new Map<string, ObservableSnapshot<unknown>>()
   private revision = -1
   private frame: number | undefined
-  private disposeFeed: () => void = () => {}
+  private disposeFeed: () => void
 
   constructor(
     feed: SessionEventSource,
@@ -56,16 +55,10 @@ class BoundConversation implements ConversationBinding {
   target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
     target: Target,
   ): ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined> {
-    let source = this.targetSources.get(target)
-    if (source === undefined) {
-      const views = this.viewStore as unknown as { get(key: string): unknown }
-      source = {
-        getSnapshot: () => views.get(target),
-        subscribe: (listener) => { return this.snapshot.subscribe(listener) },
-      }
-      this.targetSources.set(target, source)
+    return {
+      getSnapshot: () => this.viewStore.get(target),
+      subscribe: listener => this.snapshot.subscribe(listener),
     }
-    return source as ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
   }
 
   rebuild(): void { this.publish(this.assembler.rebuildRegistry()) }
@@ -130,6 +123,10 @@ class BoundConversation implements ConversationBinding {
   }
 }
 
+function unsetBindingDispose(): void {
+  throw new Error('uiConversation binding disposeScope used before assignment')
+}
+
 interface BindingRecord {
   readonly source: SessionBinding
   readonly binding: BoundConversation
@@ -172,7 +169,9 @@ export class UiConversation extends Service {
       return () => {
         disposeViews()
         disposeEvents()
-        for (const record of [...this.bindings.values()]) this.drop(record, true)
+        const records: BindingRecord[] = []
+        for (const record of this.bindings.values()) records.push(record)
+        for (const record of records) this.drop(record, true)
       }
     }, 'ui-conversation assembly')
   }
@@ -193,13 +192,18 @@ export class UiConversation extends Service {
       owner.eventSource,
       new ConversationNodeAssembler(this.events, this.views),
     )
-    const record: BindingRecord = { source: owner, binding, disposeScope: () => {} }
+    const record: BindingRecord = { source: owner, binding, disposeScope: unsetBindingDispose }
     this.bindings.set(owner.sessionId, record)
     const disposeScope = owner.ctx.effect(
       () => () => { this.drop(record, false) },
       'ui-conversation binding',
     )
-    record.disposeScope = () => { Promise.resolve(disposeScope()).catch(owner.ctx.logger().error) }
+    record.disposeScope = () => {
+      const released = disposeScope()
+      if (released !== undefined) {
+        throw new TypeError('uiConversation binding disposeScope must complete synchronously')
+      }
+    }
     return binding
   }
 

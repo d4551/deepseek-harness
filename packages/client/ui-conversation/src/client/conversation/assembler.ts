@@ -72,28 +72,52 @@ function startSeq(context: InternalContext): number | undefined {
   return context.startSeq
 }
 
+function requireStartSeq(context: InternalContext): number {
+  const seq = context.startSeq
+  if (typeof seq !== 'number') {
+    throw new TypeError(`conversation Context ${context.key} has no start seq`)
+  }
+  return seq
+}
+
+function hasStartSeq(context: InternalContext): context is InternalContext & { startSeq: number } {
+  return typeof context.startSeq === 'number'
+}
+
 function insertionIndex(contexts: readonly InternalContext[], seq: number): number {
   let low = 0
   let high = contexts.length
   while (low < high) {
     const middle = low + Math.floor((high - low) / 2)
-    const candidate = contexts[middle]
-    if (candidate !== undefined && (candidate.startSeq as number) < seq) low = middle + 1
-    else high = middle
+    const candidate = contexts.at(middle)
+    if (candidate !== undefined && typeof candidate.startSeq === 'number' && candidate.startSeq < seq) {
+      low = middle + 1
+    } else {
+      high = middle
+    }
   }
   return low
 }
 
-function contextSnapshot<State>(context: InternalContext): ConversationNodeContext<State> {
+function contextSnapshot(context: InternalContext): ConversationNodeContext {
   return {
     key: context.key,
     kind: context.kind,
     id: context.id,
     matches: context.matches,
     start: context.start,
-    state: context.state as State | undefined,
+    state: context.state,
     current: context.current,
   }
+}
+
+function contextWithState(context: InternalContext): ConversationNodeContext & { readonly state: unknown } {
+  const snapshot = contextSnapshot(context)
+  const state = snapshot.state
+  if (state === undefined) {
+    throw new TypeError(`conversation Context ${context.key} has no State`)
+  }
+  return { ...snapshot, state }
 }
 
 function mergeMatches(
@@ -105,15 +129,21 @@ function mergeMatches(
   let added = 0
   let current = 0
   while (added < additions.length || current < existing.length) {
-    const left = additions[added]
-    const right = existing[current]
+    const left = additions.at(added)
+    const right = existing.at(current)
     if (left !== undefined && right !== undefined && left.event.seq === right.event.seq) {
       throw new Error(`conversation Context ${key} received duplicate Match ${left.event.seq}`)
     }
     if (right === undefined || (left !== undefined && left.event.seq < right.event.seq)) {
-      merged.push(left as ConversationMatch)
+      if (left === undefined) {
+        throw new TypeError(`conversation Context ${key} merge exhausted additions`)
+      }
+      merged.push(left)
       added++
     } else {
+      if (right === undefined) {
+        throw new TypeError(`conversation Context ${key} merge exhausted existing matches`)
+      }
       merged.push(right)
       current++
     }
@@ -473,8 +503,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (match.role === 'start') {
       this.replayContext(context)
     } else if (context.state !== undefined) {
-      const typed = contextSnapshot(context) as ConversationNodeContext & { readonly state: unknown }
-      context.state = requireState(definition, 'update', definition.update(typed, match))
+      context.state = requireState(definition, 'update', definition.update(contextWithState(context), match))
       context.revision++
       this.revised.add(context)
     }
@@ -575,13 +604,12 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     )
     this.replaceDependencies(context, dependencies)
     for (let index = 1; index < context.matches.length; index++) {
-      const match = context.matches[index]
+      const match = context.matches.at(index)
       if (match === undefined || match.role !== 'update') continue
-      const typed = contextSnapshot(context) as ConversationNodeContext & { readonly state: unknown }
       context.state = requireState(
         context.definition,
         'update',
-        context.definition.update(typed, match),
+        context.definition.update(contextWithState(context), match),
       )
     }
     context.revision++
@@ -609,7 +637,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     const pending = [...this.revised]
     const affected = new Set<InternalContext>()
     for (let index = 0; index < pending.length; index++) {
-      const dependency = pending[index]
+      const dependency = pending.at(index)
       if (dependency === undefined) continue
       for (const dependent of this.dependents.get(dependency.key) ?? []) {
         if (affected.has(dependent)) continue
@@ -634,7 +662,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
           revision: predecessor?.revision,
           windowGap: predecessor === undefined && this.hasMore,
         })
-        if (predecessor?.state === undefined) return undefined
+        if (predecessor === undefined || predecessor.state === undefined) return undefined
         const seq = startSeq(predecessor)
         if (seq === undefined) return undefined
         return {
@@ -653,7 +681,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     const candidates = this.contextsByKind.get(kind) ?? []
     const indexBefore = insertionIndex(candidates, beforeSeq)
     for (let index = indexBefore - 1; index >= 0; index--) {
-      const candidate = candidates[index]
+      const candidate = candidates.at(index)
       if (candidate?.state !== undefined) return candidate
     }
     return undefined
@@ -665,24 +693,30 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (seq === undefined) return
     const candidates = this.contextsByKind.get(context.kind) ?? []
     const previous = candidates.at(-1)
-    if (previous === undefined || (previous.startSeq as number) < seq) candidates.push(context)
-    else candidates.splice(insertionIndex(candidates, seq), 0, context)
+    const previousSeq = previous?.startSeq
+    if (previous === undefined || (typeof previousSeq === 'number' && previousSeq < seq)) {
+      candidates.push(context)
+    } else {
+      candidates.splice(insertionIndex(candidates, seq), 0, context)
+    }
     this.contextsByKind.set(context.kind, candidates)
   }
 
   private indexStartedContexts(kind: string, additions: readonly InternalContext[]): void {
     if (additions.length === 0) return
-    const sorted = [...additions].sort((left, right) =>
-      (left.startSeq as number) - (right.startSeq as number))
+    const sorted = [...additions].sort((left, right) => requireStartSeq(left) - requireStartSeq(right))
     const existing = this.contextsByKind.get(kind) ?? []
     const merged: InternalContext[] = []
     let before = 0
     let added = 0
     while (before < existing.length || added < sorted.length) {
-      const left = existing[before]
-      const right = sorted[added]
-      if (right === undefined || (left !== undefined && (left.startSeq as number) < (right.startSeq as number))) {
-        merged.push(left as InternalContext)
+      const left = existing.at(before)
+      const right = sorted.at(added)
+      if (right === undefined || (left !== undefined && requireStartSeq(left) < requireStartSeq(right))) {
+        if (left === undefined) {
+          throw new TypeError(`conversation start-index merge exhausted existing ${kind} contexts`)
+        }
+        merged.push(left)
         before++
       } else {
         merged.push(right)
@@ -695,8 +729,8 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   private replayDependencies(): boolean {
     let replayed = false
     const ordered = [...this.contexts.values()]
-      .filter(context => startSeq(context) !== undefined)
-      .sort((left, right) => (startSeq(left) as number) - (startSeq(right) as number))
+      .filter(hasStartSeq)
+      .sort((left, right) => left.startSeq - right.startSeq)
     for (const context of ordered) {
       if (context.state === undefined || context.dependencies.size === 0) continue
       const before = startSeq(context)
@@ -779,8 +813,11 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (!Number.isSafeInteger(data.turn) || data.turn < 0) {
       throw new Error(`conversation Definition "${context.kind}" published invalid turn ${data.turn}`)
     }
-    if (data.kind === 'step' && (!Number.isSafeInteger(data.step) || (data.step as number) < 0)) {
-      throw new Error(`conversation Definition "${context.kind}" published invalid step ${String(data.step)}`)
+    if (data.kind === 'step') {
+      const step: unknown = Reflect.get(data, 'step')
+      if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 0) {
+        throw new Error(`conversation Definition "${context.kind}" published invalid step ${String(step)}`)
+      }
     }
     return data
   }
