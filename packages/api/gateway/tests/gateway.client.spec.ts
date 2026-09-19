@@ -300,15 +300,21 @@ async function benchFiber(
   ctx.provide('connection', {
     rpc,
     registerGenerationSource: generation.register,
-    start: () => ({ stop: () => generation.stop() }),
+    start: () => ({ stop: () => generation.stop(), settled: Promise.resolve() }),
   } as unknown as ConnectionHandle)
   const client = ctx.plugin({ inject, apply })
   await client
   return { ctx, client, generation }
 }
 
-async function *unexpectedInProcessStream(): AsyncGenerator<never> {
-  throw new Error('fixture did not install an in-process stream')
+function unexpectedInProcessStream(): AsyncIterable<never> {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        next: () => Promise.reject(new Error('fixture did not install an in-process stream')),
+      }
+    },
+  }
 }
 
 interface GenerationRun {
@@ -402,8 +408,8 @@ async function loaderReadinessBench(readiness: Promise<unknown>): Promise<{
   const ctx = new Context()
   await ctx.plugin(TypertRegistry)
   const generation = new GenerationHarness()
-  const stop = vi.fn(() => generation.stop())
-  const start = vi.fn<ConnectionHandle['start']>(() => ({ stop }))
+  const stop = vi.fn<() => Promise<void>>(() => generation.stop())
+  const start = vi.fn<ConnectionHandle['start']>(() => ({ stop, settled: Promise.resolve() }))
   ctx.provide('connection', {
     rpc: {
       call: vi.fn<ConnectionHandle['rpc']['call']>(),
@@ -1382,7 +1388,9 @@ describe('Client Typert API', () => {
     await vi.waitFor(() => { expect(call).toHaveBeenCalledTimes(1) })
 
     const target = ctx.extend()
-    const resolve = vi.fn((id: unknown) => id === 'agent-found' ? target : undefined)
+    const resolve = vi.fn<(id: unknown) => Context | undefined>(
+      (id: unknown) => id === 'agent-found' ? target : undefined,
+    )
     ctx.typert.contexts.registerClient('agent', {
       identity: candidate => candidate === target ? agentId('agent-found') : undefined,
       resolve,
@@ -2071,9 +2079,13 @@ describe('Client Typert API', () => {
     }]
 
     for (const testCase of cases) {
-      const open: NonNullable<ConnectionHandle['rpc']['open']> = () => (async function *(): AsyncGenerator {
-        throw testCase.failure
-      })()
+      const open: NonNullable<ConnectionHandle['rpc']['open']> = () => ({
+        [Symbol.asyncIterator]() {
+          return {
+            next: () => Promise.reject(testCase.failure),
+          }
+        },
+      })
       const { ctx, client } = await benchFiber(
         vi.fn<ConnectionHandle['rpc']['call']>(),
         'in-process',
