@@ -48,6 +48,13 @@ function isJsonValue(value: unknown): value is JsonValue {
   return Object.values(value).every(isJsonValue)
 }
 
+function ownedSettingsPathOps(ops: readonly SettingsPathOpView[]): SettingsPathOpView[] {
+  return ops.map((op): SettingsPathOpView => {
+    if (op.op === 'unset') return { op: 'unset', path: [...op.path] }
+    return { op: 'set', path: [...op.path], value: structuredClone(op.value) }
+  })
+}
+
 function isSettingsNamespaceView(value: object): value is SettingsNamespaceView {
   return 'ns' in value
     && 'revision' in value
@@ -165,7 +172,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the mutation and any latest-write recovery read.
    */
   mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<void> {
-    const ownedOps = structuredClone(ops) as SettingsPathOpView[]
+    const ownedOps = ownedSettingsPathOps(ops)
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
       const revision = expectedRevision ?? this.pendingRevision ?? this.getSnapshot().revision
