@@ -167,11 +167,10 @@ class ClientRemoteService extends Service implements ClientRemote {
     const loader = typeof loaderValue === 'object' && loaderValue !== null && isLoaderReadiness(loaderValue)
       ? loaderValue
       : undefined
-    let loaderFlight = Promise.resolve()
     if (loader === undefined) {
       start()
     } else {
-      loaderFlight = new Promise<Thrown>((resolve) => {
+      new Promise<Thrown>((resolve) => {
         resolve(loader.await())
       }).then(
         () => { start() },
@@ -180,7 +179,6 @@ class ClientRemoteService extends Service implements ClientRemote {
     }
     ctx.effect(() => async () => {
       disposed = true
-      await loaderFlight
       await loop?.stop()
       await this.events.dispose()
       await this.streams.close()
