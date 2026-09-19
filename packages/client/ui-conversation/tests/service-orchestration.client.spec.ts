@@ -12,8 +12,22 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
+import { ConversationController, UnsupportedImageMediaTypeError, type IConversation } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
+
+function requireConversation(ctx: Context): IConversation {
+  const conversation = ctx.get('conversation')
+  if (conversation === undefined) throw new Error('conversation service unavailable')
+  return conversation
+}
+
+function requireSessionScope(runtime: Awaited<ReturnType<typeof SlotTestRuntime.create>>, id: 's1') {
+  const scope = runtime.sessions.scope(id)
+  if (scope === undefined) throw new Error(`session scope "${id}" missing`)
+  const binding = runtime.sessions.binding(id)
+  if (binding === undefined) throw new Error(`session binding "${id}" missing`)
+  return { scope, binding }
+}
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
@@ -33,9 +47,10 @@ async function bench() {
     blocks: new ComposerBlockRegistry(),
   })
   await fiber.await()
-  const root = runtime.ctx.get('conversation') as ConversationController
-  const scoped = runtime.sessions.scope('s1')!.get('conversation') as ConversationController
-  const shell = hub.shellFor(runtime.sessions.binding('s1')!)
+  const { scope, binding } = requireSessionScope(runtime, 's1')
+  const root = requireConversation(runtime.ctx)
+  const scoped = requireConversation(scope)
+  const shell = hub.shellFor(binding)
   return { runtime, fiber, root, scoped, hub, shell, prompt, updateQueue, cancel, loadOlder }
 }
 
@@ -94,7 +109,7 @@ describe('ConversationController', () => {
         new File([new Uint8Array(4)], 'a.png', { type: 'image/png' }),
       ])
       if (attachment === undefined) throw new Error('draft attachment missing')
-      b.root.input.for(b.runtime.sessions.scope('s1')!).addImages([attachment.id])
+      b.root.input.for(requireSessionScope(b.runtime, 's1').scope).addImages([attachment.id])
       await b.runtime.sessions.remove('s1')
       expect(b.root.draftImages([attachment.id])).toEqual([])
       expect(revoked).toHaveBeenCalledWith('blob:draft-1')
@@ -151,7 +166,7 @@ describe('ConversationController', () => {
       input: new InputHub(bare, makeTranslate(zh, {})),
       blocks: new ComposerBlockRegistry(),
     }).await()
-    const orphan = bare.get('conversation') as ConversationController
+    const orphan = requireConversation(bare)
     await expect(orphan.send('x')).rejects.toThrow(/sessions service unavailable/)
   })
 })
@@ -167,8 +182,8 @@ describe('sendSession submission echo', () => {
       return { requestId: 'req-echo' as never, abandon }
     })
     await b.runtime.sessions.updateSessionSnapshot('s1', () => {})
-    const face = b.runtime.sessions.binding('s1')!.session as unknown as Record<string, unknown>
-    face['beginSubmission'] = beginSubmission
+    const { binding } = requireSessionScope(b.runtime, 's1')
+    binding.session.beginSubmission = beginSubmission
     const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:echo-1')
     const revoked = vi.spyOn(URL, 'revokeObjectURL').mockReturnValue(undefined)
     const restore = () => {
@@ -184,7 +199,7 @@ describe('sendSession submission echo', () => {
       const [attachment] = b.root.createDraftImages([
         new File([Uint8Array.of(1, 2, 3)], 'a.png', { type: 'image/png' }),
       ])
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       const sending = b.root.sendSession(session, '带图', [attachment!.id], 'queue')
       // Synchronous: the echo is registered before any encoding starts.
       expect(b.beginSubmission).toHaveBeenCalledWith(expect.objectContaining({
@@ -223,7 +238,7 @@ describe('sendSession submission echo', () => {
       const [attachment] = b.root.createDraftImages([
         new File([Uint8Array.of(9)], 'seeded.png', { type: 'image/png' }),
       ])
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       const sending = b.root.sendSession(session, '', [attachment!.id], 'queue')
       await vi.waitFor(() => { expect(b.prompt).toHaveBeenCalledOnce() })
       const ref: ImageAttachmentRef = {
@@ -255,7 +270,7 @@ describe('sendSession submission echo', () => {
       const [attachment] = b.root.createDraftImages([
         new File([Uint8Array.of(7)], 'kept.png', { type: 'image/png' }),
       ])
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       await expect(b.root.sendSession(session, '失败', [attachment!.id], 'queue'))
         .resolves.toEqual({ kind: 'error' })
       b.retire.onRetire?.({ reason: 'failed' })
@@ -282,7 +297,7 @@ describe('sendSession submission echo', () => {
       const [attachment] = b.root.createDraftImages([
         new File([Uint8Array.of(1)], 'broken.png', { type: 'image/png' }),
       ])
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       await expect(b.root.sendSession(session, 'x', [attachment!.id], 'queue'))
         .rejects.toThrow('read failed')
       expect(b.abandon).toHaveBeenCalledOnce()
@@ -298,7 +313,7 @@ describe('sendSession submission echo', () => {
     const b = await echoBench()
     vi.stubGlobal('requestAnimationFrame', undefined)
     try {
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       await expect(b.root.sendSession(session, '纯文本', [], 'queue')).resolves.toEqual({ kind: 'success' })
       expect(b.prompt).toHaveBeenCalledWith([{ type: 'text', text: '纯文本' }], 'queue', undefined, 'req-echo')
     } finally {
@@ -312,7 +327,7 @@ describe('sendSession submission echo', () => {
     const b = await echoBench()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     try {
-      const session = b.runtime.sessions.binding('s1')!.session
+      const session = requireSessionScope(b.runtime, 's1').binding.session
       const sending = b.root.sendSession(session, '后台标签', [], 'queue')
       expect(b.prompt).not.toHaveBeenCalled()
       await expect(sending).resolves.toEqual({ kind: 'success' })
@@ -326,7 +341,7 @@ describe('sendSession submission echo', () => {
 
   it('sends a subagent continuation without registering an unobservable echo', async () => {
     const b = await bench()
-    const session = b.runtime.sessions.binding('s1')!.session
+    const session = requireSessionScope(b.runtime, 's1').binding.session
     const snapshot = session.getSnapshot()
     const beginSubmission = vi.spyOn(session, 'beginSubmission')
     vi.spyOn(session, 'getSnapshot').mockReturnValue({
