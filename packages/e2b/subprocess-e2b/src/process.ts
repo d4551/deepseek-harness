@@ -23,6 +23,36 @@ import { bootstrapEnvironment, readRemoteEnvironment, serializeRemoteEnvironment
 import { E2BBase64Decoder, E2B_OUTPUT_COMPLETE_FRAME, E2BOutputReader } from './output.ts'
 import { asError, commandOpts, signalRemoteGroups, waitTick } from './remote.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected command, stream, or remote control.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+function toError(reason: Thrown): Error {
+  return reason instanceof Error ? reason : new Error(thrownMessage(reason))
+}
+
 const OUTPUT_ENCODER_SOURCE = [
   '(async () => {',
   '  for await (const chunk of process.stdin) {',
@@ -56,14 +86,14 @@ class DeferredStdin extends Writable {
   override _write(chunk: string | Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     this.ready.then(handle => handle.sendStdin(chunk)).then(
       () => { callback() },
-      (error: unknown) => { callback(asError(error)) },
+      (reason: Thrown) => { callback(toError(reason)) },
     )
   }
 
   override _final(callback: (error?: Error | null) => void): void {
     this.ready.then(handle => handle.closeStdin()).then(
       () => { callback() },
-      (error: unknown) => { callback(asError(error)) },
+      (reason: Thrown) => { callback(toError(reason)) },
     )
   }
 }
@@ -78,7 +108,7 @@ interface RemotePaths {
 
 type CommandSettlement =
   | { kind: 'result'; result: CommandResult }
-  | { kind: 'error'; error: unknown }
+  | { kind: 'error'; error: Thrown }
 
 async function withinMs(settlement: Promise<CommandSettlement>, timeoutMs: number): Promise<CommandSettlement | undefined> {
   const expiry = Promise.withResolvers<undefined>()
@@ -235,8 +265,8 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     this.terminationAttempt = attempt
     attempt.then(
       () => { this.terminationAttempt = undefined },
-      (error: unknown) => {
-        if (!this.quiescenceProven) this.terminationFailure = asError(error)
+      (reason: Thrown) => {
+        if (!this.quiescenceProven) this.terminationFailure = toError(reason)
         this.terminationAttempt = undefined
       },
     )
@@ -509,7 +539,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
   ): Promise<SubprocessOutcome> {
     const settlement = completion.then<CommandSettlement, CommandSettlement>(
       result => ({ kind: 'result', result }),
-      (error: unknown) => ({ kind: 'error', error }),
+      (reason: Thrown) => ({ kind: 'error', error: reason }),
     )
     const hasPipeOutput = this.spec.stdio.stdout === 'pipe' || this.spec.stdio.stderr === 'pipe'
     let completed = hasPipeOutput ? await settlement : undefined
@@ -651,10 +681,10 @@ export class E2BSubprocessHandle implements SubprocessHandle {
     const result = await sandbox.commands.run(
       `set -o pipefail; ps -eo pgid=,stat= | awk '$1 == ${pid} && $2 !~ /^[ZXx]/ { live=1 } END { if (live) print "live" }'`,
       commandOpts(this.controlEnvs, signal),
-    ).catch((error: unknown) => {
+    ).catch((reason: Thrown) => {
       if (signal?.aborted === true) return undefined
-      if (error instanceof SandboxNotFoundError) return { exitCode: 0, stdout: '', stderr: '' }
-      throw error
+      if (reason instanceof SandboxNotFoundError) return { exitCode: 0, stdout: '', stderr: '' }
+      throw reason
     })
     return result?.stdout.trim() === 'live'
   }
@@ -666,7 +696,7 @@ export class E2BSubprocessHandle implements SubprocessHandle {
       // A spill mode is a collect mode, so construction always created its reader.
       const size = (reader as E2BOutputReader).size
       if (this.outputDrainExpired || size <= mode.maxBytes || size > mode.spill.maxBytes) {
-        removals.push(sandbox.files.remove(path).catch((_adapterPrivateSpillRemovalFailure: unknown) => {
+        removals.push(sandbox.files.remove(path).catch((_adapterPrivateSpillRemovalFailure: Thrown) => {
           // The command outcome is authoritative; owner teardown bounds private residue.
         }))
       }

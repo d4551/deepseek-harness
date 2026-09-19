@@ -56,6 +56,32 @@ export const Config: z<Config> = z.object({
 
 type ResolvedConfig = Required<Config>
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected import or registration.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const MEMBER_KINDS = new Set(['property', 'method', 'getter', 'setter', 'call', 'construct', 'index'])
 
 /** Resolve the `./typert` export to a relative path, accepting the string and one-level conditional forms. */
@@ -345,9 +371,9 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     if (loading === undefined) {
       loading = import(pathToFileURL(path).href).then(
         (mod: Record<string, unknown>) => validateTypertManifest(pkgName, mod.TYPERT),
-        (cause: unknown) => {
+        (cause: Thrown) => {
           throw new Error(
-            `typert-loader: ${pkgName} exports "${TYPERT_HOST_EXPORT}" but importing ${path} failed: ${String(cause)}`,
+            `typert-loader: ${pkgName} exports "${TYPERT_HOST_EXPORT}" but importing ${path} failed: ${thrownMessage(cause)}`,
           )
         },
       )
@@ -395,7 +421,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       dirty.delete(entryName)
       try {
         const task = processOne(entryName)
-        if (task !== undefined) tasks.push(task.catch((error: unknown) => { onError(toError(error)) }))
+        if (task !== undefined) tasks.push(task.catch((reason: Thrown) => { onError(toError(reason)) }))
       } catch (error) {
         // Steady state: one broken package must not poison the others; the
         // activation pass aggregates these into a loud throw instead.
@@ -417,8 +443,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     queueMicrotask(() => {
       flushQueued = false
       if (!active) return
-      Promise.all(flush((err) => { ctx.logger.error(err) })).then(undefined, (error: unknown) => {
-        ctx.logger.error(error)
+      Promise.all(flush((err) => { ctx.logger.error(err) })).then(undefined, (reason: Thrown) => {
+        ctx.logger.error(reason)
       })
     })
   })
@@ -438,7 +464,18 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   }
 }
 
-/** Normalize an arbitrary import or manifest failure to an Error. */
+/** Normalize an import or manifest failure to an Error. */
 function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
+  if (error instanceof Error) return error
+  switch (typeof error) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'undefined':
+    case 'object':
+    case 'function':
+      return new Error(thrownMessage(error))
+  }
 }
