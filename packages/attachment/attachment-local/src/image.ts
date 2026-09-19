@@ -4,6 +4,9 @@ import sharp, { type Sharp } from 'sharp'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Decoded metadata from a supported image. */
 export interface DetectedImage {
   mediaType: ImageMediaType
@@ -59,6 +62,11 @@ function carriesRetainedMetadata(metadata: Awaited<ReturnType<Sharp['metadata']>
     || metadata.orientation !== undefined
 }
 
+function invalidImage(error: Thrown): never {
+  if (error instanceof AttachmentError) throw error
+  throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE', { cause: error })
+}
+
 async function imageMetadata(image: Sharp): Promise<DetectedImage> {
   const metadata = await image.metadata()
   const mediaType = MEDIA_TYPES[metadata.format as string]
@@ -89,12 +97,10 @@ async function imageMetadata(image: Sharp): Promise<DetectedImage> {
  * @returns verified format and dimensions.
  */
 export async function probeImage(data: Uint8Array): Promise<DetectedImage> {
-  try {
-    return await imageMetadata(sharp(data, { failOn: 'error', limitInputPixels: false }))
-  } catch (error) {
-    if (error instanceof AttachmentError) throw error
-    throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE', { cause: error })
-  }
+  return await imageMetadata(sharp(data, { failOn: 'error', limitInputPixels: false })).then(
+    undefined,
+    (error: Thrown) => invalidImage(error),
+  )
 }
 
 /** Admission limits applied to a decoded raster's intrinsic dimensions. */
@@ -112,19 +118,20 @@ export interface DecodedImageLimits {
  * @returns verified format and dimensions.
  */
 export async function detectImage(data: Uint8Array, limits?: DecodedImageLimits): Promise<DetectedImage> {
-  try {
-    const image = sharp(data, { failOn: 'error', limitInputPixels: false })
-    const detected = await imageMetadata(image)
-    if (limits?.maxPixels !== undefined && detected.width * detected.height > limits.maxPixels) {
-      throw new AttachmentError('Image exceeds the configured decoded-pixel limit.', 'IMAGE_TOO_MANY_PIXELS')
-    }
-    if (limits?.maxDimension !== undefined && Math.max(detected.width, detected.height) > limits.maxDimension) {
-      throw new AttachmentError('Image exceeds the configured per-side pixel limit.', 'IMAGE_DIMENSION_TOO_LARGE')
-    }
-    await image.raw().toBuffer()
-    return detected
-  } catch (error) {
-    if (error instanceof AttachmentError) throw error
-    throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE', { cause: error })
-  }
+  const image = sharp(data, { failOn: 'error', limitInputPixels: false })
+  return await imageMetadata(image).then(
+    (detected) => {
+      if (limits?.maxPixels !== undefined && detected.width * detected.height > limits.maxPixels) {
+        throw new AttachmentError('Image exceeds the configured decoded-pixel limit.', 'IMAGE_TOO_MANY_PIXELS')
+      }
+      if (limits?.maxDimension !== undefined && Math.max(detected.width, detected.height) > limits.maxDimension) {
+        throw new AttachmentError('Image exceeds the configured per-side pixel limit.', 'IMAGE_DIMENSION_TOO_LARGE')
+      }
+      return image.raw().toBuffer().then(
+        () => detected,
+        (error: Thrown) => invalidImage(error),
+      )
+    },
+    (error: Thrown) => invalidImage(error),
+  )
 }

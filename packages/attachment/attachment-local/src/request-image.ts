@@ -21,6 +21,9 @@ import {
 } from './encoding.ts'
 import { detectImage, encodedAlphaIsCompatible, probeImage } from './image.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Transform version included in every cache and upload-index identity. */
 export const REQUEST_IMAGE_TRANSFORM_VERSION = 'request-image-v5'
 
@@ -119,6 +122,13 @@ function cachePath(root: string, hash: string): string {
   return join(root, 'request-images', hash.slice(0, 2), hash)
 }
 
+function cachedReadFailure(error: Thrown, signal?: AbortSignal): undefined {
+  signal?.throwIfAborted()
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+  if (error instanceof AttachmentError && error.code === 'INVALID_IMAGE') return undefined
+  throw error
+}
+
 async function readCached(
   path: string,
   attachment: StoredImageAttachment,
@@ -126,20 +136,22 @@ async function readCached(
   expectedAlpha: boolean,
   signal?: AbortSignal,
 ): Promise<VerifiedRequestImage | undefined> {
-  try {
-    const data = new Uint8Array(await readFile(path, { signal }))
-    const detected = await probeImage(data)
-    const maximum = requestImageDimensions(attachment.ref.width, attachment.ref.height, policy.maxPixels)
-    if (detected.depth !== 'uchar' || detected.space !== 'srgb'
-      || detected.width > maximum.width || detected.height > maximum.height
-      || !encodedAlphaIsCompatible(expectedAlpha, detected)) return undefined
-    return { data, mediaType: detected.mediaType, width: detected.width, height: detected.height, hasAlpha: detected.hasAlpha }
-  } catch (error) {
-    signal?.throwIfAborted()
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
-    if (error instanceof AttachmentError && error.code === 'INVALID_IMAGE') return undefined
-    throw error
-  }
+  return await readFile(path, { signal }).then(
+    (bytes) => {
+      const data = new Uint8Array(bytes)
+      return probeImage(data).then(
+        (detected) => {
+          const maximum = requestImageDimensions(attachment.ref.width, attachment.ref.height, policy.maxPixels)
+          if (detected.depth !== 'uchar' || detected.space !== 'srgb'
+            || detected.width > maximum.width || detected.height > maximum.height
+            || !encodedAlphaIsCompatible(expectedAlpha, detected)) return undefined
+          return { data, mediaType: detected.mediaType, width: detected.width, height: detected.height, hasAlpha: detected.hasAlpha }
+        },
+        (error: Thrown) => cachedReadFailure(error, signal),
+      )
+    },
+    (error: Thrown) => cachedReadFailure(error, signal),
+  )
 }
 
 async function verifyRequestImage(
@@ -162,13 +174,17 @@ async function writeCached(path: string, data: Uint8Array, signal?: AbortSignal)
   signal?.throwIfAborted()
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const temporary = `${path}.${randomUUID()}.tmp`
-  try {
-    await writeFile(temporary, data, { mode: 0o600, flag: 'wx', signal })
-    signal?.throwIfAborted()
-    await rename(temporary, path)
-  } finally {
-    await rm(temporary, { force: true })
-  }
+  return await writeFile(temporary, data, { mode: 0o600, flag: 'wx', signal }).then(
+    () => {
+      signal?.throwIfAborted()
+      return rename(temporary, path)
+    },
+  ).then(
+    () => rm(temporary, { force: true }),
+    (error: Thrown) => rm(temporary, { force: true }).then(() => {
+      throw error
+    }),
+  )
 }
 
 /**

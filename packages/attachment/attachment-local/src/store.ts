@@ -20,6 +20,9 @@ import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
 import type { DetectedImage } from './image.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()
 
@@ -33,7 +36,13 @@ function displayName(value: string | undefined): string | undefined {
   // ordinary character, so path.basename would keep a Windows client's full
   // local path and leak it into the reference and the session log.
   const leaf = value.slice(Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\')) + 1)
-  const clean = leaf.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255)
+  let clean = ''
+  for (const character of leaf) {
+    const code = character.codePointAt(0)
+    if (code === undefined || code <= 0x1f || code === 0x7f) continue
+    clean += character
+  }
+  clean = clean.trim().slice(0, 255)
   return clean === '' ? undefined : clean
 }
 
@@ -145,11 +154,12 @@ export async function prepareImageFile(
  */
 async function syncPosixDirectory(path: string): Promise<void> {
   const handle = await open(path, constants.O_RDONLY)
-  try {
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
+  return await handle.sync().then(
+    () => handle.close(),
+    (error: Thrown) => handle.close().then(() => {
+      throw error
+    }),
+  )
 }
 
 /**
@@ -192,20 +202,28 @@ async function ensureDurableDirectory(path: string, boundary: string): Promise<v
  * @param target - the content-addressed destination.
  * @returns whether this call created the entry or found an existing one.
  */
+function existingObject(error: Thrown, temporary: string): Promise<'exists'> {
+  if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+  return unlink(temporary).then(() => 'exists')
+}
+
 async function publishObject(temporary: string, target: string): Promise<'published' | 'exists'> {
-  try {
-    if (process.platform === 'win32') await publishNewFileWin32(temporary, target)
-    else await link(temporary, target)
-    // Windows shares the read-only attribute across hard links and refuses to
-    // unlink either name once it is set, so the staging name goes before the
-    // caller stamps the target read-only. The Windows move already consumed it.
-    if (process.platform !== 'win32') await unlink(temporary)
-    return 'published'
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
-    await unlink(temporary)
-    return 'exists'
-  }
+  const published = process.platform === 'win32'
+    ? publishNewFileWin32(temporary, target)
+    : link(temporary, target)
+  return await published.then(
+    () => {
+      // Windows shares the read-only attribute across hard links and refuses to
+      // unlink either name once it is set, so the staging name goes before the
+      // caller stamps the target read-only. The Windows move already consumed it.
+      if (process.platform === 'win32') return 'published'
+      return unlink(temporary).then(
+        () => 'published',
+        (error: Thrown) => existingObject(error, temporary),
+      )
+    },
+    (error: Thrown) => existingObject(error, temporary),
+  )
 }
 
 /**
@@ -252,39 +270,46 @@ export async function commitPreparedImageFile(
   const temporary = join(staging, randomUUID())
   const target = normalizedImagePath(root, prepared.ref)
   let publicationStarted = false
-  try {
-    const handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
-    try {
-      await handle.writeFile(normalized, { signal })
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    signal?.throwIfAborted()
-    publicationStarted = true
-    if (await publishObject(temporary, target) === 'exists') {
-      const existing = new Uint8Array(await readFile(target))
-      if (digest(existing) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
-    }
-    // The target remains the sole link for a new object; this also restores
-    // read-only mode when the deduplication path observes an existing object.
-    await chmod(target, 0o400)
-    // Persist the target entry and close a concurrent bucket-creation window
-    // before the reference can reach a session checkpoint. The dedup path
-    // repeats both syncs because it may observe another writer's link before
-    // that writer reaches its own durability boundary. Windows published both
-    // entries write-through already, so it has nothing left to flush.
-    if (process.platform !== 'win32') {
-      await syncPosixDirectory(bucket)
-      await syncPosixDirectory(join(root, 'objects'))
-    }
-  } catch (error) {
-    await rm(temporary, { force: true })
-    if (!publicationStarted) signal?.throwIfAborted()
-    if (error instanceof AttachmentError) throw error
-    throw new AttachmentError('Unable to persist image attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
-  }
-  return prepared.ref
+  return await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600).then(
+    handle => handle.writeFile(normalized, { signal }).then(
+      () => handle.sync(),
+    ).then(
+      () => handle.close(),
+      (error: Thrown) => handle.close().then(() => {
+        throw error
+      }),
+    ).then(() => {
+      signal?.throwIfAborted()
+      publicationStarted = true
+      return publishObject(temporary, target).then((published) => {
+        if (published !== 'exists') return
+        return readFile(target).then((existing) => {
+          if (digest(new Uint8Array(existing)) !== sha256) {
+            throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
+          }
+        })
+      }).then(() => {
+        // The target remains the sole link for a new object; this also restores
+        // read-only mode when the deduplication path observes an existing object.
+        return chmod(target, 0o400)
+      }).then(() => {
+        // Persist the target entry and close a concurrent bucket-creation window
+        // before the reference can reach a session checkpoint. The dedup path
+        // repeats both syncs because it may observe another writer's link before
+        // that writer reaches its own durability boundary. Windows published both
+        // entries write-through already, so it has nothing left to flush.
+        if (process.platform === 'win32') return
+        return syncPosixDirectory(bucket).then(() => syncPosixDirectory(join(root, 'objects')))
+      })
+    }),
+  ).then(
+    () => prepared.ref,
+    (error: Thrown) => rm(temporary, { force: true }).then(() => {
+      if (!publicationStarted) signal?.throwIfAborted()
+      if (error instanceof AttachmentError) throw error
+      throw new AttachmentError('Unable to persist image attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
+    }),
+  )
 }
 
 /**
@@ -321,14 +346,14 @@ export async function readImageFile(
 ): Promise<StoredImageAttachment> {
   signal?.throwIfAborted()
   const sha256 = ensureReference(ref)
-  let data: Uint8Array
-  try {
-    data = new Uint8Array(await readFile(normalizedImagePath(root, ref), { signal }))
-  } catch (error) {
-    signal?.throwIfAborted()
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') throw new AttachmentError('Attachment object is missing.', 'ATTACHMENT_NOT_FOUND')
-    throw new AttachmentError('Unable to read image attachment.', 'ATTACHMENT_READ_FAILED', { cause: error })
-  }
+  const data = await readFile(normalizedImagePath(root, ref), { signal }).then(
+    bytes => new Uint8Array(bytes),
+    (error: Thrown) => {
+      signal?.throwIfAborted()
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') throw new AttachmentError('Attachment object is missing.', 'ATTACHMENT_NOT_FOUND')
+      throw new AttachmentError('Unable to read image attachment.', 'ATTACHMENT_READ_FAILED', { cause: error })
+    },
+  )
   signal?.throwIfAborted()
   if (digest(data) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
   // The digest proves these are the exact bytes admission fully decoded, so

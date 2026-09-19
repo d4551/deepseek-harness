@@ -16,6 +16,9 @@ import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'
 import type { FsSandboxController } from './sandbox.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Validate value constraints the schema DSL can't express: only a non-blank
  * `file_path` — an empty `content` is legitimate (it writes an empty file).
@@ -109,15 +112,15 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
       // Single-slot decision: the policy plugin produces createIfAbsent/
       // replaceIfVersion; the bare default is undefined (unconditional). No stat.
       const intent = await ctx.waterfall('fs/write-intent', target, exec, () => undefined)
-      let outcome: FsWriteOutcome
-      try {
-        outcome = await ctx.fs.writeText(target, input.content, intent, exec.signal, sandboxPolicy)
-      } catch (error: unknown) {
-        // A sandbox denial becomes the shared [sandbox: …] marker (the model
-        // recognizes it from bash); stale/not-observed failures gain their
-        // model-facing remedy; anything else passes through.
-        throw remediateFsError(sandbox.mapError(error, sandboxPolicy))
-      }
+      const outcome = await ctx.fs.writeText(target, input.content, intent, exec.signal, sandboxPolicy).then(
+        undefined,
+        (error: Thrown) => {
+          // A sandbox denial becomes the shared [sandbox: …] marker (the model
+          // recognizes it from bash); stale/not-observed failures gain their
+          // model-facing remedy; anything else passes through.
+          throw remediateFsError(sandbox.mapError(error, sandboxPolicy))
+        },
+      )
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
       return {
         path: target.displayPath,

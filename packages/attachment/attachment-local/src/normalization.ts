@@ -7,6 +7,9 @@ import { encodeFirstWithinLimit, encodingLadder, isExhaustedEncoding } from './e
 import { detectImage, encodedAlphaIsCompatible } from './image.ts'
 import type { DetectedImage } from './image.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Deployment-resolved policy for the persisted normalized attachment. */
 export interface NormalizationPolicy {
   /** Total-pixel budget; larger sources are downscaled proportionally. */
@@ -111,18 +114,9 @@ export async function normalizeImage(
   if (canPassThroughNormalization(detected, data.byteLength, policy)) {
     return { data, mediaType: detected.mediaType, width: detected.width, height: detected.height }
   }
-  try {
-    const { width, height } = initialDimensions(detected, policy)
-    const encoded = await encodeFirstWithinLimit(
-      encodingLadder(preparedPipeline(data, width, height), detected.hasAlpha),
-      policy.maxBytes,
-      signal,
-    )
-    const chosen = isExhaustedEncoding(encoded) ? encoded.smallest : encoded
-    const verified = await verifyNormalizedImage(chosen, detected.mediaType === 'image/gif' ? undefined : detected.hasAlpha)
-    signal?.throwIfAborted()
-    return verified
-  } catch (error) {
+  const { width, height } = initialDimensions(detected, policy)
+  const expectedAlpha = detected.mediaType === 'image/gif' ? undefined : detected.hasAlpha
+  const conversionFailure = (error: Thrown): never => {
     signal?.throwIfAborted()
     if (error instanceof AttachmentError) throw error
     const source = detected.mediaType === 'image/png' && detected.depth !== 'uchar'
@@ -134,4 +128,21 @@ export async function normalizeImage(
       { cause: error },
     )
   }
+  return await encodeFirstWithinLimit(
+    encodingLadder(preparedPipeline(data, width, height), detected.hasAlpha),
+    policy.maxBytes,
+    signal,
+  ).then(
+    (encoded) => {
+      const chosen = isExhaustedEncoding(encoded) ? encoded.smallest : encoded
+      return verifyNormalizedImage(chosen, expectedAlpha).then(
+        (verified) => {
+          signal?.throwIfAborted()
+          return verified
+        },
+        (error: Thrown) => conversionFailure(error),
+      )
+    },
+    (error: Thrown) => conversionFailure(error),
+  )
 }

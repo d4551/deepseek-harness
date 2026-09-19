@@ -18,6 +18,9 @@ import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { resolveRegularReadTarget } from './read-target.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */
 const IMAGE_EXTENSIONS: Readonly<Record<string, ImageMediaType>> = {
   '.png': 'image/png',
@@ -215,45 +218,45 @@ export function applyReadImageTool(ctx: Context): void {
       const data = await ctx.fs.readBytes(target, exec.signal, byteCap)
       // Persist before returning: the image block must reference a durably
       // committed object by the time the tool/result event is appended.
-      let ref: ImageAttachmentRef
-      try {
-        ref = await attachments.saveImage({ data, mediaType, name: basename(target.displayPath) }, exec.signal)
-      } catch (error: unknown) {
-        if (!(error instanceof AttachmentError)) throw error
-        // Dimension refusals stay recoverable tool errors: an oversized image
-        // must never enter durable history, where it would ride every later
-        // model request past provider-side dimension rejections.
-        if (error.code === 'IMAGE_DIMENSION_TOO_LARGE') {
+      const ref = await attachments.saveImage({ data, mediaType, name: basename(target.displayPath) }, exec.signal).then(
+        undefined,
+        (error: Thrown) => {
+          if (!(error instanceof AttachmentError)) throw error
+          // Dimension refusals stay recoverable tool errors: an oversized image
+          // must never enter durable history, where it would ride every later
+          // model request past provider-side dimension rejections.
+          if (error.code === 'IMAGE_DIMENSION_TOO_LARGE') {
+            throw new Error(
+              `cannot read "${target.displayPath}": at least one image side exceeds the ${attachments.imageLimits.maxImageDimension}px limit; downscale the image and read the smaller copy`,
+              { cause: error },
+            )
+          }
+          if (error.code === 'IMAGE_TOO_MANY_PIXELS') {
+            throw new Error(
+              `cannot read "${target.displayPath}": the image exceeds the ${attachments.imageLimits.maxImagePixels}-pixel decoded-size limit; downscale the image and read the smaller copy`,
+              { cause: error },
+            )
+          }
+          if (error.code === 'IMAGE_TOO_LARGE') {
+            throw new Error(
+              `cannot read "${target.displayPath}": the image cannot be stored within the deployment's byte limits; downscale the image and read the smaller copy`,
+              { cause: error },
+            )
+          }
+          if (error.code === 'ATTACHMENT_WRITE_FAILED' && /16-bit PNG/iu.test(error.message)) {
+            throw new Error(
+              `cannot read "${target.displayPath}": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`,
+              { cause: error },
+            )
+          }
+          if (error.code !== 'IMAGE_TYPE_MISMATCH') throw error
+          const extension = extname(target.displayPath).toLowerCase()
           throw new Error(
-            `cannot read "${target.displayPath}": at least one image side exceeds the ${attachments.imageLimits.maxImageDimension}px limit; downscale the image and read the smaller copy`,
+            `cannot read "${target.displayPath}": the ${extension} extension declares ${mediaType}, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats`,
             { cause: error },
           )
-        }
-        if (error.code === 'IMAGE_TOO_MANY_PIXELS') {
-          throw new Error(
-            `cannot read "${target.displayPath}": the image exceeds the ${attachments.imageLimits.maxImagePixels}-pixel decoded-size limit; downscale the image and read the smaller copy`,
-            { cause: error },
-          )
-        }
-        if (error.code === 'IMAGE_TOO_LARGE') {
-          throw new Error(
-            `cannot read "${target.displayPath}": the image cannot be stored within the deployment's byte limits; downscale the image and read the smaller copy`,
-            { cause: error },
-          )
-        }
-        if (error.code === 'ATTACHMENT_WRITE_FAILED' && /16-bit PNG/iu.test(error.message)) {
-          throw new Error(
-            `cannot read "${target.displayPath}": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`,
-            { cause: error },
-          )
-        }
-        if (error.code !== 'IMAGE_TYPE_MISMATCH') throw error
-        const extension = extname(target.displayPath).toLowerCase()
-        throw new Error(
-          `cannot read "${target.displayPath}": the ${extension} extension declares ${mediaType}, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats`,
-          { cause: error },
-        )
-      }
+        },
+      )
       ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, exec)
       const value: ImageReadValue = {
         path: target.displayPath,
