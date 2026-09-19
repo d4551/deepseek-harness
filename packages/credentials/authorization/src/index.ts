@@ -40,6 +40,9 @@ export type {
   AuthorizationPromptOption, AuthorizationSettlement, AuthorizationStatus,
 } from './types.ts'
 
+/** Values a Promise reject arm from flow disposal, settled listeners, or prompt decline may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     authorization: AuthorizationService
@@ -215,7 +218,7 @@ export class AuthorizationService extends Service {
       }
     }.bind(this), 'authorization.registerFlow()')
     return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      Promise.resolve(dispose()).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }
   }
 
@@ -333,7 +336,7 @@ export class AuthorizationService extends Service {
       try {
         const returned = listener(key, settlement)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnSettledListenerFailure(key, error)
           })
         }
@@ -398,7 +401,7 @@ export class AuthorizationService extends Service {
             this.ctx.logger.warn(error)
           }
         },
-        prompt: prompt => interaction.prompt(prompt).catch((error: unknown) => {
+        prompt: prompt => interaction.prompt(prompt).catch((error: Thrown) => {
           if (error instanceof AuthorizationDeclinedError) observed.declined = true
           throw error
         }),

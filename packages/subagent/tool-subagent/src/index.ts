@@ -39,6 +39,32 @@ import {
   subagentModelSelectionPolicy,
 } from './model-selection-state.ts'
 
+/** Values a Promise reject arm from scoped-fiber disposal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected scoped-fiber disposal.
+ * @param reason - the Thrown the dispose path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt']
 
@@ -679,8 +705,8 @@ export function apply(ctx: Context, config: Config): void {
     if (fiber === undefined) return
     scopedInstalls.delete(candidate)
     /* v8 ignore next 3 -- Cordis Fiber disposal contains registration cleanup failures; this is the final diagnostic sink. */
-    fiber.dispose().catch((error: unknown) => {
-      ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`)
+    fiber.dispose().catch((error: Thrown) => {
+      ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${thrownMessage(error)}`)
     })
   }
   const reconcileComposedAgents = (): void => {
