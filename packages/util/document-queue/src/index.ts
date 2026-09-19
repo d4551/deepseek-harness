@@ -84,13 +84,16 @@ export function resolveDocumentSpec(config: DocumentQueueConfig, basename: strin
   }
 }
 
+/** Values a Promise reject arm or filesystem refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Whether a filesystem error means absence; every non-ENOENT failure must surface.
  * @param error - the rejected filesystem error.
  * @returns whether the error reports a missing path.
  */
 export function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 /**
@@ -100,13 +103,14 @@ export function isENOENT(error: unknown): boolean {
  * @param filename - absolute path of the document.
  * @returns the document text, or `undefined` when the file does not exist.
  */
-export async function readDocumentText(filename: string): Promise<string | undefined> {
-  try {
-    return await readFile(filename, 'utf8')
-  } catch (error) {
-    if (!isENOENT(error)) throw error
-    return undefined
-  }
+export function readDocumentText(filename: string): Promise<string | undefined> {
+  return readFile(filename, 'utf8').then(
+    text => text,
+    (reason: Thrown) => {
+      if (!isENOENT(reason)) throw reason
+      return undefined
+    },
+  )
 }
 
 /** The logger severities a {@link DocumentQueue} reports through. */
@@ -190,9 +194,9 @@ export class DocumentQueue {
    * absorbed so one poisoned commit cannot silently end hot reloading forever.
    */
   queueReload(): void {
-    this.enqueue(() => this.reload()).catch((error: unknown) => {
+    this.enqueue(() => this.reload()).catch((reason: Thrown) => {
       this.options.logger.error('%s: reload commit failed at %s', this.options.label, this.options.filename)
-      this.options.logger.error(error)
+      this.options.logger.error(reason)
     })
   }
 
@@ -245,18 +249,21 @@ export class DocumentQueue {
    * the process down. An invariant violation escaping the owner's publication
    * is not a reload failure and propagates to {@link queueReload}.
    */
-  private async reload(): Promise<void> {
-    if (this.closed) return
-    try {
-      await this.options.reconcile()
-    } catch (error) {
-      if ((error as { code?: unknown } | null)?.code === 'INVARIANT') throw error
-      this.options.logger.warn(
-        '%s: reload failed at %s; keeping the last good document',
-        this.options.label,
-        this.options.filename,
-      )
-      this.options.logger.warn(error)
-    }
+  private reload(): Promise<void> {
+    if (this.closed) return Promise.resolve()
+    return this.options.reconcile().then(
+      undefined,
+      (reason: Thrown) => {
+        if (typeof reason === 'object' && reason !== null && 'code' in reason && reason.code === 'INVARIANT') {
+          throw reason
+        }
+        this.options.logger.warn(
+          '%s: reload failed at %s; keeping the last good document',
+          this.options.label,
+          this.options.filename,
+        )
+        this.options.logger.warn(reason)
+      },
+    )
   }
 }

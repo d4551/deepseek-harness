@@ -21,6 +21,9 @@ import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
 
+/** Values a Promise reject arm or abort reason may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the
  * breadcrumb rows of a listing, every one a jump target.
@@ -129,7 +132,7 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         signal.removeEventListener('abort', onAbort)
         reject(asError(reason))
       },
@@ -243,7 +246,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       // caller's scan alive, and an already-aborted request rejects even
       // when the level is empty.
       const opening = opendir(target)
-      const level = await raceAbort(opening, signal).catch((error: unknown) => {
+      const level = await raceAbort(opening, signal).catch((reason: Thrown) => {
         // The abandoned open can still mint a handle after the abort won;
         // close it so a departed caller cannot leak a descriptor. (A lost
         // race against opendir's own rejection has nothing to close, and
@@ -252,7 +255,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
         opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
           // Already rejected: raceAbort surfaced or swallowed it.
         })
-        throw error
+        throw reason
       })
       try {
         for (;;) {

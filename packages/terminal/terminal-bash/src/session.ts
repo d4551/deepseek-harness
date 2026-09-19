@@ -25,6 +25,9 @@ import type {
 import type { ResolvedConfig } from './config.ts'
 import { CONTROLLED_PROMPT, TerminalSanitizer } from './sanitize.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 // Node exposes this package's CommonJS main as default-only, so load its named export through require.
 const { Terminal: HeadlessTerminal } = createRequire(import.meta.url)('@xterm/headless') as typeof import('@xterm/headless')
 
@@ -213,9 +216,9 @@ export class LocalPtySession implements TerminalBackendSession {
       const response = this.responseWrites.then(async () => { await this.terminal.write(data) })
       this.responseWrites = response.then(
         () => { this.finishResponseWrite() },
-        (error: unknown) => {
+        (reason: Thrown) => {
           this.finishResponseWrite()
-          if (!this.emulatorClosed && !this.closing) this.onTransportFailure(error)
+          if (!this.emulatorClosed && !this.closing) this.onTransportFailure(reason)
         },
       )
     })
@@ -226,7 +229,7 @@ export class LocalPtySession implements TerminalBackendSession {
     terminal.output.once('error', this.onTerminalError)
     this.completion = terminal.done.then(
       outcome => this.onExit(outcome),
-      (error: unknown) => { this.onTransportFailure(error) },
+      (reason: Thrown) => { this.onTransportFailure(reason) },
     )
   }
 
@@ -284,7 +287,7 @@ export class LocalPtySession implements TerminalBackendSession {
           || this.protocolWorkPending())
       }
     }, this.config.timeoutMs)
-    this.beginSend(operation, request).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
+    this.beginSend(operation, request).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
     return operation
   }
 
@@ -388,10 +391,10 @@ export class LocalPtySession implements TerminalBackendSession {
   close(reason: string): Promise<void> {
     this.closing = true
     if (this.closePromise !== undefined) return this.closePromise
-    const closing = this.closeOnce(reason).catch((error: unknown) => {
+    const closing = this.closeOnce(reason).catch((thrown: Thrown) => {
       this.closePromise = undefined
-      this.failActive(error)
-      throw error
+      this.failActive(thrown)
+      throw thrown
     })
     this.closePromise = closing
     return closing
@@ -466,7 +469,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.activeTimer !== undefined) clearTimeout(this.activeTimer)
     this.activeTimer = setTimeout(() => {
       this.activeTimer = undefined
-      this.pollReadiness(operation).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
+      this.pollReadiness(operation).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
     }, delayMs)
   }
 
@@ -664,7 +667,7 @@ export class LocalPtySession implements TerminalBackendSession {
     if (this.active !== operation) return
     this.interrupting = operation
     this.stopReadinessPolling()
-    this.interruptOnce(operation).then(undefined, (error: unknown) => { this.onTransportFailure(error) })
+    this.interruptOnce(operation).then(undefined, (reason: Thrown) => { this.onTransportFailure(reason) })
   }
 
   private async interruptOnce(operation: LocalSendOperation): Promise<void> {
