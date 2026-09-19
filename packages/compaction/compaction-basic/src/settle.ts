@@ -6,13 +6,16 @@
  * @module @deepseek-ai/dsh-compaction-basic/settle
  */
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
- * One settled outcome of a single promise. A rejection carries `unknown`,
- * because a thrown value is unconstrained at the promise boundary.
+ * One settled outcome of a single promise. A rejection carries the values a
+ * Promise reject arm may deliver.
  */
 export type SettledOne<T> =
   | { readonly status: 'fulfilled'; readonly value: T }
-  | { readonly status: 'rejected'; readonly reason: unknown }
+  | { readonly status: 'rejected'; readonly reason: Thrown }
 
 /**
  * Settle one promise into a discriminated result, so both the fulfilled
@@ -23,7 +26,7 @@ export type SettledOne<T> =
 export function settleOne<T>(promise: Promise<T>): Promise<SettledOne<T>> {
   return promise.then(
     (value): SettledOne<T> => ({ status: 'fulfilled', value }),
-    (reason: unknown): SettledOne<T> => ({ status: 'rejected', reason }),
+    (reason: Thrown): SettledOne<T> => ({ status: 'rejected', reason }),
   )
 }
 

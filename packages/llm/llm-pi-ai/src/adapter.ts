@@ -370,7 +370,7 @@ export class PiAiAdapter extends LlmAdapter {
       : AbortSignal.any([options.signal, consumer.signal])
     const streamIdleTimeoutMs = profile.streamIdleTimeoutMs
     using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT')
-    const fail = (error: unknown): never =>
+    const fail = (error: Thrown): never =>
       streamBoundaryFailure(error, watchdog.signal, streamIdleTimeoutMs, options.signal)
 
     try {
@@ -428,7 +428,7 @@ export class PiAiAdapter extends LlmAdapter {
         }
       }
     } catch (error) {
-      fail(error)
+      streamBoundaryFailure(error, watchdog.signal, streamIdleTimeoutMs, options.signal)
     } finally {
       consumer.abort('pi-ai stream consumer stopped')
     }
