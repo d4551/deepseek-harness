@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SettingsDescribeMirror, type SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
+import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import {
+  SettingsDescribeMirror, type SettingsRemote, type SettingsWireFace,
+} from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
 import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
 import {
@@ -11,12 +14,30 @@ function ok<T>(value: T) {
   return { ok: true as const, value }
 }
 
-function namespace(value: unknown = {}, revision = 0) {
+function unusedSettingsMethod(name: string): never {
+  throw new Error(`${name} is unused in this spec`)
+}
+
+function welcomeWire(api: {
+  describe?: SettingsRemote['describe']
+  mutate?: SettingsRemote['mutate']
+}): SettingsWireFace {
+  return {
+    settings: {
+      describe: api.describe ?? (() => unusedSettingsMethod('describe')),
+      update: () => unusedSettingsMethod('update'),
+      replace: () => unusedSettingsMethod('replace'),
+      mutate: api.mutate ?? (() => unusedSettingsMethod('mutate')),
+    },
+  }
+}
+
+function namespace(value: JsonValue = {}, revision = 0): SettingsNamespaceView {
   return {
     ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
     schema: {},
     value,
-    applies: 'live' as const,
+    applies: 'live',
     secrets: [],
     revision,
   }
@@ -26,7 +47,7 @@ function acknowledgedNamespace(version: string, revision = 1) {
   return namespace({ [WELCOME_NOTICE_ACK_FIELD]: version }, revision)
 }
 
-/** The welcome store over a real mirror-derived scope and a fake wire. */
+/** The welcome store over a real mirror-derived scope and a claimed wire. */
 function buildWelcome(
   api: {
     describe?: ReturnType<typeof vi.fn<SettingsRemote['describe']>>
@@ -34,7 +55,7 @@ function buildWelcome(
   },
   persistence: 'host' | 'memory' = 'host',
 ) {
-  const wire = { settings: api } as never
+  const wire = welcomeWire(api)
   const mirror = new SettingsDescribeMirror(wire, persistence)
   const scope = new SettingsScopeController(
     wire,

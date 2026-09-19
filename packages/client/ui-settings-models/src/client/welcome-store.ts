@@ -5,11 +5,22 @@
  * stays process-local here.
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION,
 } from '../onboarding-copy.ts'
+
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null) return true
+  if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
 
 /** State rendered by the welcome step. */
 export interface WelcomeNoticeState {
@@ -19,21 +30,23 @@ export interface WelcomeNoticeState {
 }
 
 /** The welcome section as the notice reads it. */
-export type WelcomeSection = Record<string, unknown>
+export type WelcomeSection = { [key: string]: JsonValue }
 
 /**
- * Accept any object section verbatim; a malformed durable value reads as an
- * empty section, so the notice treats it as unacknowledged instead of leaving
- * the scope stuck on its previous value.
+ * Claim a JSON object section. A malformed durable value reads as an empty
+ * section, so the notice treats it as unacknowledged instead of leaving the
+ * scope stuck on its previous value.
  * @param section - the wire section value.
- * @returns the section object, or an empty one for non-object values.
+ * @returns the claimed section, or an empty object for a non-JSON object.
  */
 export function decodeWelcomeSection(section: unknown): WelcomeSection {
-  if (typeof section !== 'object' || section === null || Array.isArray(section)) return {}
+  if (!isJsonValue(section) || typeof section !== 'object' || section === null || Array.isArray(section)) {
+    return {}
+  }
   return { ...section }
 }
 
-/** Coordinates durable Host acknowledgement or a process-local remote fallback. */
+/** Coordinates durable Host acknowledgement or a process-local remote acknowledgement. */
 export class WelcomeNoticeStore {
   /** uSES-safe state source shared by the registered welcome step. */
   readonly store: SnapshotStore<WelcomeNoticeState> = createSnapshotStore<WelcomeNoticeState>({
@@ -87,9 +100,8 @@ export class WelcomeNoticeStore {
         }
         return acknowledged
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         this.saving = false
-        if (!(reason instanceof Error)) throw new TypeError('welcome acknowledgement rejected with a non-Error')
         throw reason
       },
     )
