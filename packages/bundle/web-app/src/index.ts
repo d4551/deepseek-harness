@@ -28,6 +28,9 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-shell-env'
 
+/** Values a Promise reject arm from default-browser handoff may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Stable Cordis plugin name. */
 export const name = 'web-app'
 
@@ -220,6 +223,29 @@ async function openBrowser(url: string): Promise<void> {
   })
 }
 
+/**
+ * Human text for a rejected default-browser handoff.
+ * @param reason - the Thrown the opener rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Test hooks for the built dist and native browser handoff; production never mutates them. */
 export const internals: {
   resolveDistIndex: () => string
@@ -282,9 +308,8 @@ export function apply(ctx: Context, config: Config): void {
         }
         if (handoffBrowser) {
           console.log('dsh web: opening the default browser; pass --no-open to disable')
-          internals.openBrowser(authenticatedUrl).catch((error: unknown) => {
-            const reason = error instanceof Error ? error.message : String(error)
-            console.error(`web-app: could not open the default browser because ${reason}; use the dsh web URL printed at startup`)
+          internals.openBrowser(authenticatedUrl).catch((error: Thrown) => {
+            console.error(`web-app: could not open the default browser because ${thrownMessage(error)}; use the dsh web URL printed at startup`)
           })
         }
       }
