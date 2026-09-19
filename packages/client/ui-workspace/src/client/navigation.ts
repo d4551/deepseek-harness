@@ -87,7 +87,9 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     }
     this.connectWorkspace(target).then(
       (sessionId) => { this.sessions.open(sessionId) },
-      (reason: unknown) => { console.warn('new session failed:', reason) },
+      (reason: object | string | number | boolean | bigint | symbol | null | undefined) => {
+        console.warn('new session failed:', reason)
+      },
     )
   }
 
@@ -141,7 +143,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
           }
           initial = 'done'
         },
-        (reason: unknown) => {
+        (reason: object | string | number | boolean | bigint | symbol | null | undefined) => {
           if (disposed) return
           initial = 'waiting'
           console.warn('initial workspace selection failed:', reason)

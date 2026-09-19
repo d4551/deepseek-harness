@@ -8,6 +8,12 @@ import type { ReactElement } from 'react'
 // Type-only: the owner contract of the directory-flow holes.
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /** Injected face: the wire call the flow drives (bound in apply's closure). */
 export interface NativeFlowInjected {
   /** Ask the local Host to open its native single-directory chooser. */
@@ -55,9 +61,9 @@ export function NativeDirectoryFlow(props: DirectoryFlowOwnerProps & NativeFlowI
         if (!alive.current) return
         if (path === null) outcome.current.onCancel(); else outcome.current.onPicked(path)
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         if (!alive.current) return
-        outcome.current.onError(reason instanceof Error ? reason.message : String(reason))
+        outcome.current.onError(thrownMessage(reason))
       },
     )
   }, [open, pick])

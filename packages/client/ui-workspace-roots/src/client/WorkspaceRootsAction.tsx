@@ -13,6 +13,12 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import { NS, type WorkspaceRootsKey } from './locales.ts'
 import css from './WorkspaceRootsAction.module.css'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /** Business actions injected by the browser plugin. */
 export interface WorkspaceRootsInjected {
   /**
@@ -159,10 +165,10 @@ export function WorkspaceRootsAction({
       setError(failureText(result.error))
       setFieldError(false)
       setRetry(() => () => { submit(paths, onSettled) })
-    }, (reason: unknown) => {
+    }, (reason: Thrown) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(thrownMessage(reason))
       setFieldError(false)
       setRetry(() => () => { submit(paths, onSettled) })
     })
@@ -199,9 +205,9 @@ export function WorkspaceRootsAction({
     pickDirectory().then((chosen) => {
       if (!aliveRef.current || sessionRef.current !== sessionId || chosen === null) return
       setDraft(chosen)
-    }, (reason: unknown) => {
+    }, (reason: Thrown) => {
       if (aliveRef.current && sessionRef.current === sessionId) {
-        setError(reason instanceof Error ? reason.message : String(reason))
+        setError(thrownMessage(reason))
         setFieldError(false)
       }
     })

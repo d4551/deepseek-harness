@@ -7,6 +7,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PlanChipInjected } from './index.ts'
 import css from './PlanModeControl.module.css'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /** Full plan-seat component props: runtime share (standard kit + locked owner prop) & injected share & the locale seat. */
 export type PlanChipProps =
   PropsRuntime<'conversation.input.plan'> & InjectFace<PlanChipInjected> & PropsLocale<'plan'>
@@ -41,10 +47,10 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
       if (!aliveRef.current) return
       setLeaving(false)
       setError(failure)
-    }, (reason: unknown) => {
+    }, (reason: Thrown) => {
       if (!aliveRef.current) return
       setLeaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(thrownMessage(reason))
     })
   }
 
