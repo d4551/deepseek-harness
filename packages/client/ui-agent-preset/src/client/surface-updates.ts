@@ -1,7 +1,7 @@
 /** Roster and selection work admitted by synchronous surface notifications. */
 import { AgentPresetSeatController } from './seat-store.ts'
 import type { AgentPresetSectionController } from './section-store.ts'
-import type { AgentPresetSettingsController } from './settings-store.ts'
+import { messageOf, type AgentPresetSettingsController, type Thrown } from './settings-store.ts'
 
 type SurfaceController = AgentPresetSettingsController | AgentPresetSectionController | AgentPresetSeatController
 
@@ -40,10 +40,8 @@ export class AgentPresetSurfaceUpdates {
       resolve(controller.apply())
     })])
     if (result.status === 'rejected') {
-      if (!(result.reason instanceof Error)) {
-        throw new TypeError('agent preset surface update rejected with a non-Error')
-      }
-      const message = result.reason.message
+      const reason: Thrown = result.reason
+      const message = messageOf(reason)
       controller.store.update((state) => {
         state.error = message
         if ('status' in state) state.status = 'error'

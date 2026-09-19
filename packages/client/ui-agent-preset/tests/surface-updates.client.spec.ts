@@ -56,4 +56,31 @@ describe('preset surface updates', () => {
     await updates.dispose()
     expect(controller.store.getSnapshot().error).toBe('session projection unavailable')
   })
+
+  it('publishes a non-Error session-reader refusal', async () => {
+    const controller = new AgentPresetSeatController({ agentPresets: {
+      list: () => Promise.resolve({ ok: true, value: { presets: [], authorable: false } }),
+      select: (_sessionId, value) => Promise.resolve({ ok: true, value }),
+    } }, () => { throw 'plain refusal' })
+    const updates = new AgentPresetSurfaceUpdates()
+    updates.load(controller)
+    await updates.dispose()
+    expect(controller.store.getSnapshot().error).toBe('plain refusal')
+  })
+
+  it('retains a non-Error selection refusal on the seat', async () => {
+    const controller = new AgentPresetSeatController({ agentPresets: {
+      list: () => Promise.resolve({ ok: true, value: { presets: [], authorable: false } }),
+      select: () => Promise.reject('plain refusal'),
+    } }, () => ({ id: SessionId('notification-seat'), blank: true }))
+    controller.stage('minimal')
+    const updates = new AgentPresetSurfaceUpdates()
+    updates.apply(controller)
+    await updates.dispose()
+    expect(controller.store.getSnapshot()).toMatchObject({
+      busy: false,
+      current: '',
+      error: 'plain refusal',
+    })
+  })
 })

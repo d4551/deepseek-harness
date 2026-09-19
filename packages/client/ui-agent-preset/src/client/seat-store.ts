@@ -14,8 +14,8 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
-import { presetOptions, readRoster } from './settings-store.ts'
-import type { AgentPresetOption } from './settings-store.ts'
+import { messageOf, presetOptions, readRoster } from './settings-store.ts'
+import type { AgentPresetOption, Thrown } from './settings-store.ts'
 
 /** Hero-chip snapshot. */
 export interface AgentPresetSeatState {
@@ -178,10 +178,8 @@ export class AgentPresetSeatController {
     let refusal: string | undefined
     let selected: string | undefined
     if (outcome.status === 'rejected') {
-      if (!(outcome.reason instanceof Error)) {
-        throw new TypeError('preset selection rejected with a non-Error')
-      }
-      refusal = outcome.reason.message
+      const reason: Thrown = outcome.reason
+      refusal = messageOf(reason)
     } else if (outcome.value.ok) {
       selected = outcome.value.value
     } else {

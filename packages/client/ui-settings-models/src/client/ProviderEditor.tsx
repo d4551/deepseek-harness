@@ -32,8 +32,8 @@ import {
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
-import { deriveKeyRef, protocolChoices } from './store.ts'
-import type { ModelsWire } from './store.ts'
+import { deriveKeyRef, protocolChoices, thrownMessage } from './store.ts'
+import type { ModelsWire, Thrown } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -196,7 +196,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         if (stale || !response.ok) return
         setKeyState(response.value[keyRef])
       },
-      () => undefined,
+      (reason: Thrown) => {
+        if (stale) return
+        setFailure(thrownMessage(reason))
+      },
     )
     return () => { stale = true }
   }, [api.credentials, keyRef])
@@ -306,9 +309,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         if (failure !== undefined) setFailure(failure)
         else props.onClose(true)
       },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('provider apply rejected with a non-Error')
-        setFailure(reason.message)
+      (reason: Thrown) => {
+        setFailure(thrownMessage(reason))
       },
     )
   }

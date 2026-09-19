@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
 import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
 } from '../src/client/ModelsSection.tsx'
@@ -1150,6 +1151,28 @@ describe('ModelsSection', () => {
     />)
     const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
     expect(key.placeholder).toBe(en.keyPlaceholder)
+    expect(await screen.findByText('connection lost')).toBeTruthy()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(unhandled).not.toHaveBeenCalled()
+  })
+
+  it('claims a non-Error credential probe refusal onto the card', async () => {
+    const { face } = scriptedFace()
+    face.credentials.describe = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    const unhandled = vi.fn<() => void>()
+    process.on('unhandledRejection', unhandled)
+    onTestFinished(() => { process.off('unhandledRejection', unhandled) })
+    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    await controller.load()
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
     await new Promise(resolve => setTimeout(resolve, 10))
     expect(unhandled).not.toHaveBeenCalled()
   })
@@ -1187,6 +1210,52 @@ describe('ModelsSection', () => {
     })
     expect(mutate.mock.calls[1]).toEqual(mutate.mock.calls[0])
     expect(screen.getByLabelText<HTMLInputElement>(en.baseUrl).value).toBe('https://next')
+  })
+
+  it('keeps the card usable when the write rejects with a non-Error', async () => {
+    const { mutate } = await mountDeepSeekCard({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await screen.findByText('plain refusal')
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: en.apply }).disabled).toBe(false)
+    })
+    expect(mutate).toHaveBeenCalledOnce()
+  })
+
+  it('reports a non-Error model discovery refusal', async () => {
+    const { face } = await mountSection()
+    face.llm.discoverModels = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.click(screen.getByText(en.fetchModels))
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
+  })
+
+  it('reports a non-Error custom provider create refusal', async () => {
+    const { face } = scriptedFace({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    render(
+      <CustomProviderCard
+        taken={[]}
+        protocols={['openai-completions']}
+        revision={7}
+        api={face as never}
+        t={t}
+        readOnly={false}
+        onClose={vi.fn<(changed: boolean) => void>()}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
+    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://acme.test/v1' } })
+    fireEvent.click(screen.getByRole('button', { name: en.addModel }))
+    fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
+    fireEvent.click(screen.getByText(en.create))
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
   })
 
   it('surfaces a shadowed credential write on the card', async () => {

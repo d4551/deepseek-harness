@@ -29,8 +29,8 @@ import { EditorFooter } from './EditorFooter.tsx'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
-import { deriveKeyRef } from './store.ts'
-import type { ModelsWire } from './store.ts'
+import { deriveKeyRef, thrownMessage } from './store.ts'
+import type { ModelsWire, Thrown } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -180,10 +180,9 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         }
         props.onClose(true)
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         setBusy(false)
-        if (!(reason instanceof Error)) throw new TypeError('custom provider create rejected with a non-Error')
-        setFailure(reason.message)
+        setFailure(thrownMessage(reason))
       },
     )
   }

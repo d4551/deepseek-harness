@@ -20,7 +20,8 @@ import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
-import type { ModelsWire } from './store.ts'
+import { thrownMessage } from './store.ts'
+import type { ModelsWire, Thrown } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -249,10 +250,9 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         setCandidates(found)
         setPicked(new Set(found.filter(model => !known.has(model.id)).map(model => model.id)))
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         setBusy(false)
-        if (!(reason instanceof Error)) throw new TypeError('model discovery rejected with a non-Error')
-        setFailure(reason.message)
+        setFailure(thrownMessage(reason))
       },
     )
   }
