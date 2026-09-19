@@ -12,6 +12,9 @@ import { mkdir, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
+/** Values a Promise reject arm from exclusive create may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Prefix shared by default-root creation and startup discovery. */
 export const DEFAULT_ROOT_PREFIX = 'dsh-spill-'
 
@@ -23,7 +26,7 @@ export const DEFAULT_ROOT_PREFIX = 'dsh-spill-'
  * @returns Whether the code matches.
  */
 export function isErrno(error: unknown, code: string): boolean {
-  return error instanceof Error && (error as NodeJS.ErrnoException).code === code
+  return error instanceof Error && 'code' in error && error.code === code
 }
 
 let defaultRoot: string | undefined
@@ -109,16 +112,19 @@ export async function saveTextFile(options: SaveTextOptions): Promise<SavedText>
   let handle
   for (;;) {
     await mkdir(dir, { recursive: true, mode: 0o700 })
-    try {
-      handle = await open(path, 'wx', 0o600)
-      break
-    } catch (error: unknown) {
-      /* v8 ignore start -- requires another process to remove the directory
-         between mkdir and open, or an external permission/IO race. */
-      if (isErrno(error, 'ENOENT')) continue
-      throw error
-      /* v8 ignore stop */
-    }
+    const opened = await open(path, 'wx', 0o600).then(
+      undefined,
+      (error: Thrown) => {
+        /* v8 ignore start -- requires another process to remove the directory
+           between mkdir and open, or an external permission/IO race. */
+        if (isErrno(error, 'ENOENT')) return undefined
+        throw error
+        /* v8 ignore stop */
+      },
+    )
+    if (opened === undefined) continue
+    handle = opened
+    break
   }
   try {
     await handle.writeFile(options.content)

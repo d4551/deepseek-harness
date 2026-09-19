@@ -34,6 +34,32 @@ import { readPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 import { classifyRowSpecifier, type RowSpecifier } from './specifier.ts'
 
+/** Values a Promise reject arm from discovery IO may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected filesystem operation.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the message to report.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** The composition file that makes a directory a preset. */
 export const COMPOSITION_FILE = 'agent.cordis.yml'
 
@@ -207,7 +233,7 @@ async function unresolvableRows(
   const found: UnresolvableRow[] = []
   for (const [index, entry] of rows.entries()) {
     const row = entry as { id?: unknown; name: string; group?: unknown; config?: unknown; disabled?: unknown }
-    if (Boolean(row.disabled)) continue
+    if (row.disabled) continue
     const positional = at === '' ? `row ${String(index + 1)}` : `${at} row ${String(index + 1)}`
     if (row.group === true) {
       found.push(...await unresolvableRows(row.config as readonly unknown[], presetBase, harnessBase, positional))
@@ -229,38 +255,39 @@ async function unresolvableRows(
  * @param harnessBase - base URL a row's package name resolves against.
  * @returns one human-readable reason, or undefined when the file is loadable.
  */
-async function compositionProblem(path: string, harnessBase: string): Promise<string | undefined> {
-  let content: string
-  try {
-    content = await readFile(path, 'utf8')
-  } catch {
-    // The caller statted this file moments ago; any read failure now —
-    // deleted in between, permissions — is the same answer as unparsable.
-    return `the composition file ${COMPOSITION_FILE} cannot be read`
-  }
-  let rows: unknown
-  try {
-    rows = load(content, { schema: entryListSchema })
-  } catch (error) {
-    /* v8 ignore next -- js-yaml throws YAMLException (an Error) for every parse failure; the fallback keeps a hostile value readable */
-    const full = error instanceof Error ? error.message : String(error)
-    // First line only: js-yaml appends a multi-line code-frame snippet, and
-    // the reason is displayed on a roster card, not in a terminal.
-    return `the composition is not valid YAML: ${full.replace(/\n[\s\S]*$/, '')}`
-  }
-  const shape = entryListProblem(rows)
-  if (shape !== undefined) return shape
-  // The composition's own directory, exactly as `Include` derives it, so a
-  // row naming a file the preset ships resolves the way the mount will.
-  const presetBase = new URL('.', pathToFileURL(path)).href
-  const unresolvable = await unresolvableRows(rows as readonly unknown[], presetBase, harnessBase)
-  const [first] = unresolvable
-  if (first === undefined) return undefined
-  if (unresolvable.length === 1) {
-    return `${first.label} names a plugin that cannot be resolved: ${first.name}`
-  }
-  return `${String(unresolvable.length)} rows name plugins that cannot be resolved:\n`
-    + unresolvable.map(row => `- ${row.label}: ${row.name}`).join('\n')
+function compositionProblem(path: string, harnessBase: string): Promise<string | undefined> {
+  return readFile(path, 'utf8').then(
+    async (content) => {
+      let rows: unknown
+      try {
+        rows = load(content, { schema: entryListSchema })
+      } catch (error) {
+        /* v8 ignore next -- js-yaml throws YAMLException (an Error) for every parse failure; a hostile value stays readable */
+        const full = thrownMessage(error)
+        // First line only: js-yaml appends a multi-line code-frame snippet, and
+        // the reason is displayed on a roster card, not in a terminal.
+        return `the composition is not valid YAML: ${full.replace(/\n[\s\S]*$/, '')}`
+      }
+      const shape = entryListProblem(rows)
+      if (shape !== undefined) return shape
+      // The composition's own directory, exactly as `Include` derives it, so a
+      // row naming a file the preset ships resolves the way the mount will.
+      const presetBase = new URL('.', pathToFileURL(path)).href
+      const unresolvable = await unresolvableRows(rows as readonly unknown[], presetBase, harnessBase)
+      const [first] = unresolvable
+      if (first === undefined) return undefined
+      if (unresolvable.length === 1) {
+        return `${first.label} names a plugin that cannot be resolved: ${first.name}`
+      }
+      return `${String(unresolvable.length)} rows name plugins that cannot be resolved:\n`
+        + unresolvable.map(row => `- ${row.label}: ${row.name}`).join('\n')
+    },
+    (_error: Thrown) => {
+      // The caller statted this file moments ago; any read failure now —
+      // deleted in between, permissions — is the same answer as unparsable.
+      return `the composition file ${COMPOSITION_FILE} cannot be read`
+    },
+  )
 }
 
 /**
@@ -268,15 +295,16 @@ async function compositionProblem(path: string, harnessBase: string): Promise<st
  * @param path - absolute path to test.
  * @returns true when the path resolves to a file.
  */
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile()
-  } catch {
-    // Any stat failure — absent, unreadable, a dangling link — means this
-    // directory does not present a composition, which is not an error: the
-    // directory simply is not a preset.
-    return false
-  }
+function isFile(path: string): Promise<boolean> {
+  return stat(path).then(
+    entry => entry.isFile(),
+    (_error: Thrown) => {
+      // Any stat failure — absent, unreadable, a dangling link — means this
+      // directory does not present a composition, which is not an error: the
+      // directory simply is not a preset.
+      return false
+    },
+  )
 }
 
 /**
@@ -298,42 +326,46 @@ async function isFile(path: string): Promise<boolean> {
  * caller's own `ctx.baseUrl`, which is where the installed harness lives.
  * @returns the root's presets ordered by id.
  */
-export async function scanRoot(root: PresetRoot, harnessBase: string): Promise<AgentPreset[]> {
+export function scanRoot(root: PresetRoot, harnessBase: string): Promise<AgentPreset[]> {
   const dir = resolve(expandHomePath(root.path))
-  let children
-  try {
-    children = await readdir(dir, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw new Error(`agent-presets: cannot read preset root ${dir}: ${String(error)}`, { cause: error })
-  }
-  const found: AgentPreset[] = []
-  for (const child of children) {
-    if (!PRESET_ID.test(child.name)) continue
-    // `stat`, not the dirent's own type: a symlinked preset is a deployment's
-    // way of exposing a composition that lives elsewhere (a generation, a
-    // checkout), and the dirent of a link never reports `isDirectory`.
-    const directory = join(dir, child.name)
-    const directoryStat = await stat(directory).catch(() => undefined)
-    if (directoryStat === undefined || !directoryStat.isDirectory()) continue
-    const path = join(directory, COMPOSITION_FILE)
-    const broken = await isFile(path)
-      ? await compositionProblem(path, harnessBase)
-      : `the composition file ${COMPOSITION_FILE} is missing — the directory still occupies the id; delete it or restore the file`
-    // Display text only, and never fatal: a preset with unreadable metadata
-    // still mounts, it just shows its id.
-    const metadata = await readPresetMetadata(directory)
-    found.push({
-      id: child.name, trust: root.trust, path, ...metadata,
-      ...broken === undefined ? {} : { broken },
-    })
-  }
-  // Declared order first so the shipped set reads by capability; everything
-  // else falls back to the id, which keeps authored presets stable.
-  return found.sort((left, right) => {
-    const byOrder = (left.order ?? Number.POSITIVE_INFINITY) - (right.order ?? Number.POSITIVE_INFINITY)
-    return byOrder === 0 ? left.id.localeCompare(right.id) : byOrder
-  })
+  return readdir(dir, { withFileTypes: true }).then(
+    async (children) => {
+      const found: AgentPreset[] = []
+      for (const child of children) {
+        if (!PRESET_ID.test(child.name)) continue
+        // `stat`, not the dirent's own type: a symlinked preset is a deployment's
+        // way of exposing a composition that lives elsewhere (a generation, a
+        // checkout), and the dirent of a link never reports `isDirectory`.
+        const directory = join(dir, child.name)
+        const directoryStat = await stat(directory).then(
+          undefined,
+          (_error: Thrown) => undefined,
+        )
+        if (directoryStat === undefined || !directoryStat.isDirectory()) continue
+        const path = join(directory, COMPOSITION_FILE)
+        const broken = await isFile(path)
+          ? await compositionProblem(path, harnessBase)
+          : `the composition file ${COMPOSITION_FILE} is missing — the directory still occupies the id; delete it or restore the file`
+        // Display text only, and never fatal: a preset with unreadable metadata
+        // still mounts, it just shows its id.
+        const metadata = await readPresetMetadata(directory)
+        found.push({
+          id: child.name, trust: root.trust, path, ...metadata,
+          ...broken === undefined ? {} : { broken },
+        })
+      }
+      // Declared order first so the shipped set reads by capability; everything
+      // else falls back to the id, which keeps authored presets stable.
+      return found.sort((left, right) => {
+        const byOrder = (left.order ?? Number.POSITIVE_INFINITY) - (right.order ?? Number.POSITIVE_INFINITY)
+        return byOrder === 0 ? left.id.localeCompare(right.id) : byOrder
+      })
+    },
+    (error: Thrown) => {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return []
+      throw new Error(`agent-presets: cannot read preset root ${dir}: ${thrownMessage(error)}`, { cause: error })
+    },
+  )
 }
 
 /**

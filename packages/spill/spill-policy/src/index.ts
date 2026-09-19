@@ -56,6 +56,32 @@ import type { SpillPolicyExec } from './types.ts'
 
 export type { SpillPolicyExec } from './types.ts'
 
+/** Values a Promise reject arm from spill storage may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected spill save.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Plugin config. */
 export interface Config {
   /**
@@ -150,41 +176,41 @@ export function apply(ctx: Context, config: Config): void {
       suggestedName: `${toolName}.txt`,
       content: text,
     }
-    let ref: SpillRef
-    try {
-      ref = await spillStore.saveText(save)
-    } catch (error: unknown) {
-      // Best-effort: a storage failure (permissions, ENOSPC, backend down) must
-      // never fail the call or hide the content — keep the original inline.
-      ctx.logger.warn(`spill-policy: saveText failed for ${toolName}: ${String(error)}; keeping the inline content`)
-      return undefined
-    }
-
-    // Reserve the notice's byte cost INSIDE maxInlineBytes so the replacement
-    // (preview + blank line + notice) never exceeds the documented cap — a naive
-    // preview that spent the whole budget then appended the notice could be
-    // larger than the cap, and for a marginally-over result even larger than the
-    // original. The reservation uses a notice priced at the worst-case omission
-    // count (the full byte total): its digit count bounds the real count's, so
-    // the reserved size is a safe upper bound and the final notice is never
-    // longer than what we reserved. `\n\n` is the 2-byte join.
-    const reserve = Buffer.byteLength(spillNotice({ kind: 'exact', count: totalBytes }, ref), 'utf8') + 2
-    const previewBudget = Math.max(0, cap - reserve)
-    const { text: previewText, omitted } = preview(text, previewBudget)
-    const notice = spillNotice(omitted, ref)
-    const replacedText = previewText.length > 0 ? `${previewText}\n\n${notice}` : notice
-    // Invariant: the policy NEVER emits a replacement larger than the cap. When
-    // the notice alone exceeds maxInlineBytes (a tiny cap or a long spill root),
-    // there is no within-cap replacement, so keep the inline content — spilling
-    // would break the advertised cap. (A within-cap replacement is always
-    // smaller than the original, which is > cap by the entry condition, so this
-    // one check subsumes "not smaller than the original" too. The spill file
-    // already written is a harmless orphan; cleanup is deferred.)
-    if (Buffer.byteLength(replacedText, 'utf8') > cap) {
-      ctx.logger.warn(`spill-policy: spill notice for ${toolName} exceeds maxInlineBytes; keeping the inline content`)
-      return undefined
-    }
-    return replacedText
+    return spillStore.saveText(save).then(
+      (ref) => {
+        // Reserve the notice's byte cost INSIDE maxInlineBytes so the replacement
+        // (preview + blank line + notice) never exceeds the documented cap — a naive
+        // preview that spent the whole budget then appended the notice could be
+        // larger than the cap, and for a marginally-over result even larger than the
+        // original. The reservation uses a notice priced at the worst-case omission
+        // count (the full byte total): its digit count bounds the real count's, so
+        // the reserved size is a safe upper bound and the final notice is never
+        // longer than what we reserved. `\n\n` is the 2-byte join.
+        const reserve = Buffer.byteLength(spillNotice({ kind: 'exact', count: totalBytes }, ref), 'utf8') + 2
+        const previewBudget = Math.max(0, cap - reserve)
+        const { text: previewText, omitted } = preview(text, previewBudget)
+        const notice = spillNotice(omitted, ref)
+        const replacedText = previewText.length > 0 ? `${previewText}\n\n${notice}` : notice
+        // Invariant: the policy NEVER emits a replacement larger than the cap. When
+        // the notice alone exceeds maxInlineBytes (a tiny cap or a long spill root),
+        // there is no within-cap replacement, so keep the inline content — spilling
+        // would break the advertised cap. (A within-cap replacement is always
+        // smaller than the original, which is > cap by the entry condition, so this
+        // one check subsumes "not smaller than the original" too. The spill file
+        // already written is a harmless orphan; cleanup is deferred.)
+        if (Buffer.byteLength(replacedText, 'utf8') > cap) {
+          ctx.logger.warn(`spill-policy: spill notice for ${toolName} exceeds maxInlineBytes; keeping the inline content`)
+          return undefined
+        }
+        return replacedText
+      },
+      (error: Thrown) => {
+        // Best-effort: a storage failure (permissions, ENOSPC, backend down) must
+        // never fail the call or hide the content — keep the original inline.
+        ctx.logger.warn(`spill-policy: saveText failed for ${toolName}: ${thrownMessage(error)}; keeping the inline content`)
+        return undefined
+      },
+    )
   }
 
   ctx.on('tools/post-execute', async (exec, result, next): Promise<PostToolDecision> => {

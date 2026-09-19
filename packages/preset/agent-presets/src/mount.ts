@@ -22,6 +22,9 @@ import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 import { classifyRowSpecifier } from './specifier.ts'
 
+/** Values a Promise reject arm from mount inspection or cleanup may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** What one mounted subtree publishes about itself for the audit to read. */
 interface MountedTree {
   /** The rows the composition created. */
@@ -303,13 +306,27 @@ function detailBranches(error: Error): readonly unknown[] {
  * @returns a single-line-per-cause description.
  */
 function mountDetail(error: unknown): string {
-  if (!(error instanceof Error)) return String(error)
-  const branches = detailBranches(error)
-  if (branches.length === 0) return error.message
-  return [
-    error.message,
-    ...branches.map(branch => `- ${mountDetail(branch).replaceAll('\n', '\n  ')}`),
-  ].join('\n')
+  if (error instanceof Error) {
+    const branches = detailBranches(error)
+    if (branches.length === 0) return error.message
+    return [
+      error.message,
+      ...branches.map(branch => `- ${mountDetail(branch).replaceAll('\n', '\n  ')}`),
+    ].join('\n')
+  }
+  if (error === null) return 'null'
+  if (error === undefined) return 'undefined'
+  switch (typeof error) {
+    case 'string': return error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    default:
+      return Object.prototype.toString.call(error)
+  }
 }
 
 /** Publish a usable, isolated subtree with registration owned by its lifecycle. */
@@ -368,22 +385,33 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
   }
   const config: PresetTreeConfig = { path: pathToFileURL(preset.path).href, harnessBase }
   const handle = agentCtx.plugin(PresetTree, config)
-  const [inspected] = await Promise.allSettled([inspectMount(agentCtx, handle, config, preset.id, scope)])
-  if (inspected.status === 'fulfilled') {
-    return
-  }
-  const failures: unknown[] = [inspected.reason]
-  const [disposed] = await Promise.allSettled([Promise.resolve().then(handle.dispose)])
-  if (disposed.status === 'rejected') failures.push(disposed.reason)
-  // Disposal can reject after starting asynchronous unload. Retain that failure
-  // and join the owned transition before returning the failed mount to its caller.
-  const pending = handle.inertia
-  if (pending !== undefined) {
-    const [unloaded] = await Promise.allSettled([pending])
-    if (unloaded.status === 'rejected') failures.push(unloaded.reason)
-  }
-  const error: unknown = failures.length === 1
-    ? inspected.reason
-    : new AggregateError(failures, 'preset mounting and cleanup failed')
-  throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
+  return inspectMount(agentCtx, handle, config, preset.id, scope).then(
+    undefined,
+    (inspectedError: Thrown) => {
+      const extra: Thrown[] = []
+      return Promise.resolve().then(handle.dispose).then(
+        undefined,
+        (disposeError: Thrown) => {
+          extra.push(disposeError)
+        },
+      ).then(() => {
+        // Disposal can reject after starting asynchronous unload. Retain that failure
+        // and join the owned transition before returning the failed mount to its caller.
+        const pending = handle.inertia
+        const fail = (): never => {
+          const error = extra.length === 0
+            ? inspectedError
+            : new AggregateError([inspectedError, ...extra], 'preset mounting and cleanup failed')
+          throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
+        }
+        if (pending === undefined) return fail()
+        return pending.then(
+          undefined,
+          (unloadError: Thrown) => {
+            extra.push(unloadError)
+          },
+        ).then(fail)
+      })
+    },
+  )
 }

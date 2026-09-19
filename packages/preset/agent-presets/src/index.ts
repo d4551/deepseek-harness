@@ -46,6 +46,35 @@ import { StandingMounts, type StandingMount } from './standing.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
 export type { AgentPresetDocument, AgentPresetError, AgentPresetErrorDetailsMap, AgentPresetRoster, AgentPresetRow } from './types.ts'
 
+/** Values a Promise reject arm from a roster Remote operation may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected roster operation.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the message to report.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) {
+    const headline = reason.stack?.split('\n', 1)[0]
+    return headline !== undefined && headline !== '' ? headline : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Settings namespace carrying the user's chosen default preset. */
 export const SETTINGS_NAMESPACE = 'agent-presets'
 
@@ -435,18 +464,21 @@ export class AgentPresets extends TypertRemoteService {
   @Remote('read')
   async readDocument(agentPreset: string): Promise<AgentPresetDocument> {
     validatePresetId(agentPreset, 'agentPreset')
-    try {
-      const preset = await this.resolve(agentPreset)
-      return {
-        agentPreset: preset.id,
-        trust: preset.trust,
-        content: await this.read(preset.id),
-        ...preset.name === undefined ? {} : { name: preset.name },
-        ...preset.description === undefined ? {} : { description: preset.description },
-      }
-    } catch (error: unknown) {
-      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${String(error)}`)
-    }
+    const fail = (error: Thrown): never =>
+      rejectPreset(error, agentPreset, `agent preset "${agentPreset}": ${thrownMessage(error)}`)
+    return this.resolve(agentPreset).then(
+      preset => this.read(preset.id).then(
+        content => ({
+          agentPreset: preset.id,
+          trust: preset.trust,
+          content,
+          ...preset.name === undefined ? {} : { name: preset.name },
+          ...preset.description === undefined ? {} : { description: preset.description },
+        }),
+        fail,
+      ),
+      fail,
+    )
   }
 
   /**
@@ -492,11 +524,10 @@ export class AgentPresets extends TypertRemoteService {
   async remoteExportCopy(from: string, id: string, name?: string): Promise<void> {
     validatePresetId(from, 'from')
     validatePresetId(id, 'agentPreset')
-    try {
-      await this.copy(from, id, name)
-    } catch (error: unknown) {
-      rejectPreset(error, id, `agent preset "${id}": ${String(error)}`)
-    }
+    return this.copy(from, id, name).then(
+      undefined,
+      (error: Thrown) => rejectPreset(error, id, `agent preset "${id}": ${thrownMessage(error)}`),
+    )
   }
 
   /**
@@ -533,11 +564,10 @@ export class AgentPresets extends TypertRemoteService {
   @Remote('deletePreset')
   async remoteExportDelete(id: string): Promise<void> {
     validatePresetId(id, 'agentPreset')
-    try {
-      await this.remove(id)
-    } catch (error: unknown) {
-      rejectPreset(error, id, `agent preset "${id}": ${String(error)}`)
-    }
+    return this.remove(id).then(
+      undefined,
+      (error: Thrown) => rejectPreset(error, id, `agent preset "${id}": ${thrownMessage(error)}`),
+    )
   }
 
   /**
@@ -596,7 +626,7 @@ export class AgentPresets extends TypertRemoteService {
     try {
       this.ctx.emit('tools/change')
     } catch (error: unknown) {
-      this.ctx.logger.warn(`agent-presets: tools/change listener failed after recomposing an Agent: ${String(error)}`)
+      this.ctx.logger.warn(`agent-presets: tools/change listener failed after recomposing an Agent: ${thrownMessage(error)}`)
     }
     return preset
   }
@@ -626,15 +656,18 @@ export class AgentPresets extends TypertRemoteService {
     validatePresetId(agentPreset, 'agentPreset')
     const queued = this.switches.get(agent.id) ?? Promise.resolve()
     const turn = queued.then(() => this.swap(agent, agentPreset))
-    const guard = turn.catch(() => undefined)
+    const guard = turn.then(undefined, (_error: Thrown) => undefined)
     this.switches.set(agent.id, guard)
-    try {
-      return await turn
-    } catch (error: unknown) {
-      return rejectPreset(error, agentPreset, `failed to select agent preset "${agentPreset}": ${String(error)}`)
-    } finally {
-      if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
-    }
+    return turn.then(
+      (id) => {
+        if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
+        return id
+      },
+      (error: Thrown) => {
+        if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
+        return rejectPreset(error, agentPreset, `failed to select agent preset "${agentPreset}": ${thrownMessage(error)}`)
+      },
+    )
   }
 
   /** One queued switch: re-check, recompose, then record what the agent runs. */
