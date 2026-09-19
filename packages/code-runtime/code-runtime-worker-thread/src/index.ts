@@ -105,9 +105,26 @@ interface LiveRun {
 /* v8 ignore next -- the './worker.cjs' arm is the built-lib world, unreachable unbuilt by construction; the built-lib e2e pins it. */
 const WORKER_PATH = fileURLToPath(new URL(new URL(import.meta.url).pathname.endsWith('.ts') ? './worker.ts' : './worker.cjs', import.meta.url))
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Render an unknown thrown value as a message, `Error` or not. */
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (error instanceof Error) return error.message
+  switch (typeof error) {
+    case 'string': return error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (error === null) return 'null'
+      return Object.prototype.toString.call(error)
+  }
 }
 
 /** Resolve after a worker pipe emits all queued data, or closes/errors during termination. */
@@ -301,7 +318,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
     try {
       const stripped = stripTypeScriptTypes(STRIP_WRAP.prefix + request.program + STRIP_WRAP.suffix)
       code = stripped.slice(STRIP_WRAP.prefix.length, stripped.length - STRIP_WRAP.suffix.length)
-    } catch (error: unknown) {
+    } catch (error) {
       // A program that does not survive the type-strip (syntax error,
       // non-erasable syntax like `enum`) is a program failure, reported the
       // same way a thrown exception would be — and no worker ever spawns.
@@ -421,7 +438,7 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
       // logs captured before timeout, abort, or failure remain in the result.
       let finishResolve!: () => void
       const finished = new Promise<void>((done) => { finishResolve = done })
-      const finishFailed = (error: unknown): void => {
+      const finishFailed = (error: Thrown): void => {
         finishResolve()
         reject(error instanceof Error ? error : new Error('code runtime teardown failed', { cause: error }))
       }
@@ -490,12 +507,11 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
           reply({ type: 'reply', id: message.id, ok: false, message: 'binding arguments must be lossless JSON' })
           return
         }
-        const replyFailed = (error: unknown): void => {
+        const replyFailed = (error: Thrown): void => {
           finish(() => output.failure([...logs, ...strayLogs], { kind: 'worker-exit', message: messageOf(error) }))
         }
-        ;(async () => {
-          try {
-            const resolved = await fn(args)
+        fn(args).then(
+          (resolved) => {
             let value: CodeJsonValue | undefined
             try {
               value = snapshotJsonValue(resolved)
@@ -507,10 +523,11 @@ export class WorkerThreadCodeRuntime extends CodeRuntime {
             } else {
               reply({ type: 'reply', id: message.id, ok: true, value: encodeWorkerJson(value) })
             }
-          } catch (error: unknown) {
+          },
+          (error: Thrown) => {
             reply({ type: 'reply', id: message.id, ok: false, message: messageOf(error) })
-          }
-        })().then(undefined, replyFailed)
+          },
+        ).then(undefined, replyFailed)
       }
 
       worker.on('message', (raw: unknown) => {

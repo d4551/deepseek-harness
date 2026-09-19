@@ -10,6 +10,32 @@ import type { DoneMessage, ReplyMessage, WorkerBootData, WorkerToHost } from './
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from './output-json.ts'
 import { decodeWorkerJson, encodeWorkerJson, snapshotCodeJsonValue } from './worker-json.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a thrown clone failure or Promise rejection.
+ * @param reason - the Thrown or catch-boundary value.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const CapturedError = Error
 const capturedObjectCreate = Object.create
 const capturedObjectDefineProperty = Object.defineProperty
@@ -347,9 +373,9 @@ export function makeNamespaces(
             })
             try {
               port.postMessage({ type: 'call', id, global, name, args: encodeWorkerJson(detached) })
-            } catch (error: unknown) {
+            } catch (error) {
               pending.delete(id)
-              const message = `binding arguments must be structured-cloneable: ${error instanceof CapturedError ? error.message : String(error)}`
+              const message = `binding arguments must be structured-cloneable: ${thrownMessage(error)}`
               reject(bindingFailure(errorClass, name, message))
             }
           })
@@ -399,28 +425,34 @@ export async function runWorkerMain(
   }
   const consoleShim = makeConsoleShim(logs)
 
-  let done: DoneMessage
+  // The async function constructor, reached through an instance because
+  // `AsyncFunction` is not a global. The program body is strict-mode.
+  /* v8 ignore next -- the arrow exists only to reach the AsyncFunction constructor; it is never invoked. */
+  const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...fnArgs: unknown[]) => Promise<unknown>
+  let fn: (...fnArgs: unknown[]) => Promise<unknown>
   try {
-    // The async function constructor, reached through an instance because
-    // `AsyncFunction` is not a global. The program body is strict-mode.
-    /* v8 ignore next -- the arrow exists only to reach the AsyncFunction constructor; it is never invoked. */
-    const AsyncFunction = (async () => {}).constructor as new (...args: string[]) => (...fnArgs: unknown[]) => Promise<unknown>
-    const fn = new AsyncFunction(
+    fn = new AsyncFunction(
       ...data.namespaces.map(namespace => namespace.global),
       ...errorClassParameters,
       'console',
       `'use strict';\n${data.code}`,
     )
-    const value = await fn(...namespaces, ...errorClassValues, consoleShim)
-    done = {
-      type: 'done',
-      ...prepareCompletion(value, logs.remainingOutputBytes(), data.maxOutputBytes),
-    }
-  } catch (error: unknown) {
-    done = {
+  } catch (error) {
+    port.postMessage({
       type: 'done',
       ...prepareException(error, logs.remainingOutputBytes(), data.maxOutputBytes),
-    }
+    })
+    return
   }
+  const done = await fn(...namespaces, ...errorClassValues, consoleShim).then(
+    (value): DoneMessage => ({
+      type: 'done',
+      ...prepareCompletion(value, logs.remainingOutputBytes(), data.maxOutputBytes),
+    }),
+    (error: Thrown): DoneMessage => ({
+      type: 'done',
+      ...prepareException(error, logs.remainingOutputBytes(), data.maxOutputBytes),
+    }),
+  )
   port.postMessage(done)
 }
