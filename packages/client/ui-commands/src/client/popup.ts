@@ -102,9 +102,16 @@ interface OpenBinding<TCtx> {
   readonly abort: AbortController
 }
 
-/** The shell's error-strip line for a settlement failure. */
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+/** Values a Promise reject arm or onSelect throw may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected options load or onSelect.
+ * @param reason - the Thrown the spec rejected with.
+ * @returns the message to show on the shell.
+ */
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
 }
 
 /**
@@ -117,6 +124,7 @@ export class PopupSelectController<TCtx = unknown> {
   /** Shell state store (the overlay component subscribes here). */
   readonly state: SnapshotStore<PopupState> = createSnapshotStore<PopupState>(CLOSED)
   private binding: OpenBinding<TCtx> | null = null
+  private flight: Promise<void> | null = null
 
   /**
    * @param deps - session-wiring callbacks (token consumption + composer focus).
@@ -142,15 +150,16 @@ export class PopupSelectController<TCtx = unknown> {
 
   /** Run the one options fetch of a binding; settlement rights die with the binding. */
   private load(binding: OpenBinding<TCtx>): void {
-    binding.spec.options(binding.context, binding.abort.signal).then(
+    this.flight = new Promise<readonly SelectOption[]>((resolve) => {
+      resolve(binding.spec.options(binding.context, binding.abort.signal))
+    }).then(
       (options) => {
         if (this.binding !== binding) return
         this.state.set({ ...this.state.getSnapshot(), status: 'ready', options, active: 0, error: null })
       },
-      (error: unknown) => {
+      (reason: Thrown) => {
         if (this.binding !== binding) return
-        console.error(`[ui-commands] popupSelect options failed for /${binding.command}:`, error)
-        this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: errorText(error) })
+        this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: thrownMessage(reason) })
       },
     )
   }
@@ -256,15 +265,18 @@ export class PopupSelectController<TCtx = unknown> {
    */
   private async settle(binding: OpenBinding<TCtx>, option: SelectOption): Promise<void> {
     this.state.set({ ...this.state.getSnapshot(), submitting: true, confirming: null, acknowledged: false, error: null })
-    try {
-      await binding.spec.onSelect(option, binding.context)
-    } catch (error) {
-      console.error(`[ui-commands] popupSelect onSelect failed for /${binding.command}:`, error)
-      if (this.binding !== binding) return // dismissed/reopened/disposed while onSelect flew
-      this.state.set({ ...this.state.getSnapshot(), submitting: false, error: errorText(error) })
-      return
-    }
-    if (this.binding !== binding) return // late success: no state write, no consumption
+    const selected = await new Promise<void>((resolve) => {
+      resolve(binding.spec.onSelect(option, binding.context))
+    }).then(
+      () => true,
+      (reason: Thrown) => {
+        if (this.binding !== binding) return false
+        this.state.set({ ...this.state.getSnapshot(), submitting: false, error: thrownMessage(reason) })
+        return false
+      },
+    )
+    if (!selected) return
+    if (this.binding !== binding) return
     this.deps.consume(binding.segment)
     this.binding = null
     this.state.set(CLOSED)

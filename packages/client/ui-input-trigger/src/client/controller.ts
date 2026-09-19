@@ -21,9 +21,16 @@ import type {
   SubmitEnvelope, TriggerChar, TriggerGuard,
 } from '../types.ts'
 
-/** The message a failed candidate load publishes into its menu group. */
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+/** Values a Promise reject arm or candidate-load refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected candidate load.
+ * @param reason - the Thrown the source rejected with.
+ * @returns the message published into the failed menu group.
+ */
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
 }
 
 /** Roster access the controller borrows from the root service (registration order preserved). */
@@ -82,6 +89,7 @@ export class InputTriggerController {
   /** Whether the open menu was reached by a drill pick; cleared with the menu. */
   private drilled = false
   private fetch: AbortController | null = null
+  private candidateFlight: Promise<void> | null = null
   private disposed = false
   /** Per-source lexicon unsubscribers (sources without the hook never enter). */
   private readonly lexiconOffs = new Map<InputTriggerSource, () => void>()
@@ -464,25 +472,24 @@ export class InputTriggerController {
     generation: number,
     signal: AbortSignal,
   ): void {
-    source
-      .candidates(this.project(), {
+    this.candidateFlight = new Promise<readonly InputTriggerCandidate[]>((resolve) => {
+      resolve(source.candidates(this.project(), {
         query: hit.query,
         quoted: hit.quoted,
         position: hit.position,
         drilled: this.drilled,
         signal,
-      })
-      .then(
-        (items) => {
-          if (signal.aborted) return
-          this.reduce({ type: 'source-settled', generation, source: source.name, items })
-        },
-        (error: unknown) => {
-          if (signal.aborted) return
-          console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
-          this.reduce({ type: 'source-failed', generation, source: source.name, error: errorText(error) })
-        },
-      )
+      }))
+    }).then(
+      (items) => {
+        if (signal.aborted) return
+        this.reduce({ type: 'source-settled', generation, source: source.name, items })
+      },
+      (reason: Thrown) => {
+        if (signal.aborted) return
+        this.reduce({ type: 'source-failed', generation, source: source.name, error: thrownMessage(reason) })
+      },
+    )
   }
 
   private stopFetch(): void {
