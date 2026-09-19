@@ -472,7 +472,7 @@ export class InputTriggerController {
     generation: number,
     signal: AbortSignal,
   ): void {
-    this.candidateFlight = new Promise<readonly InputTriggerCandidate[]>((resolve) => {
+    const started = new Promise<readonly InputTriggerCandidate[]>((resolve) => {
       resolve(source.candidates(this.project(), {
         query: hit.query,
         quoted: hit.quoted,
@@ -490,6 +490,11 @@ export class InputTriggerController {
         this.reduce({ type: 'source-failed', generation, source: source.name, error: thrownMessage(reason) })
       },
     )
+    this.candidateFlight = started
+    const clearFlight = (): void => {
+      if (this.candidateFlight === started) this.candidateFlight = null
+    }
+    started.then(clearFlight, clearFlight)
   }
 
   private stopFetch(): void {

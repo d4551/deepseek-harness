@@ -150,7 +150,7 @@ export class PopupSelectController<TCtx = unknown> {
 
   /** Run the one options fetch of a binding; settlement rights die with the binding. */
   private load(binding: OpenBinding<TCtx>): void {
-    this.flight = new Promise<readonly SelectOption[]>((resolve) => {
+    const started = new Promise<readonly SelectOption[]>((resolve) => {
       resolve(binding.spec.options(binding.context, binding.abort.signal))
     }).then(
       (options) => {
@@ -162,6 +162,11 @@ export class PopupSelectController<TCtx = unknown> {
         this.state.set({ ...this.state.getSnapshot(), status: 'failed', options: [], active: 0, error: thrownMessage(reason) })
       },
     )
+    this.flight = started
+    const clearFlight = (): void => {
+      if (this.flight === started) this.flight = null
+    }
+    started.then(clearFlight, clearFlight)
   }
 
   /** Re-run a failed options fetch (search survives; no-op unless status is 'failed'). */
