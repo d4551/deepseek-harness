@@ -55,6 +55,32 @@ import { AcpMcpConfigError } from './mcp.ts'
 import { AcpModelConfigError } from './model-control.ts'
 import { AcpSession } from './session.ts'
 
+/** Values a Promise reject arm from the ACP connection close path may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected ACP connection close or teardown.
+ * @param reason - the Thrown the close path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const DEFAULT_SESSION_LIST_PAGE_SIZE = 100
 
 export const name = 'acp'
@@ -427,12 +453,12 @@ export function apply(ctx: Context, config: AcpConfig): void {
 
   /* v8 ignore start -- production transport rejection and teardown failure. */
   connection.closed
-    .catch((error: unknown) => {
-      logger.warn(`acp: connection closed with an error: ${String(error)}`)
+    .then(undefined, (error: Thrown) => {
+      logger.warn(`acp: connection closed with an error: ${thrownMessage(error)}`)
     })
     .then(quiesce)
-    .catch((error: unknown) => {
-      logger.warn(`acp: connection-close teardown failed: ${String(error)}`)
+    .then(undefined, (error: Thrown) => {
+      logger.warn(`acp: connection-close teardown failed: ${thrownMessage(error)}`)
     })
   /* v8 ignore stop */
 

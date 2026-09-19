@@ -19,6 +19,9 @@ import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
+/** Values a Promise reject arm from an ACP update or settlement may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** The continuable-subagent teardown used without depending on the subagent package. */
 interface ContinuableDrain {
   /** Dispose continuable descendants below exact host-owned parents child-first. */
@@ -234,11 +237,11 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: { sessionUpdate: 'config_option_update', configOptions },
           }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
           })
       })
-      .catch((error: unknown) => {
+      .then(undefined, (error: Thrown) => {
         this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
       })
   }
@@ -355,16 +358,17 @@ export class AcpSession {
             await this.notify({ sessionId: this.agent.session.id, update })
           }
         })
-        this.outputTail = delivery.catch((error: unknown) => {
-          const failure = error as Error
-          if (inflight !== undefined) inflight.outputError ??= failure
+        this.outputTail = delivery.then(undefined, (error: Thrown) => {
+          if (inflight !== undefined) {
+            inflight.outputError ??= error instanceof Error ? error : new Error(errorChain(error))
+          }
           this.ctx.logger.warn(`acp: assistant output conversion failed: ${errorChain(error)}`)
         })
       } else if (event.type === 'tool/call') {
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({ sessionId: this.agent.session.id, update: toolCallUpdate(event) }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: tool-call update delivery failed: ${errorChain(error)}`)
           })
       } else if (event.type === 'tool/result') {
@@ -374,7 +378,7 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: await toolResultUpdate(this.ctx, event),
           }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
           })
       }
@@ -479,7 +483,7 @@ export class AcpSession {
     if (inflight.messageQueued) {
       await this.agent.whenIdle()
         .then(() => this.outputTail)
-        .catch((error: unknown) => {
+        .then(undefined, (error: Thrown) => {
           throw internalError(`prompt settlement failed: ${errorChain(error)}`)
         })
     }
