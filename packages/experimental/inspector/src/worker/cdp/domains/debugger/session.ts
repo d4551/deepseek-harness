@@ -104,7 +104,7 @@ export class DebuggerDomainSession {
     const enableRequest = maxScriptsCacheSize === undefined ? {} : { maxScriptsCacheSize }
     this.debuggerEnableRequest = enableRequest
     this.enabled = true
-    return new Promise((resolve) => {
+    return new Promise<readonly Readonly<Record<string, unknown>>[]>((resolve) => {
       for (const realm of this.realms.all()) this.attachCapabilities(realm)
       resolve(Promise.all(this.realms.all().map(async realm =>
         realm.debugger.state === 'supported' ? realm.debugger.backend.enable(enableRequest) : {})))
