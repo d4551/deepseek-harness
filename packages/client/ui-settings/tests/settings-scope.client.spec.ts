@@ -269,6 +269,16 @@ describe('SettingsScopeController', () => {
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 2 })
   })
 
+  it('refuses a field write that is not JSON', async () => {
+    const describeCall = vi.fn<SettingsRemote['describe']>().mockResolvedValueOnce(described({ preference: 'system' }, 1))
+    const mutate = vi.fn<SettingsRemote['mutate']>()
+    const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
+    await mirror.load()
+    await expect(scope.set('preference', undefined)).rejects.toThrow('settings field value is not JSON')
+    await expect(scope.set('preference', { nested: undefined })).rejects.toThrow('settings field value is not JSON')
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it('recovers the latest write when mutate throws in the write turn', async () => {
     const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(described({ preference: 'system' }, 2))

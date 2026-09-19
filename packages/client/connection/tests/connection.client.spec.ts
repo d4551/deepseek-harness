@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { ConnectionGenerationSource, ConnectionHostInfo, ConnectionState } from '../src/client/connection.ts'
-import { ConnectionController } from '../src/client/connection.ts'
+import { ConnectionController, waitForReady } from '../src/client/connection.ts'
 import { FakeGenerationSource } from './fake-generation.client.ts'
 
 const FAST = { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 }
@@ -355,5 +355,18 @@ describe('connection lifecycle', () => {
     } finally {
       await controller.stop()
     }
+  })
+})
+
+describe('waitForReady', () => {
+  it('rejects when the signal is already aborted', async () => {
+    const ready = new Promise<string>(() => undefined)
+    await expect(waitForReady(ready, 500, AbortSignal.abort('already down')))
+      .rejects.toThrow('connection generation aborted')
+  })
+
+  it('resolves when readiness arrives before the deadline', async () => {
+    await expect(waitForReady(Promise.resolve('/h'), 500, new AbortController().signal))
+      .resolves.toBe('/h')
   })
 })

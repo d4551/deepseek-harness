@@ -40,6 +40,14 @@ function isThenable(value: object): value is PromiseLike<Thrown> {
   return typeof Reflect.get(value, 'then') === 'function'
 }
 
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null) return true
+  if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
+
 function isSettingsNamespaceView(value: object): value is SettingsNamespaceView {
   return 'ns' in value
     && 'revision' in value
@@ -134,7 +142,10 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the write and any latest-write recovery read.
    */
   set(field: string, value: unknown): Promise<void> {
-    return this.mutate([{ op: 'set', path: [field], value: value as JsonValue }])
+    if (!isJsonValue(value)) {
+      return Promise.reject(new TypeError('settings field value is not JSON'))
+    }
+    return this.mutate([{ op: 'set', path: [field], value }])
   }
 
   /**

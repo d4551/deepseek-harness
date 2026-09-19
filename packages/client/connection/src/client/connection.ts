@@ -257,7 +257,7 @@ export class ConnectionController {
 }
 
 /** Await source readiness without letting a stalled carrier wedge startup forever. */
-async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
+export async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
   const deadline = Promise.withResolvers<never>()
   const timeout = setTimeout(() => {
     deadline.reject(new Error(`connection generation was not ready within ${String(timeoutMs)}ms`))
@@ -266,6 +266,7 @@ async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: Abo
     deadline.reject(new Error('connection generation aborted', { cause: signal.reason }))
   }
   signal.addEventListener('abort', aborted, { once: true })
+  if (signal.aborted) aborted()
   using _clearReadyWait = {
     [Symbol.dispose]: (): void => {
       clearTimeout(timeout)
