@@ -6,7 +6,9 @@
  * GET/HEAD, and seat release on fiber disposal (HMR safety).
  */
 
+import { IncomingMessage, ServerResponse } from 'node:http'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -18,6 +20,13 @@ import * as Connection from '@deepseek-ai/dsh-client-connection'
 import LocalCredentials from '@deepseek-ai/dsh-credentials-local'
 import HttpServer from '@deepseek-ai/dsh-host-webserver'
 import * as FrontendStatic from '../src/index.ts'
+
+/** Values a Promise reject arm from index render or static file read may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function httpResponse(): ServerResponse {
+  return new ServerResponse(new IncomingMessage(new Socket()))
+}
 
 let root: string | undefined
 let context: Context | undefined
@@ -204,5 +213,41 @@ describe('real Loader composition', () => {
     await frontendEntry!.fiber?.dispose()
     expect((await request(port, '/no/such/route')).status).toBe(404)
     expect(() => server.registerFallback(() => {})).not.toThrow()
+  })
+})
+
+describe('serveStatic Thrown load failures', () => {
+  it('answers 404 for miss codes and rethrows every other Thrown', async () => {
+    const distRoot = await mkdtemp(join(tmpdir(), 'dsh-frontend-static-unit-'))
+    const distIndex = join(distRoot, 'index.html')
+    await writeFile(distIndex, '<head></head>')
+
+    const miss = Object.assign(new Error('missing'), { code: 'ENOENT' })
+    const missRes = httpResponse()
+    await FrontendStatic.serveStatic('/', missRes, distRoot, distIndex, () => true, () => Promise.reject(miss))
+    expect(missRes.statusCode).toBe(404)
+
+    const reasons: Thrown[] = [
+      'string',
+      1,
+      true,
+      2n,
+      Symbol('static-thrown'),
+      () => undefined,
+      undefined,
+      null,
+      {},
+      { code: 9 },
+      { code: 'EACCES' },
+      new Error('plain'),
+    ]
+    for (const reason of reasons) {
+      await FrontendStatic.serveStatic('/', httpResponse(), distRoot, distIndex, () => true, () => Promise.reject(reason)).then(
+        () => { throw new Error('expected rejection') },
+        (error: Thrown) => { expect(error).toBe(reason) },
+      )
+    }
+
+    await rm(distRoot, { recursive: true, force: true })
   })
 })

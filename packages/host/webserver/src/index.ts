@@ -82,6 +82,7 @@ import type { Thrown } from '@deepseek-ai/dsh-thrown'
  * @returns the message to wrap for the logger.
  */
 function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
   switch (typeof reason) {
     case 'string': return reason
     case 'number':
@@ -266,8 +267,9 @@ export class WebServer extends Service {
     // never a process exit.
     this.server = createServer((req, res) => {
       const next = (): void => {
-        handle(req, res).then(undefined, (error: Thrown) => {
-          this.ctx.logger.warn(error instanceof Error ? error : new Error(thrownMessage(error)))
+        handle(req, res).then(undefined, (reason: Thrown) => {
+          const message = thrownMessage(reason)
+          this.ctx.logger.warn(reason instanceof Error ? reason : new Error(message))
           if (res.headersSent) {
             res.destroy()
             return
@@ -289,27 +291,23 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
-      let route: WebUpgradeRoute | undefined
-      try {
+      Promise.resolve().then(() => {
         /* v8 ignore next -- node:http always sets url on server requests. */
-        route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
-      } catch (error) {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
-        socket.destroy()
-        return
-      }
-      if (route === undefined) {
-        socket.destroy()
-        return
-      }
-      this.upgradedSockets.add(socket)
-      new Promise((resolve) => { resolve(route.handler(req, socket, head)) }).then(undefined, (error: Thrown) => {
-        this.ctx.logger.warn(error instanceof Error ? error : new Error(thrownMessage(error)))
+        const route = this.upgrades.get(new URL(req.url ?? '/', 'http://x').pathname)
+        if (route === undefined) {
+          socket.destroy()
+          return
+        }
+        this.upgradedSockets.add(socket)
+        return route.handler(req, socket, head)
+      }).then(undefined, (error: Thrown) => {
+        const message = thrownMessage(error)
+        this.ctx.logger.warn(error instanceof Error ? error : new Error(message))
         socket.destroy()
       })
     })
 
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject: (reason: Thrown) => void) => {
       this.server.once('error', reject)
       this.server.listen(this.config.port, this.config.host, () => {
         this.server.off('error', reject)

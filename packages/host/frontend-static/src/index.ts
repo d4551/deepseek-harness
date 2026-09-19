@@ -1,15 +1,15 @@
 /**
- * @deepseek-ai/dsh-host-frontend-static — SPA dist server over the webserver
- * fallback seat: serves the built frontend directory with explicit index
- * entry points. A readable index renders at the dist root and configured index
- * path; missing paths return 404, traversal outside the dist root is 403,
- * unknown extensions ship as octet-stream, and non-GET/HEAD is 405. Every
- * index response first passes Connection's browser authentication, then the
- * webserver's index render (structured injection rows, then raw taps).
- * Non-index assets stay public. The dist location is workspace knowledge of
- * the composing application, so `distIndex` is typically supplied through a
- * `!!js` expression, never hardcoded by a deployment.
- * @module @deepseek-ai/dsh-host-frontend-static
+ * SPA dist server over the webserver fallback seat: serves the built
+ * frontend directory with explicit index entry points. A readable index
+ * renders at the dist root and configured index path; missing paths return
+ * 404, traversal outside the dist root is 403, unknown extensions ship as
+ * octet-stream, and non-GET/HEAD is 405. Every index response first passes
+ * Connection's browser authentication, then the webserver's index render
+ * (structured injection rows, then raw taps). Non-index assets stay public.
+ * The dist location is workspace knowledge of the composing application, so
+ * `distIndex` is typically supplied through a `!!js` expression, never
+ * hardcoded by a deployment.
+ * @module dsh-host-frontend-static
  */
 
 import type { ServerResponse } from 'node:http'
@@ -58,6 +58,20 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
   'ENOTDIR',
 ])
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Filesystem errno text on a Thrown reject, when the reject is an object
+ * carrying a string `code`.
+ * @param error - the Thrown the index render or file read rejected with.
+ * @returns the errno string, or `undefined` when the reject has none.
+ */
+function errorCode(error: Thrown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
+  const { code } = error
+  return typeof code === 'string' ? code : undefined
+}
+
 /**
  * Serve one GET/HEAD static request from the dist root.
  * @param pathname - decoded URL pathname of the request.
@@ -68,7 +82,7 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
  * @param renderIndex - produces the index.html body (structured injection
  * rendering) for the dist root and configured index path.
  */
-export async function serveStatic(
+export function serveStatic(
   pathname: string, res: ServerResponse, distRoot: string, distIndex: string,
   authorizeIndex: () => boolean,
   renderIndex: () => Promise<string>,
@@ -80,29 +94,30 @@ export async function serveStatic(
   if (target !== distRoot && !target.startsWith(distRoot + sep)) {
     res.writeHead(403)
     res.end()
-    return
+    return Promise.resolve()
   }
-  let body: string | Buffer
-  let type: string
-  try {
-    if (target === distRoot || target === distIndex) {
-      if (!authorizeIndex()) return
-      body = await renderIndex()
-      type = HTML_MIME
-    } else {
-      body = await readFile(target)
-      type = MIME[extname(target)] ?? 'application/octet-stream'
-    }
-  } catch (error) {
+  const send = (body: string | Buffer, type: string): void => {
+    res.writeHead(200, { 'content-type': type })
+    res.end(body)
+  }
+  const onLoadFailure = (error: Thrown): void => {
     // Only absent or non-file targets are 404; other filesystem failures reach
     // the webserver's request-failure handling.
-    if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
+    if (!STATIC_MISS_CODES.has(errorCode(error))) throw error
     res.writeHead(404)
     res.end()
-    return
   }
-  res.writeHead(200, { 'content-type': type })
-  res.end(body)
+  if (target === distRoot || target === distIndex) {
+    if (!authorizeIndex()) return Promise.resolve()
+    return renderIndex().then(
+      (body) => { send(body, HTML_MIME) },
+      onLoadFailure,
+    )
+  }
+  return readFile(target).then(
+    (body) => { send(body, MIME[extname(target)] ?? 'application/octet-stream') },
+    onLoadFailure,
+  )
 }
 
 /**

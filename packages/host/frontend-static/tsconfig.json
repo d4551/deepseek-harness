@@ -24,6 +24,9 @@
       "path": "../webserver"
     },
     {
+      "path": "../../util/thrown"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

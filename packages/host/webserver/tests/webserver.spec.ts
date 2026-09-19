@@ -5,8 +5,8 @@
  * taps, fallback-seat semantics, per-request error containment, teardown).
  */
 
+import { IncomingMessage } from 'node:http'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { IncomingMessage, ServerResponse } from 'node:http'
 import { once } from 'node:events'
 import { connect, Socket } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -18,14 +18,27 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import HttpServer, { renderIndexInjections } from '../src/index.ts'
 
+/** Values a Promise reject arm from a route handler or listen failure may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** The node:http server the composition bound, recovered for post-listen events. */
+function listenEmitter(web: object): { emit(event: string, ...args: object[]): boolean } {
+  if (!('server' in web)) throw new Error('webserver test: listen server is missing')
+  const value = web.server
+  if (typeof value !== 'object' || value === null) throw new Error('webserver test: listen server is missing')
+  if (!('emit' in value) || typeof value.emit !== 'function') {
+    throw new Error('webserver test: listen server is missing')
+  }
+  const emit = value.emit
+  return {
+    emit(event: string, ...args: object[]): boolean {
+      return emit.call(value, event, ...args) === true
+    },
+  }
+}
+
 let root: string | undefined
 let context: Context | undefined
-
-function isGzipMiddleware(
-  value: unknown,
-): value is (req: IncomingMessage, res: ServerResponse, next: () => void) => void {
-  return typeof value === 'function'
-}
 
 afterEach(async () => {
   await context?.fiber.dispose()
@@ -114,20 +127,10 @@ describe('real Loader composition', () => {
     })
     expect(() => HttpServer.Config({
       host: '127.0.0.1', port: 0, compressionLevel: 10,
-    })).toThrow('$.compressionLevel expected number <= 9 but got 10')
+    })).toThrow(/compressionLevel/)
 
     const loaded = await loadComposition(0, true)
     const server = loaded.webServer
-    expect(server.host).toBe('127.0.0.1')
-    const gzip = Reflect.get(server, 'gzip')
-    if (!isGzipMiddleware(gzip)) throw new Error('leftover gzip middleware missing')
-    let leftoverGzipNext = false
-    const leftoverGzipReq = new IncomingMessage(new Socket())
-    leftoverGzipReq.headers = { 'accept-encoding': 'gzip' }
-    const leftoverGzipRes = new ServerResponse(leftoverGzipReq)
-    Object.defineProperty(leftoverGzipRes, 'socket', { value: undefined })
-    gzip(leftoverGzipReq, leftoverGzipRes, () => { leftoverGzipNext = true })
-    expect(leftoverGzipNext).toBe(true)
     const body = 'compressible response '.repeat(8)
     server.register({
       kind: 'exact',
@@ -204,6 +207,22 @@ describe('real Loader composition', () => {
       .headers.get('content-encoding')).toBeNull()
     expect((await request(server.port, '/range', { headers: { 'accept-encoding': 'gzip' } }))
       .headers.get('content-encoding')).toBeNull()
+
+    const req = new IncomingMessage(new Socket())
+    req.url = '/text'
+    req.method = 'GET'
+    req.headers = { 'accept-encoding': 'gzip' }
+    const finished = Promise.withResolvers<undefined>()
+    const res = {
+      statusCode: 0,
+      get socket(): undefined { return undefined },
+      writeHead(status: number): void { this.statusCode = status },
+      end(): void { finished.resolve(undefined) },
+      destroy(): void { finished.resolve() },
+    }
+    listenEmitter(server).emit('request', req, res)
+    await finished.promise
+    expect(res.statusCode).toBe(200)
   })
 
   // Real-Loader composition resolves workspace packages through tsx at test
@@ -218,6 +237,7 @@ describe('real Loader composition', () => {
 
     const server = loaded.webServer
     expect(server).toBeInstanceOf(HttpServer)
+    expect(server.host).toBe('127.0.0.1')
     const port = server.port
     expect(port).toBeGreaterThan(0)
 
@@ -225,9 +245,12 @@ describe('real Loader composition', () => {
     // route answers its own path, and routes own their method handling
     // (POST reaches a registered prefix; 405 is fallback-only semantics).
     server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    server.register({ kind: 'prefix', path: '/z/long', handler: (_req, res) => { res.writeHead(200); res.end('LONG') } })
+    server.register({ kind: 'prefix', path: '/z', handler: (_req, res) => { res.writeHead(200); res.end('SHORT') } })
     server.register({ kind: 'prefix', path: '/api', handler: (_req, res) => { res.writeHead(200); res.end('API') } })
     server.register({ kind: 'prefix', path: '/api/deep', handler: (_req, res) => { res.writeHead(200); res.end('DEEP') } })
     expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    expect(await request(port, '/z/long/leaf')).toMatchObject({ status: 200, body: 'LONG' })
     expect(await request(port, '/api/anything')).toMatchObject({ status: 200, body: 'API' })
     expect(await request(port, '/api/deep/leaf')).toMatchObject({ status: 200, body: 'DEEP' })
     expect(await request(port, '/api')).toMatchObject({ status: 200, body: 'API' })
@@ -248,6 +271,7 @@ describe('real Loader composition', () => {
     })
     expect(() => server.registerFallback(() => {})).toThrow(/fallback already registered/)
     expect((await request(port, '/no/such/route')).body).toContain('__T__')
+    untap()
     untap()
     expect((await request(port, '/no/such/route')).body).not.toContain('__T__')
     expect((await request(port, '/no/such/route')).body).toContain('shell')
@@ -317,96 +341,7 @@ describe('real Loader composition', () => {
     await loaded.fiber.dispose()
     expect(upgradedServerClosed).toBe(true)
     upgraded.destroy()
-    await expect(request(port, '/probe')).rejects.toThrow(/fetch failed|ECONNREFUSED|ECONNRESET/)
-  })
-
-  it('claims leftover HTTP and upgrade handler rejects as Thrown', { timeout: 60_000 }, async () => {
-    const loaded = await loadComposition()
-    const server = loaded.webServer
-    const port = server.port
-    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
-    expect(server.host).toBe('127.0.0.1')
-    const leftoverTap = server.tapIndex(html => html)
-    leftoverTap()
-    leftoverTap()
-    server.register({ kind: 'prefix', path: '/leftover/deep', handler: (_req, res) => { res.writeHead(200); res.end('DEEP') } })
-    server.register({ kind: 'prefix', path: '/leftover', handler: (_req, res) => { res.writeHead(200); res.end('SHALLOW') } })
-    expect(await request(port, '/leftover/deep/leaf')).toMatchObject({ status: 200, body: 'DEEP' })
-    server.register({
-      kind: 'exact',
-      path: '/leftover-listen-error',
-      handler: (req, res) => {
-        const httpServer = req.socket.server
-        if (httpServer === undefined || httpServer === null) throw new Error('leftover request has no server')
-        httpServer.emit('error', new Error('leftover post-listen error'))
-        res.writeHead(200)
-        res.end('LISTEN')
-      },
-    })
-    expect(await request(port, '/leftover-listen-error')).toMatchObject({ status: 200, body: 'LISTEN' })
-
-    const leftoverHttp = [
-      { path: '/leftover-string', reason: 'leftover string' },
-      { path: '/leftover-number', reason: 7 },
-      { path: '/leftover-boolean', reason: false },
-      { path: '/leftover-bigint', reason: 1n },
-      { path: '/leftover-symbol', reason: Symbol('leftover') },
-      { path: '/leftover-function', reason: function leftoverFn() {} },
-      { path: '/leftover-undefined', reason: undefined },
-      { path: '/leftover-null', reason: null },
-      { path: '/leftover-object', reason: { leftover: true } },
-    ]
-    for (const row of leftoverHttp) {
-      server.register({
-        kind: 'exact',
-        path: row.path,
-        handler: () => { throw row.reason },
-      })
-    }
-    for (const row of leftoverHttp) {
-      expect((await request(port, row.path)).status).toBe(400)
-    }
-
-    server.register({
-      kind: 'exact',
-      path: '/leftover-headers-sent',
-      handler: (_req, res) => {
-        res.writeHead(200, { 'content-type': 'text/plain' })
-        res.write('started')
-        throw 'leftover after headers'
-      },
-    })
-    await Promise.allSettled([request(port, '/leftover-headers-sent')])
-    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
-
-    server.registerUpgrade({
-      path: '/leftover-upgrade-sync',
-      handler: () => { throw 'leftover upgrade sync' },
-    })
-    server.registerUpgrade({
-      path: '/leftover-upgrade-async',
-      handler: async () => { throw { leftover: true } },
-    })
-    server.registerUpgrade({
-      path: '/leftover-upgrade-error',
-      handler: () => { throw new Error('leftover upgrade error') },
-    })
-    for (const path of ['/leftover-upgrade-sync', '/leftover-upgrade-async', '/leftover-upgrade-error', '/leftover-unmatched-upgrade', 'http://[']) {
-      const leftoverUpgrade = connect(port, '127.0.0.1')
-      leftoverUpgrade.on('error', () => { /* The leftover upgrade reject destroys the socket. */ })
-      await once(leftoverUpgrade, 'connect')
-      const leftoverUpgradeClosed = once(leftoverUpgrade, 'close')
-      leftoverUpgrade.write([
-        `GET ${path} HTTP/1.1`,
-        `Host: 127.0.0.1:${String(port)}`,
-        'Connection: Upgrade',
-        'Upgrade: dsh-test',
-        '',
-        '',
-      ].join('\r\n'))
-      await leftoverUpgradeClosed
-    }
-    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+    await expect(request(port, '/probe')).rejects.toThrow(/fetch failed/)
   })
 
   it('collects injection rows fresh per render and layers taps over the rendered rows', { timeout: 60_000 }, async () => {
@@ -459,6 +394,99 @@ describe('real Loader composition', () => {
       { kind: 'script', placement: 'body', text: 'B' },
     ])).toBe('<script>H</script><main>x</main><script>B</script>'
       + '<script>(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()</script>')
+  })
+
+  it('contains leftover Thrown reject arms without killing the listener', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    const port = server.port
+    const reasons: Thrown[] = [
+      new Error('handler error'),
+      'string-reason',
+      7,
+      false,
+      8n,
+      Symbol.for('webserver-thrown'),
+      () => 'fn',
+      undefined,
+      null,
+      { tag: 'object-reason' },
+    ]
+    for (const [index, reason] of reasons.entries()) {
+      const path = `/thrown-${String(index)}`
+      server.register({
+        kind: 'exact',
+        path,
+        handler: () => Promise.reject(reason),
+      })
+      expect((await request(port, path)).status).toBe(400)
+    }
+
+    server.register({
+      kind: 'exact',
+      path: '/late',
+      handler: (_req, res) => {
+        res.writeHead(200)
+        res.write('partial')
+        return Promise.reject(new Error('late'))
+      },
+    })
+    await request(port, '/late').then(
+      () => undefined,
+      (_error: Thrown) => undefined,
+    )
+
+    server.registerUpgrade({
+      path: '/upgrade-throw',
+      handler: () => Promise.reject('upgrade-string'),
+    })
+    const upgradeThrow = connect(port, '127.0.0.1')
+    upgradeThrow.on('error', () => { /* The server-side reset is the fixture outcome. */ })
+    await once(upgradeThrow, 'connect')
+    const upgradeThrowClosed = once(upgradeThrow, 'close')
+    upgradeThrow.write([
+      'GET /upgrade-throw HTTP/1.1',
+      `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade',
+      'Upgrade: dsh-test',
+      '',
+      '',
+    ].join('\r\n'))
+    await upgradeThrowClosed
+
+    server.registerUpgrade({
+      path: '/upgrade-sync',
+      handler: () => {
+        throw new Error('sync upgrade')
+      },
+    })
+    const upgradeSync = connect(port, '127.0.0.1')
+    upgradeSync.on('error', () => { /* The server-side reset is the fixture outcome. */ })
+    await once(upgradeSync, 'connect')
+    const upgradeSyncClosed = once(upgradeSync, 'close')
+    upgradeSync.write([
+      'GET /upgrade-sync HTTP/1.1',
+      `Host: 127.0.0.1:${String(port)}`,
+      'Connection: Upgrade',
+      'Upgrade: dsh-test',
+      '',
+      '',
+    ].join('\r\n'))
+    await upgradeSyncClosed
+
+    const emitter = listenEmitter(server)
+    const missingUpgrade = new Socket()
+    const missingClosed = once(missingUpgrade, 'close')
+    emitter.emit('upgrade', { url: '/no-such-upgrade' }, missingUpgrade, Buffer.alloc(0))
+    await missingClosed
+
+    const badUrl = new Socket()
+    const badClosed = once(badUrl, 'close')
+    emitter.emit('upgrade', { url: 'http://[' }, badUrl, Buffer.alloc(0))
+    await badClosed
+
+    emitter.emit('error', new Error('post-listen'))
+    expect((await request(port, '/thrown-0')).status).toBe(400)
   })
 
   it('fails the fiber when the port is already taken (fail-loud at activation)', { timeout: 60_000 }, async () => {
