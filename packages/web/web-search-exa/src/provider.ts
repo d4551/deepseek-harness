@@ -204,8 +204,10 @@ function isExaSearchResponse(value: unknown): value is ExaSearchResponse {
 /** Whether one `results[]` entry can be read by {@link mapExaResult} without throwing. */
 function isExaResult(item: unknown): item is ExaResult {
   if (typeof item !== 'object' || item === null) return false
+  if (!('url' in item) || typeof item.url !== 'string') return false
   if (!('highlights' in item) || item.highlights === undefined) return true
   return Array.isArray(item.highlights)
+    && item.highlights.every(highlight => typeof highlight === 'string')
 }
 
 /** Provider error text from an error envelope, or the HTTP status line. */
