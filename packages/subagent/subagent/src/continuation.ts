@@ -36,7 +36,7 @@ import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-ll
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
-import type { SessionObservation, SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
@@ -56,7 +56,7 @@ import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
 import { SubagentError } from './error.ts'
 import type SubagentActivationSetupRegistry from './activation-setup-registry.ts'
 
-/** Values a Promise reject arm from settlement watching may deliver. */
+/** Values a Promise reject arm from continuation residency, disposal, or settlement may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Attribution for a model coordinator's follow-up to one of its children. */
@@ -341,13 +341,13 @@ class ChildLock {
    */
   run<T>(childId: SessionId, operation: () => Promise<T>): Promise<T> {
     const previous = this.tails.get(childId) ?? Promise.resolve()
-    const result = previous.then(operation, operation)
+    const result = previous.then(operation, (_error: Thrown) => operation())
     // Absorb rejections in the chaining tail so one failed critical section
     // cannot reject an unrelated later caller.
-    const tail = result.then(() => undefined, () => undefined)
+    const tail = result.then(() => undefined, (_error: Thrown) => undefined)
     this.tails.set(childId, tail)
     const forget = (): void => { if (this.tails.get(childId) === tail) this.tails.delete(childId) }
-    tail.then(forget, forget)
+    tail.then(forget, (_error: Thrown) => { forget() })
     return result
   }
 }
@@ -526,7 +526,7 @@ export class SubagentContinuationManager {
          * which no test can schedule deterministically. The behavior is covered end-to-end by
          * "cold-resumes a delivery that lost the race with final disposal". */
         if (activation.disposal !== undefined) {
-          return activation.disposal.then(() => undefined, () => undefined)
+          return activation.disposal.then(() => undefined, (_error: Thrown) => undefined)
         }
         return this.submitAdmitted(activation, content, options.source, parent, options.signal)
       })
@@ -718,7 +718,7 @@ export class SubagentContinuationManager {
     try {
       if (delivery === 'next-step') parent.steer(message)
       else parent.inject(message)
-    } catch (error: unknown) {
+    } catch (error) {
       throw new SubagentError(
         'direct parent is not live; report was not delivered',
         'PARENT_UNAVAILABLE',
@@ -807,7 +807,7 @@ export class SubagentContinuationManager {
     // handle release remains child-first.
     for (const activation of targets) {
       const disposal = this.dispose(activation)
-      disposal.catch(() => undefined)
+      disposal.catch((_error: Thrown) => undefined)
     }
 
     await Promise.all(materializations.map(materialization => materialization.settled))
@@ -845,7 +845,7 @@ export class SubagentContinuationManager {
     // across the selected roots in one synchronous span.
     for (const activation of targets) {
       const disposal = this.dispose(activation)
-      disposal.catch(() => undefined)
+      disposal.catch((_error: Thrown) => undefined)
     }
     await this.disposeRoots(targets, 'selected activation(s)')
   }
@@ -855,14 +855,12 @@ export class SubagentContinuationManager {
     roots: readonly Activation[],
     failureSubject: 'activation(s)' | 'scoped activation(s)' | 'selected activation(s)',
   ): Promise<void> {
-    const failures = await Promise.all(roots.map(async (activation) => {
-      try {
-        await this.dispose(activation)
-        return undefined
-      } catch (error: unknown) {
-        return error
-      }
-    }))
+    const failures = await Promise.all(roots.map(activation =>
+      this.dispose(activation).then(
+        () => undefined,
+        (error: Thrown) => error,
+      ),
+    ))
     const reasons = failures.filter(failure => failure !== undefined)
     if (reasons.length > 0) {
       throw new SubagentError(
@@ -958,15 +956,15 @@ export class SubagentContinuationManager {
     options: SubagentFollowupOptions,
   ): Promise<MessageId> {
     const query = this.requireSessionQuery()
-    let observation: SessionObservation
-    try {
-      observation = await query.observeSession(childId, {
-        signal: options.signal,
-      })
-    } catch (error: unknown) {
-      options.signal.throwIfAborted()
-      throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
-    }
+    const observation = await query.observeSession(childId, {
+      signal: options.signal,
+    }).then(
+      undefined,
+      (error: Thrown) => {
+        options.signal.throwIfAborted()
+        throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
+      },
+    )
     using source = observation
     this.assertAdmitting(parent)
     // Authorize the persisted header before folding: only the durable child's
@@ -985,27 +983,27 @@ export class SubagentContinuationManager {
         'NOT_RESUMABLE',
       )
     }
-    let activation: Activation
-    try {
-      activation = await this.materialize({
-        childId,
-        provider: descriptor.provider,
-        parent,
-        agentOptions: {
-          ...descriptor.agentProvider !== undefined ? { provider: descriptor.agentProvider } : {},
-          ...descriptor.agentModel !== undefined ? { model: descriptor.agentModel } : {},
-          ...descriptor.agentReasoningEffort !== undefined
-            ? { reasoningEffort: ReasoningEffortId(descriptor.agentReasoningEffort) }
-            : {},
-        },
-        composition: { persona: descriptor.persona, toolFilter: descriptor.toolFilter },
-        signal: options.signal,
-      })
-    } catch (error: unknown) {
-      options.signal.throwIfAborted()
-      if (error instanceof SubagentError) throw error
-      throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
-    }
+    const activation = await this.materialize({
+      childId,
+      provider: descriptor.provider,
+      parent,
+      agentOptions: {
+        ...descriptor.agentProvider !== undefined ? { provider: descriptor.agentProvider } : {},
+        ...descriptor.agentModel !== undefined ? { model: descriptor.agentModel } : {},
+        ...descriptor.agentReasoningEffort !== undefined
+          ? { reasoningEffort: ReasoningEffortId(descriptor.agentReasoningEffort) }
+          : {},
+      },
+      composition: { persona: descriptor.persona, toolFilter: descriptor.toolFilter },
+      signal: options.signal,
+    }).then(
+      undefined,
+      (error: Thrown) => {
+        options.signal.throwIfAborted()
+        if (error instanceof SubagentError) throw error
+        throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
+      },
+    )
     return await this.submitMaterialized(activation, content, options.source, parent, options.signal)
   }
 
@@ -1027,10 +1025,10 @@ export class SubagentContinuationManager {
   ): Promise<MessageId> {
     try {
       return this.submitAdmitted(activation, content, source, parent, signal)
-    } catch (error: unknown) {
+    } catch (error) {
       /* v8 ignore next -- rollback disposal failures must not mask the
        * pre-acceptance signal, drain, or lifecycle failure. */
-      await this.dispose(activation).catch(() => undefined)
+      await this.dispose(activation).catch((_error: Thrown) => undefined)
       throw error
     }
   }
@@ -1141,12 +1139,12 @@ export class SubagentContinuationManager {
       // Publish the start edge before any turn can run, so observers see this
       // epoch before its first request.
       observer.start(handle.agent)
-    } catch (error: unknown) {
+    } catch (error) {
       // Listener exceptions are contained by the lifecycle emitter; a start
       // publication throw therefore leaves no residency edge to pair.
       /* v8 ignore next -- rollback failure must not mask the admission failure
        * that prevented this operation from returning an accepted message id. */
-      await this.rollbackUnpublished(activation).catch(() => undefined)
+      await this.rollbackUnpublished(activation).catch((_error: Thrown) => undefined)
       throw error
     }
     this.watchSettlement(activation)
@@ -1248,7 +1246,7 @@ export class SubagentContinuationManager {
     activation.accepted.add(messageId)
     try {
       send()
-    } catch (error: unknown) {
+    } catch (error) {
       activation.accepted.delete(messageId)
       throw error
     }
@@ -1369,7 +1367,10 @@ export class SubagentContinuationManager {
     // Presence is the admission cutoff. Assign it before the async helper starts
     // because that helper cancels Agents and may synchronously re-enter callers.
     activation.disposal = completion.promise
-    this.finishDisposal(activation).then(completion.resolve, completion.reject)
+    this.finishDisposal(activation).then(
+      completion.resolve,
+      (error: Thrown) => { completion.reject(error) },
+    )
     return completion.promise
   }
 
@@ -1394,14 +1395,12 @@ export class SubagentContinuationManager {
     try {
       // Release remains child-first even though cancellation propagated
       // top-down: every owned child completes before this handle is removed.
-      const childFailures = await Promise.all(childDisposals.map(async (disposal) => {
-        try {
-          await disposal
-          return undefined
-        } catch (error: unknown) {
-          return error
-        }
-      }))
+      const childFailures = await Promise.all(childDisposals.map(disposal =>
+        disposal.then(
+          () => undefined,
+          (error: Thrown) => error,
+        ),
+      ))
       const reasons = childFailures.filter(reason => reason !== undefined)
       if (reasons.length > 0) {
         failures.push(new SubagentError(
@@ -1416,22 +1415,23 @@ export class SubagentContinuationManager {
       // Capture the child-dependent edge data while the child is still live:
       // handle disposal unregisters it, and consumers read its log and scope.
       activation.observer.capture(activation.handle.agent)
-    } catch (error: unknown) {
+    } catch (error) {
       failures.push(new SubagentError(
         `subagent "${childId}" activation teardown failed: ${errorChain(error)}`,
         'ACTIVATION_TEARDOWN_FAILED',
         { cause: error },
       ))
     }
-    try {
-      await activation.handle.dispose()
-    } catch (error: unknown) {
-      failures.push(new SubagentError(
-        `subagent "${childId}" activation handle disposal failed: ${errorChain(error)}`,
-        'ACTIVATION_TEARDOWN_FAILED',
-        { cause: error },
-      ))
-    }
+    await activation.handle.dispose().then(
+      undefined,
+      (error: Thrown) => {
+        failures.push(new SubagentError(
+          `subagent "${childId}" activation handle disposal failed: ${errorChain(error)}`,
+          'ACTIVATION_TEARDOWN_FAILED',
+          { cause: error },
+        ))
+      },
+    )
 
     let failure: SubagentError | undefined
     if (failures.length === 1) {
@@ -1525,7 +1525,7 @@ export class SubagentContinuationManager {
         if (parent.status === 'idle') parent.followup(message)
         else parent.steer(message)
       })
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(
         `subagent "${activation.childId}" settlement notice was not delivered to its parent: `
         + errorChain(error),
@@ -1541,14 +1541,15 @@ export class SubagentContinuationManager {
    */
   private async flushFinalState(activation: Activation): Promise<void> {
     const child = activation.handle.agent
-    try {
-      await child.ctx.sessions.flush(child.session)
-    } catch (error: unknown) {
-      this.ctx.logger.warn(
-        `subagent "${activation.childId}" best-effort final session flush failed; `
-        + `the persisted state may be unavailable or stale on resume: ${errorChain(error)}`,
-      )
-    }
+    await child.ctx.sessions.flush(child.session).then(
+      undefined,
+      (error: Thrown) => {
+        this.ctx.logger.warn(
+          `subagent "${activation.childId}" best-effort final session flush failed; `
+          + `the persisted state may be unavailable or stale on resume: ${errorChain(error)}`,
+        )
+      },
+    )
   }
 
   /** Resolve the persistence service continuable children require, or fail loud. */
