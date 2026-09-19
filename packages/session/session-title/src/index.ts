@@ -26,6 +26,9 @@ import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
 
+/** Values a Promise reject arm from deferred title work may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Identifies one session-title provider registration. */
 export type SessionTitleProviderId = Branded<'SessionTitleProviderId'>
 
@@ -688,7 +691,7 @@ export class SessionTitleService extends Service {
       if (!this.serviceActive()) return
       await task()
     })
-    this.track(run).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    this.track(run).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
   }
 
   /** Retain one promise until settlement for service and optional provider teardown. */

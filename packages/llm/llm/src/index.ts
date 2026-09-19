@@ -52,6 +52,9 @@ export { BlockAssembler } from './assembler.ts'
 export { callConfigEquals, deepFreeze, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
+/** Values a Promise reject arm from an adapters-updated listener may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     llm: LlmRuntime
@@ -363,7 +366,7 @@ export class LlmRuntime extends TypertRemoteService {
           // An emit listener may still be an async function; its rejection
           // cannot reach the synchronous INVARIANT rethrow below, so it is
           // contained here instead of becoming an unhandled rejection.
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnAdaptersListenerFailure(error)
           })
         }
