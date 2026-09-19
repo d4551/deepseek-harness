@@ -8,7 +8,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ClientSessionContext, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { ClientSessionContext, InputTriggerSource, SyncHookFault } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { apply, inject } from '../src/client/index.ts'
 
 export type SkillRow = { name: string; description: string; whenToUse?: string; modelInvocable?: boolean }
@@ -19,7 +19,26 @@ export type ListFn = (payload: object, signal?: AbortSignal) => Promise<ListResu
 
 type SubscribeLexicon = NonNullable<InputTriggerSource['subscribeLexicon']>
 type LexiconListener = Parameters<SubscribeLexicon>[1]
-type LexiconDisposer = ReturnType<SubscribeLexicon>
+type LexiconDisposer = () => void
+
+function publishedLexicon(
+  value: readonly string[] | undefined | SyncHookFault,
+): readonly string[] | undefined {
+  if (value === undefined) return undefined
+  if ('hookFailed' in value) {
+    throw new Error(value.message)
+  }
+  return value
+}
+
+function publishedSubscribe(
+  value: (() => void) | SyncHookFault,
+): LexiconDisposer {
+  if (typeof value !== 'function') {
+    throw new Error(value.message)
+  }
+  return value
+}
 
 /** Boot the plugin over fake faces; returns the captured slash source, its ctx, and the remote. */
 export async function bench(list: ListFn, addressed?: SessionId): Promise<{
@@ -61,9 +80,11 @@ export function lexiconHooks(source: InputTriggerSource): {
     throw new Error(`the skill source registered without ${name}`)
   }
   return {
-    lexicon: session => source.lexicon === undefined ? missing('lexicon') : source.lexicon(session),
+    lexicon: session => source.lexicon === undefined ? missing('lexicon') : publishedLexicon(source.lexicon(session)),
     subscribeLexicon: (session, listener) =>
-      source.subscribeLexicon === undefined ? missing('subscribeLexicon') : source.subscribeLexicon(session, listener),
+      source.subscribeLexicon === undefined
+        ? missing('subscribeLexicon')
+        : publishedSubscribe(source.subscribeLexicon(session, listener)),
     warm: (session) => {
       if (source.warm === undefined) missing('warm')
       else source.warm(session)

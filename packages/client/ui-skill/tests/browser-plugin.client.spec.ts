@@ -19,7 +19,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ClientSessionContext, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { ClientSessionContext, InputTriggerSource, SyncHookFault } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { apply, inject } from '../src/client/index.ts'
 import { SkillRow as SkillToolRow } from '../src/client/SkillRow.tsx'
 
@@ -28,6 +28,15 @@ type ListResult =
   | { ok: true; value: { skills: SkillRow[] } }
   | { ok: false; error: { code: string; message: string; details: object } }
 type ListFn = (payload: object, signal?: AbortSignal) => Promise<ListResult>
+
+function publishedSubscribe(
+  value: (() => void) | SyncHookFault,
+): () => void {
+  if (typeof value !== 'function') {
+    throw new Error(value.message)
+  }
+  return value
+}
 
 interface PresentationCapture {
   slots: SlotRegistry
@@ -317,8 +326,8 @@ describe('lexicon', () => {
   it('subscribeLexicon notifies on catalog settle and on invalidation, per session', async () => {
     const { list } = countingList()
     const { ctx, source } = await bench(list)
-    const s1 = vi.fn()
-    const s2 = vi.fn()
+    const s1 = vi.fn<() => void>()
+    const s2 = vi.fn<() => void>()
     source.subscribeLexicon!(proj('s1'), s1)
     source.subscribeLexicon!(proj('s2'), s2)
     await source.candidates(proj('s1'), req(''))
@@ -334,8 +343,8 @@ describe('lexicon', () => {
   it('an unsubscribed lexicon listener stops receiving notifications', async () => {
     const { list } = countingList()
     const { source } = await bench(list)
-    const listener = vi.fn()
-    const off = source.subscribeLexicon!(proj('s1'), listener)
+    const listener = vi.fn<() => void>()
+    const off = publishedSubscribe(source.subscribeLexicon!(proj('s1'), listener))
     off()
     await source.candidates(proj('s1'), req(''))
     expect(listener).not.toHaveBeenCalled()

@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  CandidateRequest, ClientSessionContext, InputTriggerCandidate, InputTriggerSource,
+  CandidateRequest, ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerSource,
+  SyncHookFault,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
 import type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-reference/types'
@@ -54,15 +55,25 @@ function request(
   }
 }
 
+function publishedCrumbs(
+  crumbs: readonly InputTriggerCrumb[] | undefined | SyncHookFault,
+): readonly InputTriggerCrumb[] | undefined {
+  if (crumbs === undefined) return undefined
+  if ('hookFailed' in crumbs) {
+    throw new Error(crumbs.message)
+  }
+  return crumbs
+}
+
 async function bench(
-  files: RemoteLookup<FileReferenceCandidate> = vi.fn(() => Promise.resolve({
+  files: RemoteLookup<FileReferenceCandidate> = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({
     ok: true as const,
     value: [
       { path: 'src', kind: 'directory' as const },
       { path: 'docs/a b.md', kind: 'file' as const },
     ],
   })),
-  sessions: RemoteLookup<SessionReferenceMentionCandidate> = vi.fn(() => Promise.resolve({
+  sessions: RemoteLookup<SessionReferenceMentionCandidate> = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
     ok: true as const,
     value: [{
       sessionId: sid('source'),
@@ -143,7 +154,7 @@ describe('candidates', () => {
   it('starts both Remote lookups together and renders files before sessions with stable labels', async () => {
     let releaseFiles!: () => void
     let releaseSessions!: () => void
-    const files = vi.fn(() => new Promise<{
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => new Promise<{
       ok: true
       value: { path: string; kind: 'file' | 'directory' }[]
     }>((resolve) => {
@@ -157,7 +168,7 @@ describe('candidates', () => {
         })
       }
     }))
-    const sessions = vi.fn(() => new Promise<{
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => new Promise<{
       ok: true
       value: {
         sessionId: SessionId
@@ -212,13 +223,13 @@ describe('candidates', () => {
   })
 
   it('suppresses sessions for an open quoted path and degrades each failed domain independently', async () => {
-    const files = vi.fn()
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>()
       .mockResolvedValueOnce({
         ok: true as const,
         value: [{ path: 'README.md', kind: 'file' as const }],
       })
       .mockRejectedValueOnce(new Error('file scan failed'))
-    const sessions = vi.fn(() => Promise.resolve({
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{
         sessionId: sid('source'),
@@ -263,11 +274,11 @@ describe('candidates', () => {
   })
 
   it('treats Remote failures as empty domains and filters paths that cannot be mentioned', async () => {
-    const files = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{ path: 'bad\nname', kind: 'file' as const }],
     }))
-    const sessions = vi.fn()
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>()
       .mockRejectedValueOnce(new Error('session lookup failed'))
       .mockResolvedValueOnce({
         ok: false as const,
@@ -279,13 +290,13 @@ describe('candidates', () => {
     files.mockResolvedValueOnce({
       ok: false as const,
       error: { code: 'internal', message: 'file lookup failed', details: {} },
-    } as never)
+    })
     await expect(source.candidates(session, request('bad'))).resolves.toEqual([])
   })
 
   it('labels a session without a cwd and still dates it', async () => {
-    const files = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
-    const sessions = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({ ok: true as const, value: [] }))
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{
         sessionId: sid('same'),
@@ -305,8 +316,8 @@ describe('candidates', () => {
   })
 
   it('falls back to the candidate createdAt for a session the Host list does not carry', async () => {
-    const files = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
-    const sessions = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({ ok: true as const, value: [] }))
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{
         sessionId: sid('unlisted'),
@@ -325,8 +336,8 @@ describe('candidates', () => {
   })
 
   it('reads a session opened moments ago as the present, not a zero distance', async () => {
-    const files = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
-    const sessions = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({ ok: true as const, value: [] }))
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{
         sessionId: sid('just-now'),
@@ -344,8 +355,8 @@ describe('candidates', () => {
   })
 
   it('dates a session in the current workspace without repeating that workspace', async () => {
-    const files = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
-    const sessions = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({ ok: true as const, value: [] }))
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{
         sessionId: sid('sibling'),
@@ -397,7 +408,7 @@ describe('directory header', () => {
 
   it('keeps an open quote across every crumb of a quoted descent', async () => {
     const { source } = await bench()
-    const crumbs = source.header?.(session, { query: 'my dir/sub/', quoted: true, drilled: true })
+    const crumbs = publishedCrumbs(source.header?.(session, { query: 'my dir/sub/', quoted: true, drilled: true }))
     expect(crumbs?.map(crumb => JSON.parse(crumb.value) as { mention: string }).map(value => value.mention))
       .toEqual(['@"', '@"my dir/', '@"my dir/sub/'])
   })
@@ -409,7 +420,7 @@ describe('directory header', () => {
 
   it('returns to a crumb through the same drill outcome a folder row uses', async () => {
     const { source } = await bench()
-    const crumbs = source.header?.(session, { query: 'src/module1/', drilled: true })
+    const crumbs = publishedCrumbs(source.header?.(session, { query: 'src/module1/', drilled: true }))
     expect(source.onPick({
       candidate: { name: 'src', value: crumbs?.[1]?.value ?? '' },
       session,
@@ -421,11 +432,11 @@ describe('directory header', () => {
   })
 
   it('drops the row location a drilled listing already shows in its header', async () => {
-    const files = vi.fn(() => Promise.resolve({
+    const files = vi.fn<RemoteLookup<FileReferenceCandidate>>(() => Promise.resolve({
       ok: true as const,
       value: [{ path: 'src/module1/index.html', kind: 'file' as const }],
     }))
-    const sessions = vi.fn(() => Promise.resolve({ ok: true as const, value: [] }))
+    const sessions = vi.fn<RemoteLookup<SessionReferenceMentionCandidate>>(() => Promise.resolve({ ok: true as const, value: [] }))
     const { source } = await bench(files, sessions)
     await expect(source.candidates(session, drilledRequest('src/module1/'))).resolves.toEqual([
       expect.objectContaining({ name: 'index.html', icon: 'file' }),
