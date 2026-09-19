@@ -239,7 +239,7 @@ export function toPiAssistant(message: Message, onDegrade?: (reason: string) => 
   if (source.kind !== 'model' || source.replayState === undefined) return foreignAssistant(message)
   try {
     return replayedAssistant(message, source, source.replayState)
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore next -- replayedAssistant throws only INVALID_REPLAY_STATE LlmErrors; the
        guard keeps a future non-replay failure loud instead of silently degrading it */
     if (!(error instanceof LlmError) || error.code !== 'INVALID_REPLAY_STATE') throw error

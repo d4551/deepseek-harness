@@ -62,6 +62,25 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
 import { toStreamChunks } from './stream.ts'
 
+/** Values a Promise reject arm from a pi-ai stream, conversion, or SDK teardown may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Classify a stream-boundary refusal as idle timeout, caller abort, or the original Thrown. */
+function streamBoundaryFailure(
+  error: unknown,
+  watchdogSignal: AbortSignal,
+  streamIdleTimeoutMs: number,
+  callerSignal: AbortSignal | undefined,
+): never {
+  if (timeoutOf(watchdogSignal, 'LLM_STREAM_IDLE_TIMEOUT') !== undefined) {
+    throw new LlmError(`pi-ai stream idle timeout after ${streamIdleTimeoutMs}ms`, 'TIMEOUT', { cause: error })
+  }
+  if (callerSignal?.aborted) {
+    throw new LlmError('pi-ai request aborted by caller', 'ABORTED', { cause: error })
+  }
+  throw error
+}
+
 /** One resolution's frozen view: the profiles and the collection built from them. */
 interface PiAiSnapshot {
   /** The resolved profiles this collection was built from, used as its identity. */
@@ -348,8 +367,13 @@ export class PiAiAdapter extends LlmAdapter {
       : AbortSignal.any([options.signal, consumer.signal])
     const streamIdleTimeoutMs = profile.streamIdleTimeoutMs
     using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT')
+    const fail = (error: unknown): never =>
+      streamBoundaryFailure(error, watchdog.signal, streamIdleTimeoutMs, options.signal)
 
     try {
+      const onReplayDegrade = (reason: string): void => {
+        this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
+      }
       const containsImage = options.messages.some(message => contentHasImage(message.content))
       if (containsImage && !model.input.includes('image')) {
         throw new LlmError(`pi-ai model "${model.id}" does not support image input`, 'UNSUPPORTED_CONTENT')
@@ -357,9 +381,6 @@ export class PiAiAdapter extends LlmAdapter {
       const attachments = containsImage ? this.config.resolveAttachments?.() : undefined
       if (containsImage && attachments === undefined) {
         throw new LlmError('pi-ai image input requires the durable attachment service', 'UNSUPPORTED_CONTENT')
-      }
-      const onReplayDegrade = (reason: string): void => {
-        this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
         ? toPiContext(options, undefined, onReplayDegrade)
@@ -371,7 +392,7 @@ export class PiAiAdapter extends LlmAdapter {
             maxPixels: profile.requestImagePixelBudget,
             maxBytes: profile.requestImageMaxBytes,
           },
-        }, onReplayDegrade)
+        }, onReplayDegrade).then(undefined, (error: Thrown) => fail(error))
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
@@ -386,9 +407,9 @@ export class PiAiAdapter extends LlmAdapter {
       let exhausted = false
       try {
         while (true) {
-          const result = await watchdog.next(iterator)
+          const result = await watchdog.next(iterator).then(undefined, (error: Thrown) => fail(error))
           const timeout = timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT')
-          if (timeout !== undefined) throw timeout
+          if (timeout !== undefined) fail(timeout)
           if (result.done) {
             exhausted = true
             return
@@ -398,21 +419,13 @@ export class PiAiAdapter extends LlmAdapter {
       } finally {
         if (!exhausted) {
           consumer.abort('pi-ai stream consumer stopped')
-          try {
-            await iterator.return(undefined)
-          } catch (_abortedSdkTeardown) {
+          await iterator.return(undefined).then(undefined, (_abortedSdkTeardown: Thrown) => {
             // The stable signal already owns SDK termination; return-time abort cannot add an outcome.
-          }
+          })
         }
       }
-    } catch (error: unknown) {
-      if (timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT') !== undefined) {
-        throw new LlmError(`pi-ai stream idle timeout after ${streamIdleTimeoutMs}ms`, 'TIMEOUT', { cause: error })
-      }
-      if (options.signal?.aborted) {
-        throw new LlmError('pi-ai request aborted by caller', 'ABORTED', { cause: error })
-      }
-      throw error
+    } catch (error) {
+      fail(error)
     } finally {
       consumer.abort('pi-ai stream consumer stopped')
     }
