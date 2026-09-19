@@ -86,7 +86,7 @@ export interface Config {
 /** Opaque coordinator token for replacing bytes recovered from a torn frame. */
 interface JsonlTornMarker {
   truncateTo: number
-  recoveredEvents: SessionEvent[]
+  recoveredEvents: object[]
 }
 
 interface FileRevisionIdentity {
@@ -460,8 +460,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     closers: readonly SessionEvent[],
   ): Promise<void> {
     if (tornMarker !== undefined) await this.repair(meta, tornMarker.truncateTo)
-    const repairedEvents = [...(tornMarker?.recoveredEvents ?? []), ...closers]
-    if (repairedEvents.length > 0) await this.appendLines(meta, repairedEvents)
+    if (tornMarker !== undefined && tornMarker.recoveredEvents.length > 0) {
+      await this.appendStoredRecords(meta, tornMarker.recoveredEvents)
+    }
+    if (closers.length > 0) await this.appendLines(meta, closers)
     if (tornMarker !== undefined) this.ctx.logger.warn(`${this.name}: session "${meta.id}" recovered from a torn tail; incomplete tail bytes were discarded`)
   }
 
@@ -660,8 +662,17 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
    * previous size before rethrowing because the unchanged cursor will retry the
    * batch; leaving partial bytes would create duplicate sequence numbers.
    */
+  private async appendStoredRecords(meta: SessionHeader, records: readonly object[]): Promise<void> {
+    const body = records.map(record => JSON.stringify(record)).join('\n') + '\n'
+    const content = this.compression === 'zstd' ? await compressZstdFrame(body) : body
+    await this.appendContent(meta, content)
+  }
+
   private async appendLines(meta: SessionHeader, events: readonly SessionEvent[]): Promise<void> {
-    const content = await this.encodeEventBatch(events)
+    await this.appendContent(meta, await this.encodeEventBatch(events))
+  }
+
+  private async appendContent(meta: SessionHeader, content: Buffer | string): Promise<void> {
     const path = logPath(this.root, meta.cwd, meta.id, this.compression)
     const handle = await open(path, 'a')
     let closed = false

@@ -97,9 +97,9 @@ function validateRow(
 /**
  * Decode one scalar or packed schema-19 record.
  * @param value - parsed physical-record value.
- * @returns the represented logical events.
+ * @returns the represented logical records.
  */
-export function decodeStorageRecord(value: unknown): SessionEvent[] {
+export function decodeStorageRecord(value: unknown): unknown[] {
   return decodeChunkStorageRecord(value, validateRow)
 }
 

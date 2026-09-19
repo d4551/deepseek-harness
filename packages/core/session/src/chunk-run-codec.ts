@@ -431,21 +431,21 @@ export function expandChunkRow(row: ChunkRow): SessionEvent[] {
  * Decode one parsed record into the session event(s) it stores.
  * Chunk-row-tagged values validate through the caller's format rules and
  * expand (a malformed row throws — it is corrupt storage, and treating it as an
- * event would silently drop a whole run); every other value passes through as a
- * single event, unvalidated.
+ * event would silently drop a whole run); every other value passes through
+ * unvalidated.
  *
  * @param value - one stored record, already parsed.
  * @param validate - the format's row validation, which throws on a malformed row.
- * @returns the stored events, in log order.
+ * @returns the stored records, in log order.
  */
 export function decodeChunkStorageRecord(
   value: unknown,
   validate: (value: Record<string, unknown>, tag: ChunkRow['type']) => ChunkRow,
-): SessionEvent[] {
-  if (!isRecord(value)) return [value as SessionEvent]
+): unknown[] {
+  if (!isRecord(value)) return [value]
   const tag = value.type
   if (tag !== 'text-chunks' && tag !== 'reasoning-chunks' && tag !== 'tool-call-chunks') {
-    return [value as SessionEvent]
+    return [value]
   }
   return expandChunkRow(validate(value, tag))
 }

@@ -12,7 +12,7 @@ import { delimiter as pathDelimiter } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-compaction'
 import type {} from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { decodeSeqRanges, decodeStorageRecord, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { assertSessionEventObject, decodeSeqRanges, decodeStorageRecord, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type {
   ContentBlock,
   GenerateOptions,
@@ -192,20 +192,24 @@ export function parseSessionLog(text: string): SessionEvent[] {
     }
     let value: unknown
     try {
-      value = JSON.parse(line) as unknown
+      value = JSON.parse(line)
     } catch (error) {
       throw new Error(`session snapshot line ${index + 1} contains invalid JSON`, { cause: error })
     }
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error(`session snapshot line ${index + 1} must be a JSON object`)
     }
-    const record = value as Record<string, unknown>
-    const packed = PACKED_CHUNK_ROW_TYPES.has(record.type as string)
+    const record: { [key: string]: unknown } = {}
+    for (const key of Object.keys(value)) {
+      record[key] = Reflect.get(value, key)
+    }
+    const type = record.type
+    const packed = typeof type === 'string' && PACKED_CHUNK_ROW_TYPES.has(type)
     const seqKey = packed ? 'seq0' : 'seq'
     const timeKey = packed ? 'time0' : 'time'
     if (!Object.hasOwn(record, seqKey)) record[seqKey] = nextSeq
     if (!Object.hasOwn(record, timeKey)) record[timeKey] = 0
-    let decoded: SessionEvent[]
+    let decoded: unknown[]
     try {
       if (Object.hasOwn(record, 'sourceEventSeqs')) {
         record.sourceEventSeqs = decodeSeqRanges(record.sourceEventSeqs)
@@ -216,7 +220,13 @@ export function parseSessionLog(text: string): SessionEvent[] {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(`session snapshot line ${index + 1}: ${detail}`, { cause: error })
     }
-    events.push(...decoded)
+    for (const item of decoded) {
+      if (typeof item !== 'object' || item === null) {
+        throw new TypeError(`session snapshot line ${index + 1} decoded a non-object record`)
+      }
+      assertSessionEventObject(item)
+      events.push(item)
+    }
     nextSeq += decoded.length
   }
   return events
@@ -753,7 +763,10 @@ function paceDelay(paceMs: number, signal: AbortSignal | undefined): Promise<voi
   })
 }
 
-/** Yield a recorded stream back, honoring abort like a real adapter. */
+/**
+ * Yield a recorded stream back, honoring abort like a real adapter.
+ * @yields each recorded {@link StreamChunk} in arrival order.
+ */
 async function* replayEntry(entry: ReplayEntry, signal: AbortSignal | undefined, paceMs: number): AsyncIterable<StreamChunk> {
   switch (entry.kind) {
     case 'chunks':

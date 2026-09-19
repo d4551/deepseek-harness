@@ -49,10 +49,10 @@ function validateRow(value: Record<string, unknown>, tag: ChunkRow['type']): Chu
 }
 
 /**
- * Decode one parsed JSONL line value into the session event(s) it stores.
+ * Decode one parsed JSONL line value into the stored record(s) it carries.
  * @param value - one line's `JSON.parse` result.
- * @returns the stored events, in log order.
+ * @returns the stored records, in log order.
  */
-export function decodeStorageRecord(value: unknown): SessionEvent[] {
+export function decodeStorageRecord(value: unknown): unknown[] {
   return decodeChunkStorageRecord(value, validateRow)
 }
