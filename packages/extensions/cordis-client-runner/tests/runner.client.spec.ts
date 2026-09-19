@@ -30,6 +30,8 @@ function runId(value: number): CordisDynamicPluginRunId {
   return `run-${value}` as CordisDynamicPluginRunId
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** One browser half as the host hands it over. */
 function half(overrides: Partial<DynamicCordisClientHalf> = {}): DynamicCordisClientHalf {
   return {
@@ -76,7 +78,7 @@ interface Bench {
 function seated<T>(fiber: T): T {
   Promise.resolve(fiber).then(
     () => undefined,
-    (reason: unknown) => {
+    (reason: Thrown) => {
       if (reason instanceof Error) return
       throw reason
     },

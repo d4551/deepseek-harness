@@ -52,8 +52,7 @@ export class WorkspaceOrderInvalidError extends Error {
   }
 }
 
-/** Values a Promise reject arm from a serialized registry operation may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -640,7 +639,13 @@ export class WorkspaceRegistry extends Service {
       if (previous !== this.state) this.ctx.emit('workspace/updated')
       return value
     })
-    this.operationTail = result.then(() => {}, (_error: Thrown) => {})
+    // Park the tail and read it at settlement in the same tick; the caller owns
+    // `result` and the chain below forgets only the currently parked tail.
+    const tail: Promise<void> = result.then(
+      () => { if (this.operationTail === tail) return undefined },
+      (_error: Thrown) => { if (this.operationTail === tail) return undefined },
+    )
+    this.operationTail = tail
     return result
   }
 }

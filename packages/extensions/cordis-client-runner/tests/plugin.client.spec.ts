@@ -69,6 +69,8 @@ interface Bench {
   settle: () => Promise<void>
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Mount the browser half over a module table and a loader standing on real fibers. */
 async function boot(): Promise<Bench> {
   const ctx = new Context()
@@ -87,7 +89,7 @@ async function boot(): Promise<Bench> {
       // handle too, or a failing package also lands as an unhandled rejection.
       Promise.resolve(fiber).then(
         () => undefined,
-        (reason: unknown) => {
+        (reason: Thrown) => {
           if (reason instanceof Error) return
           throw reason
         },

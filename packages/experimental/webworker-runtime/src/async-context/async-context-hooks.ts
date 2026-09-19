@@ -24,6 +24,8 @@
  */
 import { bindAsyncContext, captureAsyncContext, captureNativePromiseThen, runWithAsyncContext } from '../node/builtin_modules/implemented/async_hooks.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function bindSlot<T, R>(
   handler: ((value: T) => R) | null | undefined,
   snapshot: ReturnType<typeof captureAsyncContext>,
@@ -46,7 +48,7 @@ export function installAsyncContextHooks(): void {
   const continueNative = <T, R1, R2>(
     promise: Promise<T>,
     onFulfilled?: ((value: T) => R1 | PromiseLike<R1>) | null,
-    onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
+    onRejected?: ((reason: Thrown) => R2 | PromiseLike<R2>) | null,
   ): Promise<R1 | R2> => {
     const continued: unknown = nativeThen.call(promise, onFulfilled, onRejected)
     if (!(continued instanceof Promise)) {
@@ -70,7 +72,7 @@ export function installAsyncContextHooks(): void {
   const patchedThen = function patchedThen<T, R1, R2>(
     this: Promise<T>,
     onFulfilled?: ((value: T) => R1 | PromiseLike<R1>) | null,
-    onRejected?: ((reason: unknown) => R2 | PromiseLike<R2>) | null,
+    onRejected?: ((reason: Thrown) => R2 | PromiseLike<R2>) | null,
   ): Promise<R1 | R2> {
     const snapshot = captureAsyncContext()
     if (snapshot === undefined) {
@@ -102,7 +104,7 @@ export function installAsyncContextHooks(): void {
     return continueNative(
       nativeFetch(input, init),
       (response: Response) => runWithAsyncContext(snapshot, () => response),
-      (reason: unknown) => runWithAsyncContext(snapshot, () => { throw reason }),
+      (reason: Thrown) => runWithAsyncContext(snapshot, () => { throw reason }),
     )
   })
 }

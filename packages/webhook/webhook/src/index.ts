@@ -16,8 +16,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Values a Promise reject arm or rule refusal may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Internal type erasure after public generic registration validates the provider kind. */
 interface AnyWebhookRule {
@@ -126,7 +125,14 @@ export class WebhookRuntime extends Service {
 
     // The public generic preserves adapter-specific authoring types. The runtime
     // stores one erased callback after validating the shared provider tag.
-    const erased = rule as unknown as AnyWebhookRule
+    // `kind` narrows from `K` to `string` because `K extends string`; only the
+    // delivery-typed `run` needs a seat change, and the dispatch loop only
+    // invokes it with deliveries whose `kind` equals this rule's own tag.
+    const erased: AnyWebhookRule = {
+      id: rule.id,
+      kind: rule.kind,
+      run: rule.run as AnyWebhookRule['run'],
+    }
     let registration!: RuleRegistration
     const disposeEffect = this.ctx.effect(() => {
       /* v8 ignore next -- no await separates the public liveness check from this initializer. */

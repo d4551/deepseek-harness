@@ -44,8 +44,7 @@ import { parseSse } from './sse.ts'
 import { translate } from './translate.ts'
 import type { WireError, WireRequest } from './types.ts'
 
-/** Values a Promise reject arm from a request, extension, or Files API wait may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** One optional model entry advertised by the direct-fetch adapter. */
 export interface DeepSeekCatalogModel {
@@ -346,6 +345,41 @@ function extensionFailureText(error: unknown): string {
 }
 
 /**
+ * Whether a runtime value is lossless extension JSON.
+ * @param value - candidate value from the serialized wire request.
+ * @returns whether the value fits {@link DeepSeekLlmApiJson}.
+ */
+function isExtensionJson(value: unknown): value is DeepSeekLlmApiJson {
+  if (value === null) return true
+  switch (typeof value) {
+    case 'boolean':
+    case 'number':
+    case 'string':
+      return true
+    case 'object':
+      if (Array.isArray(value)) return value.every(isExtensionJson)
+      return Object.values(value).every(isExtensionJson)
+    default:
+      return false
+  }
+}
+
+/**
+ * Project the serialized wire request into the detached JSON record the
+ * extension boundary reads. The serializer builds `body` from plain JSON
+ * data, so a non-JSON member is a programming error, not a fallback.
+ * @param body - the exact wire request about to be sent.
+ * @returns the body as a JSON record.
+ */
+function toExtensionBody(body: WireRequest): Readonly<Record<string, DeepSeekLlmApiJson>> {
+  const record: Record<string, unknown> = { ...body }
+  for (const [key, value] of Object.entries(record)) {
+    if (!isExtensionJson(value)) throw new LlmError(`DeepSeek wire field ${JSON.stringify(key)} is not extension JSON`, 'INVALID_REQUEST')
+  }
+  return record as Readonly<Record<string, DeepSeekLlmApiJson>>
+}
+
+/**
  * The first real `LlmAdapter`. One instance serves every model name it was
  * registered under (the harness model name IS the wire model name).
  *
@@ -622,7 +656,7 @@ export class DeepSeekAdapter extends LlmAdapter {
       let extensions: PreparedDeepSeekLlmApiExtensions
       try {
         extensions = await this.config.prepareExtensions({
-          body: body as unknown as Readonly<Record<string, DeepSeekLlmApiJson>>,
+          body: toExtensionBody(body),
           signal,
           ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
           ...options.purpose === undefined ? {} : { purpose: options.purpose },

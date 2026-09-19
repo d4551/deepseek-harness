@@ -30,6 +30,8 @@ import {
 
 type FixtureApprovalOutcome = 'allowed' | 'unavailable'
 const fixtureContextTag = Symbol('fixture-context-tag')
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 type AgentWireId = TypertContextWire<TypertContextMap['agent']>
 const agentId = (value: string): AgentWireId => value as AgentWireId
 
@@ -2094,7 +2096,7 @@ describe('Client Typert API', () => {
       const dispose = await ctx.remote.$mount({ package: '@fixture/worker-stream', descriptors: [streamDescriptor()] })
       try {
         const error = await ctx.remote.probe.watch('failure')[Symbol.asyncIterator]().next()
-          .then(() => undefined, (reason: unknown) => reason)
+          .then(() => undefined, (reason: Thrown) => reason)
         testCase.assert(error)
       } finally {
         await dispose()

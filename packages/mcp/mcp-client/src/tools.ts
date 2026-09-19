@@ -55,8 +55,7 @@ const INVALID_NAME_CHARS = /[^A-Za-z0-9_-]/g
 /** Hex chars of the SHA-256 identity hash appended on lossy normalization. */
 const HASH_LENGTH = 12
 
-/** Values a Promise reject arm may deliver. */
-type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Human text for a rejected tool call or image admission.
@@ -351,7 +350,11 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
       additionalProperties: false,
     },
     render(_args: unknown, value: JsonValue) {
-      const result = value as unknown as McpResult
+      if (typeof value !== 'object' || value === null || Array.isArray(value)
+        || !('content' in value) || !Array.isArray(value.content)) {
+        throw new Error(`mcp-client(${rawName}): tool result value has no content array`)
+      }
+      const result = value as McpResult
       return [{ type: 'text', text: extractText(result.content, rawName) }]
     },
   }
@@ -401,10 +404,10 @@ function createExecutor(
       }
     }
 
-    // Trust boundary: the SDK's return type erases to `any[]` due to the
-    // union of CallToolResult | CompatibilityCallToolResult; extractText
-    // validates each element.
-    const content = result.content as unknown as JsonValue[]
+    // Trust boundary: the uncached record carries `content: unknown`; the
+    // `Array.isArray` guard above narrowed it to `any[]`, and `extractText`
+    // validates each element before it reaches model context.
+    const content = result.content as JsonValue[]
     const text = extractText(content, rawName)
 
     // MCP isError → throw so ToolRuntime produces an isError result for the model.
