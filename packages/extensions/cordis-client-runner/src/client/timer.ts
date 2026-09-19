@@ -12,6 +12,8 @@ declare module '@deepseek-ai/cordis' {
 
 type TimerArguments = [delay: number] | [callback: () => void, delay: number]
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Cancel pending timer work; await the result to observe completion of owned cleanup. */
 export type TimerDisposer = () => void | Promise<void>
 
@@ -66,7 +68,7 @@ export class ClientTimerService extends Service {
       const [callback, delay] = args
       const dispose = this.ctx.effect(() => {
         const timer = globalThis.setTimeout(() => {
-          Promise.resolve(dispose()).then(undefined, console.error)
+          Promise.resolve(dispose()).then(undefined, (reason: Thrown) => { console.error(reason) })
           callback()
         }, delay)
         return () => { globalThis.clearTimeout(timer) }
@@ -85,7 +87,7 @@ export class ClientTimerService extends Service {
     }, 'ctx.timeout()')
     return promise.then(async () => {
       await dispose()
-    }, async (reason: unknown) => {
+    }, async (reason: Thrown) => {
       await dispose()
       throw reason
     })

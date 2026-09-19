@@ -250,7 +250,7 @@
 }
 
 .tableScroll table code {
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
 }
 
 .markdown > *:first-child,

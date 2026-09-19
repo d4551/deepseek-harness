@@ -21,6 +21,8 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CordisDynamicPort, CordisInventoryRow } from './dynamic-port.ts'
 import type { CordisDynamicPluginId } from '@deepseek-ai/dsh-api-remotes/client'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** What the panel reads: the rows, and whether the first read has happened. */
 export interface CordisInventorySnapshot {
   readonly rows: readonly CordisInventoryRow[]
@@ -63,7 +65,7 @@ export function createCordisInventory(
 
   const publish = (next: CordisInventorySnapshot): void => {
     snapshot = next
-    for (const listener of [...listeners]) listener()
+    for (const listener of Array.from(listeners)) listener()
   }
 
   return {
@@ -85,7 +87,7 @@ export function createCordisInventory(
           }
           publish({ rows, removed, read: true })
         },
-        (error: unknown) => {
+        (error: Thrown) => {
           if (issued !== generation) return
           onError(error)
           // A failed read keeps whatever was shown and says why: dropping the

@@ -36,6 +36,15 @@
   --dsw-font-body: 400 0.875rem/1.5 var(--dsw-font-family);
   --dsw-font-title: 600 1rem/1.5 var(--dsw-font-family);
   --dsw-font-caption: 400 0.75rem/1.5 var(--dsw-font-family);
+  --dsh-content-font-size: 14px;
+  --dsh-content-font-size-secondary: 13px;
+  --dsh-content-font-delta: 0px;
+  --dsh-content-font-delta-secondary: 0px;
+  --dsw-font-size-10: 10px;
+  --dsw-font-size-15: 15px;
+  --dsw-font-size-17: 17px;
+  --dsw-font-size-18: 18px;
+  --dsw-font-size-26: 26px;
   --dsw-status-size: 0.625rem;
   --dsw-status-size-large: 0.75rem;
   --dsw-status-cycle: 1s;
@@ -64,8 +73,26 @@ body {
 /* Element+pseudo specificity beats a class-level `outline: none`, so a
    component that hides the UA ring still keeps a keyboard ring unless it
    supplies a more specific `:focus-visible` of its own. */
+dialog {
+  margin: 0;
+  padding: 0;
+  border: none;
+  color: inherit;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+
 button:focus-visible,
 a:focus-visible,
+dialog:focus-visible,
 [role='button']:focus-visible,
 [role='tab']:focus-visible,
 [role='menuitem']:focus-visible,

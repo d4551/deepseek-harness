@@ -29,9 +29,11 @@ export type {
   ContextProvenanceView, ContextRole, KnownContextForm,
 } from './contract/context-provenance.ts'
 export type {
-  ConversationPromptSnapshot, RequestInspectionSnapshot, RequestPromptChange, RequestPromptInspection, RequestPromptInspector, RequestView,
+  ConversationPromptSnapshot, ConversationPromptSnapshotReader,
+  RequestInspectionSnapshot, RequestPromptChange, RequestPromptInspection,
+  RequestPromptInspector, RequestView,
 } from './contract/request-inspection.ts'
-export { inspectRequestPrompt } from './contract/request-inspection.ts'
+export { inspectRequestPrompt, requireConversationPromptSnapshot } from './contract/request-inspection.ts'
 export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
 
 export { ConversationNodeAssembler } from './conversation/assembler.ts'
@@ -56,9 +58,10 @@ export type {
   MessageImageLoader, MessageImageSource, MessageImagesOwnerProps, RenderMessageImages, UseConversation,
   UseConversationViews,
 } from './contract/slots.ts'
+export { DraftAttachmentId } from './contract/input.ts'
 export type {
   ArbitrateKey, ArbitrateOutcome, BeginCommandRequest, CommandClaim, ConsumeTokenRequest,
-  DraftAttachmentId, InputActions, InputState, InsertReferenceRequest, InsertTextRequest,
+  InputActions, InputState, InsertReferenceRequest, InsertTextRequest,
   PickOutcome, ReferenceInsert, SessionInput, SessionInputResolver, SubmitImageAttachment,
   SubmitOutcome, TokenSpan,
 } from './contract/input.ts'

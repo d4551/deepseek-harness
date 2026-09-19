@@ -4,6 +4,8 @@ import type { InspectorJsonValue } from '../../shared/json.ts'
 import type { InspectorPublisher } from '../../shared/bridge/publisher.ts'
 import { FETCH_TOPICS } from '../../shared/bridge/messages/network.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Observation topics published by the Host network adapter. */
 export const NETWORK_TOPICS: readonly string[] = FETCH_TOPICS
 
@@ -51,7 +53,7 @@ export function installFetchObserver(
     pending.add(promise)
     promise.then(
       () => { pending.delete(promise) },
-      () => { pending.delete(promise) },
+      (_error: Thrown) => { pending.delete(promise) },
     )
   }
 
@@ -90,17 +92,16 @@ export function installFetchObserver(
       }))
     }
 
-    let response: Response
-    try {
-      response = await Reflect.apply(original, globalThis, [request])
-    } catch (error) {
+    const response = await new Promise<Response>((resolve) => {
+      resolve(Reflect.apply(original, globalThis, [request]))
+    }).then(undefined, (error: Thrown) => {
       publisher.publish('fetch/error', {
         requestId,
         message: renderError(error),
         canceled: request.signal.aborted || isAbortError(error),
       })
       throw error
-    }
+    })
 
     publisher.publish('fetch/response', {
       requestId,
@@ -155,27 +156,33 @@ export function installFetchObserver(
           else Object.defineProperty(globalThis, 'fetch', descriptor)
         }
         controller.abort()
-        await Promise.allSettled([...pending])
+        await Promise.allSettled(pending)
       })()
       return stopped
     },
   }
 }
 
-async function captureBody(
+function captureBody(
   body: ReadableStream<Uint8Array> | null,
   limit: number,
   chunkLimit: number,
   signal: AbortSignal,
   emit: (base64: string) => void,
 ): Promise<CaptureOutcome> {
-  if (body === null) return { capturedBytes: 0, truncated: false }
+  if (body === null) return Promise.resolve({ capturedBytes: 0, truncated: false })
   const reader = body.getReader()
-  const abort = (): void => { reader.cancel(signal.reason).catch(() => undefined) }
+  const abort = (): void => {
+    reader.cancel(signal.reason).then(undefined, (_error: Thrown) => undefined)
+  }
   signal.addEventListener('abort', abort, { once: true })
   let capturedBytes = 0
   let truncated = false
-  try {
+  const release = (): void => {
+    signal.removeEventListener('abort', abort)
+    reader.releaseLock()
+  }
+  const readAll = async (): Promise<CaptureOutcome> => {
     while (!signal.aborted) {
       const item = await reader.read()
       if (item.done) break
@@ -184,7 +191,7 @@ async function captureBody(
         const remaining = limit - capturedBytes
         if (remaining <= 0) {
           truncated = true
-          reader.cancel('inspector body capture limit reached').catch(() => undefined)
+          reader.cancel('inspector body capture limit reached').then(undefined, (_error: Thrown) => undefined)
           return { capturedBytes, truncated }
         }
         const size = Math.min(chunkLimit, remaining, item.value.byteLength - offset)
@@ -195,16 +202,22 @@ async function captureBody(
       }
     }
     if (signal.aborted) {
-      reader.cancel(signal.reason).catch(() => undefined)
+      reader.cancel(signal.reason).then(undefined, (_error: Thrown) => undefined)
       return { capturedBytes, truncated, captureError: 'inspector stopped during body capture' }
     }
     return { capturedBytes, truncated }
-  } catch (error) {
-    return { capturedBytes, truncated: true, captureError: renderError(error) }
-  } finally {
-    signal.removeEventListener('abort', abort)
-    reader.releaseLock()
   }
+  return readAll().then(
+    (outcome) => {
+      release()
+      return outcome
+    },
+    (error: Thrown) => {
+      const outcome = { capturedBytes, truncated: true, captureError: renderError(error) }
+      release()
+      return outcome
+    },
+  )
 }
 
 function compactOutcome(requestId: string, outcome: CaptureOutcome): InspectorJsonValue {

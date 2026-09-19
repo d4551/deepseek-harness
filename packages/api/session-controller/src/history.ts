@@ -21,6 +21,8 @@ import type {
   SessionWireEvent,
 } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const DEFAULT_MAX_MESSAGES = 50
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
@@ -82,7 +84,7 @@ export class SessionHistoryController {
    * Follow events appended after an initial cursor on one durable address.
    * @param request - durable address and last committed sequence already held by the caller.
    * @param signal - stream cancellation owned by the Remote carrier.
-   * @returns a complete opening snapshot followed by gap-free event frames.
+   * @yields a complete opening snapshot followed by gap-free event frames.
    */
   async *follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
     validateFollowRequest(request)
@@ -141,7 +143,7 @@ export class SessionHistoryController {
         const promotion = source.retain()
         try {
           this.promote(promotion)
-        } catch (error: unknown) {
+        } catch (error) {
           promotion[Symbol.dispose]()
           throw error
         }
@@ -174,27 +176,29 @@ export class SessionHistoryController {
     withProjections: boolean,
   ): Promise<SessionObservation> {
     const sessionId = addressId(address)
-    try {
-      const observation = await this.ctx.sessionQuery.observeSession(sessionId, {
-        signal,
-        projectionMode: withProjections || address.kind === 'subagent' ? 'all' : 'none',
-      })
-      if (observation.header.cwd === undefined) {
-        observation[Symbol.dispose]()
-        rejectNotFound(address)
-      }
-      try {
-        validateAddress(address, observation.header, observation.projections)
-      } catch (error: unknown) {
-        observation[Symbol.dispose]()
+    return await this.ctx.sessionQuery.observeSession(sessionId, {
+      signal,
+      projectionMode: withProjections || address.kind === 'subagent' ? 'all' : 'none',
+    }).then(
+      (observation) => {
+        if (observation.header.cwd === undefined) {
+          observation[Symbol.dispose]()
+          rejectNotFound(address)
+        }
+        try {
+          validateAddress(address, observation.header, observation.projections)
+        } catch (error) {
+          observation[Symbol.dispose]()
+          throw error
+        }
+        return observation
+      },
+      (error: Thrown) => {
+        if (error instanceof SessionQueryError
+          && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') rejectNotFound(address)
         throw error
-      }
-      return observation
-    } catch (error: unknown) {
-      if (error instanceof SessionQueryError
-        && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') rejectNotFound(address)
-      throw error
-    }
+      },
+    )
   }
 
 }
@@ -297,11 +301,10 @@ function paginate(
   const end = Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1)
   let count = 0
   let cut = 0
-  for (let index = end - 1; index >= 0; index--) {
-    const event = events[index] as SessionEvent
+  for (const event of events.slice(0, end).toReversed()) {
     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
     count++
-    const sources = (event as { readonly sourceEventSeqs?: readonly number[] }).sourceEventSeqs
+    const sources = event.sourceEventSeqs
     let groupStart = event.seq
     if (sources !== undefined) {
       for (const source of sources) groupStart = Math.min(groupStart, source)

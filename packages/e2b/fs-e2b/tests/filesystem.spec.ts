@@ -43,7 +43,8 @@ class FakeRemote {
   readonly reads: Array<{ path: string; format: 'bytes' | 'stream' }> = []
   streamChunks: Uint8Array[] | undefined
   streamKeepOpen = false
-  readonly streamCancel = vi.fn()
+  abortWhenStreamOpens: AbortController | undefined
+  readonly streamCancel = vi.fn<() => void>()
   nextCommandError: unknown
   nextMakeDirResult: boolean | undefined
   nextInfoError: unknown
@@ -169,13 +170,15 @@ class FakeRemote {
         // Pinned-SDK fidelity: a content-length-0 response returns '' even in stream format.
         if (data.length === 0 && this.streamChunks === undefined) return ''
         const chunks = this.streamChunks ?? [data.slice()]
-        return new ReadableStream<Uint8Array>({
+        const stream = new ReadableStream<Uint8Array>({
           start: (controller) => {
             for (const chunk of chunks) controller.enqueue(chunk)
             if (!this.streamKeepOpen) controller.close()
           },
           cancel: () => { this.streamCancel() },
         })
+        this.abortWhenStreamOpens?.abort()
+        return stream
       },
       list: async (path: string, options?: { depth?: number; signal?: AbortSignal }): Promise<EntryInfo[]> => {
         this.checkAbort(options)
@@ -238,8 +241,12 @@ class FakeRemote {
       ): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
         this.checkAbort(options)
         const home = options?.envs?.HOME
-        expect(home).toMatch(/^\/\.dsh-e2b-control-/)
-        expect(options?.envs).toEqual({ HOME: home })
+        if (home === undefined || !home.startsWith('/.dsh-e2b-control-')) {
+          throw new Error(`fs-e2b test remote: unexpected control HOME ${JSON.stringify(home)}`)
+        }
+        if (options?.envs === undefined || Object.keys(options.envs).length !== 1 || options.envs.HOME !== home) {
+          throw new Error('fs-e2b test remote: command envs must be exactly the control HOME')
+        }
         this.commands.push(command)
         if (this.nextCommandError !== undefined) {
           const error = this.nextCommandError
@@ -386,6 +393,7 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
     ['invalid UTF-8', Buffer.from([47, 0xff, 0]).toString('base64')],
     ['relative path', Buffer.from('workspace/file\0').toString('base64')],
   ])('rejects %s from canonical path transport', async (_label, output) => {
+    expect.hasAssertions()
     const remote = new FakeRemote()
     remote.canonicalOutput = output
     const { fs } = await setup(remote)
@@ -522,7 +530,31 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
     expect((await fs.readBytes(await fs.resolve('empty.bin'), undefined, 4)).byteLength).toBe(0)
   })
 
+  it('releases the stream reader when abort wins after the remote stream is open', async () => {
+    const remote = new FakeRemote()
+    remote.file('/workspace/img.bin', [0x89, 0, 0xff, 0x47])
+    remote.streamKeepOpen = true
+    const { fs } = await setup(remote)
+    const target = await fs.resolve('img.bin')
+    const live = new AbortController()
+    remote.abortWhenStreamOpens = live
+    await expectCode(fs.readBytes(target, live.signal, 4), 'FS_ABORTED')
+    expect(remote.streamCancel).toHaveBeenCalledOnce()
+
+    remote.streamCancel.mockClear()
+    const streamed = new AbortController()
+    remote.abortWhenStreamOpens = streamed
+    const iterable = await fs.streamText(target, streamed.signal)
+    const chunks: string[] = []
+    await expect((async () => {
+      for await (const chunk of iterable) chunks.push(chunk)
+    })()).rejects.toMatchObject({ code: 'FS_ABORTED' })
+    expect(chunks).toEqual([])
+    expect(remote.streamCancel).toHaveBeenCalledOnce()
+  })
+
   it('honors aborts before and during remote reads', async () => {
+    expect.hasAssertions()
     const remote = new FakeRemote()
     remote.file('/workspace/a', 'a')
     const { fs } = await setup(remote)
@@ -534,6 +566,7 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
   })
 
   it('rejects empty paths and directory-listing type errors', async () => {
+    expect.hasAssertions()
     const remote = new FakeRemote()
     remote.file('/workspace/file', 'x')
     const { fs } = await setup(remote)
@@ -595,6 +628,7 @@ describe('E2BFileSystem atomic writes and edits', () => {
   })
 
   it('enforces create and version intents before publication', async () => {
+    expect.hasAssertions()
     const remote = new FakeRemote()
     remote.file('/workspace/file.txt', 'v1')
     const { fs } = await setup(remote)
@@ -762,6 +796,7 @@ describe('E2BFileSystem atomic writes and edits', () => {
 
 describe('E2B filesystem adapter integration edges', () => {
   it('maps canonicalization, permission, and generic provider failures', async () => {
+    expect.hasAssertions()
     const remote = new FakeRemote()
     const { fs } = await setup(remote)
     remote.nextCommandError = commandError(1, 'not a directory')

@@ -1,13 +1,15 @@
 /**
  * The `SessionPersistence` service API for backends that delegate their whole
  * write and read path to a {@link PersistenceCoordinator}. Every first-party
- * backend (JSONL, SQLite) composes the coordinator and forwards the same eight
+ * backend (JSONL, SQLite) composes the coordinator and forwards the same
  * operations to it verbatim, so the forwards live once beside the Service
  * Definition that declares them instead of once per provider.
  *
  * A subclass supplies the coordinator it constructed and keeps only the
  * operations that depend on its storage medium: {@link SessionPersistence.locate},
  * `list`, `listSnapshots`, and its `PersistenceBackend` storage hooks.
+ * Session-identity presence is {@link SessionPersistence.exists}; a backend
+ * filesystem probe must use a different method name.
  *
  * @module @deepseek-ai/dsh-session-persistence/coordinated
  */
@@ -21,7 +23,7 @@ import { SessionPersistence } from './index.ts'
  * A durable backend whose service API is the coordinator's. The operation
  * contracts are the ones declared on {@link SessionPersistence}; this layer
  * adds no behavior of its own beyond the forward.
- * @typeParam TornMarker - the backend's torn-tail marker, carried through to
+ * @template TornMarker - the backend's torn-tail marker, carried through to
  * its coordinator and storage hooks.
  */
 export abstract class CoordinatedSessionPersistence<TornMarker = unknown> extends SessionPersistence {
@@ -63,5 +65,9 @@ export abstract class CoordinatedSessionPersistence<TornMarker = unknown> extend
   readFrom(id: SessionId, fromSeq: number, signal?: AbortSignal):
   Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
     return this.coordinator.readFrom(id, fromSeq, signal)
+  }
+
+  override exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return this.coordinator.exists(id, signal)
   }
 }

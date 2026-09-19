@@ -37,6 +37,23 @@ export interface WebAccessSettings {
   fetchProvider?: string
 }
 
+/**
+ * Claim one wire section as the web-access card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is not a string.
+ */
+export function decodeWebAccessSettings(section: unknown): WebAccessSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const searchProvider = Reflect.get(section, SEARCH_FIELD)
+  const fetchProvider = Reflect.get(section, FETCH_FIELD)
+  if (searchProvider !== undefined && typeof searchProvider !== 'string') return undefined
+  if (fetchProvider !== undefined && typeof fetchProvider !== 'string') return undefined
+  const claimed: WebAccessSettings = {}
+  if (searchProvider !== undefined) claimed.searchProvider = searchProvider
+  if (fetchProvider !== undefined) claimed.fetchProvider = fetchProvider
+  return claimed
+}
+
 /** One backend as the card offers it. */
 export interface WebProviderChoice {
   /** Provider id written into the section. */

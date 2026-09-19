@@ -47,10 +47,9 @@ export function ImageLightbox({ src, alt, labels, onClose }: {
   }, [onClose])
 
   return createPortal(
-    <div
+    <dialog
       className={css.backdrop}
-      role="dialog"
-      aria-modal="true"
+      open
       aria-label={labels.dialog}
     >
       <div className={css.mask} aria-hidden="true" onMouseDown={onClose} />
@@ -58,7 +57,7 @@ export function ImageLightbox({ src, alt, labels, onClose }: {
       <button ref={closeRef} type="button" className={css.close} aria-label={labels.close} onClick={onClose}>
         <IconCloseOutline16 size={16} />
       </button>
-    </div>,
+    </dialog>,
     document.body,
   )
 }

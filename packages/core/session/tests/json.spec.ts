@@ -1,6 +1,12 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+import { isJsonValue, snapshotJsonObject, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+
+function requireObjectSnapshot(value: object): { [key: string]: JsonValue } {
+  const snapshot = snapshotJsonObject(value)
+  if (snapshot === undefined) throw new Error('expected a detached JSON object')
+  return snapshot
+}
 
 function objectWithForgedIntrinsicPrototype(revoked = false): Record<string, unknown> {
   const prototype = Object.create(null) as Record<string, unknown>
@@ -37,15 +43,17 @@ describe('snapshotJsonValue', () => {
     const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, { shared })
     const source = { list: [nullPrototype, shared], alias: shared }
 
-    const snapshot = snapshotJsonValue(source)!
+    const snapshot = requireObjectSnapshot(source)
     shared.value = 2
 
     expect(snapshot).toEqual({ list: [{ shared: { value: 1 } }, { value: 1 }], alias: { value: 1 } })
     expect(snapshot).not.toBe(source)
-    expect(snapshot.list).not.toBe(source.list)
+    const list = snapshot.list
+    if (!Array.isArray(list)) throw new Error('expected snapshot.list to be an array')
+    expect(list).not.toBe(source.list)
     expect(snapshot.alias).not.toBe(shared)
-    expect(snapshot.list[0]).not.toBe(nullPrototype)
-    expect(Object.getPrototypeOf(snapshot.list[0])).toBe(Object.prototype)
+    expect(list[0]).not.toBe(nullPrototype)
+    expect(Object.getPrototypeOf(list[0])).toBe(Object.prototype)
   })
 
   it('accepts intrinsic plain containers from another JavaScript realm', () => {
@@ -77,7 +85,7 @@ describe('snapshotJsonValue', () => {
         return objectReads === 1 ? { accepted: true } : new Exotic()
       },
     })
-    const array = new Array<unknown>(1)
+    const array: unknown[] = []
     Object.defineProperty(array, 0, {
       enumerable: true,
       get: () => {
@@ -109,8 +117,10 @@ describe('snapshotJsonValue', () => {
       readonly value = 1
     }
     class ExoticArray extends Array<number> {}
-    const sparse = new Array<number>(1)
-    const compensatedSparse = new Array<number>(1)
+    const sparse: number[] = []
+    sparse.length = 1
+    const compensatedSparse: number[] = []
+    compensatedSparse.length = 1
     Object.defineProperty(compensatedSparse, 'extra', { value: true })
     const decorated = [1]
     Object.defineProperty(decorated, 'extra', { value: true })
@@ -147,7 +157,7 @@ describe('snapshotJsonValue', () => {
     expect(snapshotJsonValue(symbolObject)).toBeUndefined()
     expect(snapshotJsonValue(customPrototypeObject)).toBeUndefined()
     expect(snapshotJsonValue(forgedIntrinsicObject)).toBeUndefined()
-    expect(snapshotJsonValue(revokedIntrinsicObject)).toBeUndefined()
+    expect(() => snapshotJsonValue(revokedIntrinsicObject)).toThrow(TypeError)
     expect(snapshotJsonValue(forgedArray)).toBeUndefined()
     expect(snapshotJsonValue(cyclic)).toBeUndefined()
     expect(snapshotJsonValue([undefined])).toBeUndefined()
@@ -158,7 +168,7 @@ describe('snapshotJsonValue', () => {
     const source = Object.create(null) as Record<string, unknown>
     source.__proto__ = { safe: true }
 
-    const snapshot = snapshotJsonValue(source)!
+    const snapshot = requireObjectSnapshot(source)
 
     expect(Object.getPrototypeOf(snapshot)).toBe(Object.prototype)
     expect(Object.prototype.hasOwnProperty.call(snapshot, '__proto__')).toBe(true)
@@ -211,8 +221,10 @@ describe('isJsonValue', () => {
       readonly value = 1
     }
     class ExoticArray extends Array<number> {}
-    const sparse = new Array<number>(1)
-    const compensatedSparse = new Array<number>(1)
+    const sparse: number[] = []
+    sparse.length = 1
+    const compensatedSparse: number[] = []
+    compensatedSparse.length = 1
     Object.defineProperty(compensatedSparse, 'extra', { value: true })
     const decorated = Object.assign([1], { extra: true })
     const symbolDecorated = [1]
@@ -238,7 +250,7 @@ describe('isJsonValue', () => {
     expect(isJsonValue(symbolObject)).toBe(false)
     expect(isJsonValue(customPrototypeObject)).toBe(false)
     expect(isJsonValue(forgedIntrinsicObject)).toBe(false)
-    expect(isJsonValue(revokedIntrinsicObject)).toBe(false)
+    expect(() => isJsonValue(revokedIntrinsicObject)).toThrow(TypeError)
     expect(isJsonValue(forgedArray)).toBe(false)
     expect(isJsonValue(new ExoticArray(1))).toBe(false)
     expect(isJsonValue([undefined])).toBe(false)

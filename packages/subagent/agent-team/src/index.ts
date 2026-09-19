@@ -46,6 +46,8 @@ export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
 export { foldTeam } from './fold.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     agentTeams: TeamService
@@ -191,7 +193,7 @@ export class TeamService extends TypertRemoteService {
         const agent = ctx.agents.get(session.id)
         if (agent !== undefined) this.notifyLifecycleChange(agent, false)
       }
-      this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: unknown) => {
+      this.mailbox.observeSessionEvent(session, event)?.then(undefined, (error: Thrown) => {
         this.ctx.logger.warn(`Team message acknowledgement for "${session.id}" failed: ${errorMessage(error)}`)
       })
     })
@@ -459,6 +461,7 @@ export class TeamService extends TypertRemoteService {
    * @param agent - exact live Team member authorizing the subscription.
    * @param signal - Remote subscription cancellation.
    * @returns an initial revision followed by coalesced changes requiring a fresh view.
+   * @yields the next Team activity revision the subscriber is authorized to see.
    */
   @Remote({ mode: 'stream' })
   async *changes(agent: Agent, signal: AbortSignal): AsyncIterable<number> {
@@ -530,7 +533,7 @@ export class TeamService extends TypertRemoteService {
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {
       if (this.lifecycle.disposed) return
-      this.recoverFor(agent).then(undefined, (error: unknown) => {
+      this.recoverFor(agent).then(undefined, (error: Thrown) => {
         if (this.lifecycle.disposed) return
         this.ctx.logger.warn(`Agent Teams recovery for "${agent.id}" failed: ${errorMessage(error)}`)
       })
@@ -551,13 +554,15 @@ export class TeamService extends TypertRemoteService {
     const failures: unknown[] = []
     await this.lifecycle.settle(this.roster.pendingCreations(), failures)
     await this.lifecycle.settle(this.mailbox.pendingDispatches(), failures)
-    for (const [root, childIds] of this.roster.liveChildrenByRoot()) {
-      try {
-        await this.roster.stopTeammates(root, childIds)
-      } catch (error: unknown) {
-        failures.push(error)
-      }
-    }
+    const stops = [...this.roster.liveChildrenByRoot()].map(([root, childIds]) =>
+      this.roster.stopTeammates(root, childIds).then(
+        undefined,
+        (error: Thrown) => {
+          failures.push(error)
+        },
+      ),
+    )
+    await Promise.all(stops)
     if (failures.length > 0) throw new AggregateError(failures, 'Agent Teams runtime disposal failed')
   }
 }

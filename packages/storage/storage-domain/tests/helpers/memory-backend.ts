@@ -18,6 +18,8 @@
 import { StorageError } from '@deepseek-ai/dsh-storage'
 import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepseek-ai/dsh-storage'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** One unit's medium: tables of records plus the global slot (`null` = never written). */
 export interface MemoryMedium {
   tables: Map<string, Map<string, unknown>>
@@ -28,8 +30,9 @@ export interface MemoryMedium {
  * Shared media pool. Construct one and hand it to several
  * {@link MemoryStorageBackend} instances to simulate reopening the same
  * medium after a restart; `versions` holds the stamped unit versions and is
- * writable by tests to inject a mismatching on-medium version, and
- * `failNextWrites` injects write-primitive failures.
+ * writable by tests to inject a mismatching on-medium version,
+ * `failNextWrites` injects Error write-primitive failures, and
+ * `leftoverWriteRejections` injects leftover Thrown write-primitive failures.
  */
 export class MemoryMediaPool {
   /** Unit name → its records; a missing entry is a never-materialized unit. */
@@ -43,9 +46,17 @@ export class MemoryMediaPool {
    * untouched after a durability failure.
    */
   failNextWrites = 0
+  /**
+   * Leftover Thrown values the next write primitives reject with, in order,
+   * without touching the medium. Each write consumes one entry.
+   */
+  leftoverWriteRejections: Thrown[] = []
 
   /** Consume one injected failure, throwing in a rejected write's place. */
   consumeInjectedFailure(): void {
+    if (this.leftoverWriteRejections.length > 0) {
+      throw this.leftoverWriteRejections.shift()
+    }
     if (this.failNextWrites > 0) {
       this.failNextWrites -= 1
       throw new Error('injected write failure')

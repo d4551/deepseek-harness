@@ -14,7 +14,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
   ConversationLocationDataStore, ConversationMatch, ConversationNodeDefinition,
-  ConversationStartMatch, ConversationTimelineSnapshot, ConversationTurnDataMap, ConversationViewDefinition,
+  ConversationStartMatch, ConversationTimelineSnapshot, ConversationViewDefinition,
   ConversationViewNode, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -25,7 +25,8 @@ import {
   fitProducedFiles, ProducedFiles, type ProducedFilesInjected, type ProducedFilesProps,
 } from '../src/client/ProducedFiles.tsx'
 import {
-  basename, deliverablesDefinition, producedFileMentions, producedForClosing, selectProducedFiles,
+  basename, deliverablesDefinition, producedFileMentions, producedForClosing, publishedDeliverables,
+  selectProducedFiles,
   type DeliverablesTurnData,
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -46,19 +47,14 @@ afterEach(() => {
   }
 })
 
-class TestTurnDataStore implements ConversationLocationDataStore<ConversationTurnDataMap> {
+class TestTurnDataStore implements ConversationLocationDataStore {
   private readonly values = new Map<string, unknown>()
 
-  get<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-  ): Readonly<ConversationTurnDataMap[Key]> | undefined {
-    return this.values.get(key) as Readonly<ConversationTurnDataMap[Key]> | undefined
+  get(key: string): unknown {
+    return this.values.get(key)
   }
 
-  set<Key extends Extract<keyof ConversationTurnDataMap, string>>(
-    key: Key,
-    value: ConversationTurnDataMap[Key],
-  ): void {
+  set(key: string, value: unknown): void {
     this.values.set(key, value)
   }
 }
@@ -169,9 +165,17 @@ function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): 
   return value
 }
 
+function isTimelineSnapshot(value: unknown): value is TimelineSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  const timeline: unknown = Reflect.get(value, 'timeline')
+  return typeof timeline === 'object' && timeline !== null
+}
+
 function deliverablesOf(value: ConversationNodeAssembler, turn = 1): Readonly<DeliverablesTurnData> | undefined {
-  const snapshot = value.snapshot('test') as TimelineSnapshot
-  return snapshot.timeline.turns.get(turn)?.data.get('deliverables')
+  const snapshot = value.snapshot('test')
+  if (snapshot === undefined) return undefined
+  if (!isTimelineSnapshot(snapshot)) throw new TypeError('test target snapshot is not TimelineSnapshot')
+  return publishedDeliverables(snapshot.timeline.turns.get(turn)?.data.get('deliverables'))
 }
 
 describe('produced-file Turn data', () => {
@@ -429,7 +433,7 @@ describe('ProducedFiles row', () => {
     const openFile = vi.fn<(path: string) => void>()
     let available = 226
     let resize: ResizeObserverCallback | undefined
-    const disconnect = vi.fn()
+    const disconnect = vi.fn<() => void>()
     const observeNode = vi.fn<(target: Element) => void>()
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: ResizeObserverCallback) { resize = callback }
@@ -643,7 +647,7 @@ describe('plugin registration', () => {
     const first = Promise.withResolvers<{ ok: true; value: boolean }>()
     const second = Promise.withResolvers<{ ok: true; value: boolean }>()
     const staleFailure = Promise.withResolvers<{ ok: true; value: boolean }>()
-    const capability = vi.fn()
+    const capability = vi.fn<() => Promise<{ ok: true; value: boolean }>>()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
       .mockReturnValueOnce(staleFailure.promise)

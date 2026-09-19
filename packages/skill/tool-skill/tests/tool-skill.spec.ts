@@ -170,7 +170,7 @@ describe('dsh-tool-skill', () => {
 
     const fiber = await ctx.plugin(toolSkill)
     expect(ctx.tools.schemas().map(tool => tool.name)).toEqual(['skill'])
-    expect(await composePrefix(ctx, '/workspace')).toHaveLength(1)
+    expect(await composePrefix(ctx, home)).toHaveLength(1)
     expect(ctx.tools.get('skill')?.presentCall?.({ name: 'project-skill' })).toEqual({
       card: 'generic',
       title: 'Load skill project-skill',
@@ -179,7 +179,7 @@ describe('dsh-tool-skill', () => {
     })
     await fiber.dispose()
     expect(ctx.tools.schemas()).toEqual([])
-    expect(await composePrefix(ctx, '/workspace')).toEqual([])
+    expect(await composePrefix(ctx, home)).toEqual([])
 
     toolSkill.apply(ctx)
     expect(ctx.tools.schemas().map(tool => tool.name)).toEqual(['skill'])
@@ -201,7 +201,7 @@ describe('dsh-tool-skill', () => {
     }))
     const controller = new AbortController()
 
-    await composePrefix(ctx, '/workspace', controller.signal)
+    await composePrefix(ctx, home, controller.signal)
 
     expect(seenSignal).toBe(controller.signal)
   })
@@ -254,7 +254,7 @@ describe('dsh-tool-skill', () => {
       }
     })
 
-    const prefix = await composePrefix(ctx, '/workspace')
+    const prefix = await composePrefix(ctx, home)
 
     expect(prefix).toEqual([
       {
@@ -300,7 +300,7 @@ describe('dsh-tool-skill', () => {
     expect(rendered).not.toContain('/secret/path')
     expect(rendered).not.toContain('Secret body')
     expect(rendered).not.toContain('user-only-skill')
-    expect(renderPrompt(await ctx.systemPrompt.assemble({ agent: agentForCwd('/workspace') }))).not.toContain('<available_skills>')
+    expect(renderPrompt(await ctx.systemPrompt.assemble({ agent: agentForCwd(home) }))).not.toContain('<available_skills>')
   })
 
   it('does not inject a catalog when no model-invocable skills are available', async () => {
@@ -314,7 +314,7 @@ describe('dsh-tool-skill', () => {
       content: 'User-only body.',
     })
 
-    const agent = agentForCwd('/workspace')
+    const agent = agentForCwd(home)
     expect(await composePrefixForAgent(ctx, agent)).toEqual([])
     expect(await composePrefixForAgent(ctx, agent)).toEqual([])
   })
@@ -644,7 +644,7 @@ describe('dsh-tool-skill', () => {
   it('resolves the layered registry as the calling agent sees it', async () => {
     const home = await tempDir('tool-scoped-layer')
     const ctx = await setup(home)
-    const { agent, scope } = await mintAgentScope(ctx, '/workspace/scoped')
+    const { agent, scope } = await mintAgentScope(ctx, join(home, 'scoped'))
     const scopedSkills = scope.ctx.get('skills')
     if (scopedSkills === undefined) throw new Error('skills service missing')
     scopedSkills.register({
@@ -655,7 +655,7 @@ describe('dsh-tool-skill', () => {
     })
 
     expect(JSON.stringify(await composePrefixForAgent(ctx, agent))).toContain('preset-only-skill')
-    expect(JSON.stringify(await composePrefix(ctx, '/workspace/other'))).not.toContain('preset-only-skill')
+    expect(JSON.stringify(await composePrefix(ctx, join(home, 'other')))).not.toContain('preset-only-skill')
 
     const scoped = await ctx.tools.execute({
       signal: testToolSignal,
@@ -672,7 +672,7 @@ describe('dsh-tool-skill', () => {
       callId: ToolCallId('foreign-load'),
       name: 'skill',
       arguments: { name: 'preset-only-skill' },
-      agent: agentForCwd('/workspace/other'),
+      agent: agentForCwd(join(home, 'other')),
     })
     expect(foreign.isError).toBe(true)
     await scope.dispose()
@@ -722,7 +722,7 @@ describe('dsh-tool-skill', () => {
     expect(catalogMessages(session)).toEqual([])
     await fireStep(ctx, agent, 1, 1)
     expect(catalogMessages(session)).toEqual([])
-    expect(await composePrefix(ctx, '/workspace')).toHaveLength(1)
+    expect(await composePrefix(ctx, home)).toHaveLength(1)
     await scope.dispose()
   })
 
@@ -730,7 +730,7 @@ describe('dsh-tool-skill', () => {
     const home = await tempDir('tool-shadowed-catalog')
     const ctx = await setup(home)
     ctx.skills.register({ name: 'listed-skill', description: 'Listed', source: 'runtime', content: 'body' })
-    const { agent, scope } = await mintAgentScope(ctx, '/workspace')
+    const { agent, scope } = await mintAgentScope(ctx, home)
     scope.ctx.tools.register(defineContentToolFixture({
       name: 'skill',
       description: 'A scoped tool with unrelated semantics.',
@@ -742,7 +742,7 @@ describe('dsh-tool-skill', () => {
 
     expect(ctx.tools.get('skill', agent)).not.toBe(ctx.tools.get('skill'))
     expect(await composePrefixForAgent(ctx, agent)).toEqual([])
-    expect(await composePrefix(ctx, '/workspace')).toHaveLength(1)
+    expect(await composePrefix(ctx, home)).toHaveLength(1)
     await scope.dispose()
   })
 

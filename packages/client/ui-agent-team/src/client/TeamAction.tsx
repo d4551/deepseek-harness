@@ -15,6 +15,31 @@ import { TeamMembers } from './TeamMembers.tsx'
 import { TeamConversations, type TeamConversation } from './TeamConversations.tsx'
 import { TeamMessages } from './TeamMessages.tsx'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected team load, refresh, or navigation.
+ * @param reason - the Thrown the transport or host rejected with.
+ * @returns the message to show.
+ */
+export function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Generated Remote result consumed directly by the Team UI. */
 export type TeamActionResult<T> = RemoteResult<T>
 
@@ -38,10 +63,10 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
   const sessionRef = useRef(sessionId)
   const refreshGeneration = useRef(0)
   sessionRef.current = sessionId
-  const reportError = (reason: unknown): void => {
+  const reportError = (reason: Thrown): void => {
     if (sessionRef.current === sessionId) {
       setLoading(false)
-      setError(String(reason))
+      setError(thrownMessage(reason))
     }
   }
 
@@ -56,20 +81,23 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
   const refresh = useCallback(async (signal?: AbortSignal): Promise<boolean> => {
     const generation = ++refreshGeneration.current
     setLoading(true)
-    const [outcome] = await Promise.allSettled([load(sessionId, signal)])
+    const opened = await load(sessionId, signal).then(
+      result => result,
+      (reason: Thrown) => {
+        if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return
+        setLoading(false)
+        setError(thrownMessage(reason))
+      },
+    )
     if (sessionRef.current !== sessionId || refreshGeneration.current !== generation) return false
+    if (opened === undefined) return false
     setLoading(false)
-    if (outcome.status === 'rejected') {
-      setError(String(outcome.reason))
-      return false
-    }
-    const result = outcome.value
-    if (result.ok) {
-      setView(result.value)
+    if (opened.ok) {
+      setView(opened.value)
       setError(null)
       return true
     }
-    setError(`${result.error.message} (${result.error.code})`)
+    setError(`${opened.error.message} (${opened.error.code})`)
     return false
   }, [load, sessionId])
 
@@ -83,10 +111,10 @@ function useTeamObservation({ sessionId, changes, load, t }: Pick<TeamActionProp
           setError(t('disconnected'))
         }
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         if (!controller.signal.aborted) {
           setLoading(false)
-          setError(String(reason))
+          setError(thrownMessage(reason))
         }
       },
     )
@@ -115,7 +143,7 @@ export function TeamAction({ sessionId, changes, load, loadConversations, openTe
           </Button>
         )}>
         {error !== null && <p role="alert">{error}</p>}
-        {loading && view === null && <p role="status">{t('loading')}</p>}
+        {loading && view === null && <output>{t('loading')}</output>}
         {view !== null && <PanelLayout>
           <PanelStack>
             <TeamMembers members={view.members} sessionId={sessionId} t={t}

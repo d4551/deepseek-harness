@@ -15,22 +15,38 @@ export function JsonBlock({ label, payload, defaultOpen = false, truncatedLabel 
   const [open, setOpen] = useState(defaultOpen)
   const body = useMemo(() => {
     if (!open) return ''
-    let s: string
-    try {
-      // lib typing hides stringify's undefined arm (undefined/function/symbol payloads).
-      // oxlint-disable-next-line typescript/no-unnecessary-condition
-      s = JSON.stringify(payload, null, 2) ?? String(payload)
-    } catch {
-      s = String(payload)
-    }
-    return s.length > MAX_CHARS ? `${s.slice(0, MAX_CHARS)}\n${truncatedLabel(s.length)}` : s
+    const serialized = serializeUnknown(payload)
+    return serialized.length > MAX_CHARS
+      ? `${serialized.slice(0, MAX_CHARS)}\n${truncatedLabel(serialized.length)}`
+      : serialized
   }, [open, payload, truncatedLabel])
   return (
     <div className={css.root}>
-      <button type="button" className={css.toggle} onClick={() => { setOpen(v => !v) }}>
+      <button
+        type="button"
+        className={css.toggle}
+        aria-expanded={open}
+        onClick={() => { setOpen(v => !v) }}
+      >
         {open ? '▾' : '▸'} {label}
       </button>
       {open && <pre className={css.body}>{body}</pre>}
     </div>
   )
+}
+
+function serializeUnknown(payload: unknown): string {
+  if (payload === undefined) return 'undefined'
+  if (typeof payload === 'function' || typeof payload === 'symbol') return String(payload)
+  const seen = new WeakSet<object>()
+  const json = JSON.stringify(payload, (_key, value: unknown) => {
+    if (typeof value === 'bigint') return `${value}n`
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) return '[Circular]'
+      seen.add(value)
+    }
+    return value
+  }, 2)
+  if (typeof json === 'string') return json
+  return '[Unserializable]'
 }

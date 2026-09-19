@@ -128,7 +128,9 @@ describe.each(COLOR_SCHEMES)('web e2e: plan review takeover round trip (%s)', (c
     expect(tripwire.warnings).toEqual([])
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] plan-review.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.jsonl', 'review.expected.md', 'sidebar.expected.md',
       'approved.expected.md', 'approved-expanded.expected.md',

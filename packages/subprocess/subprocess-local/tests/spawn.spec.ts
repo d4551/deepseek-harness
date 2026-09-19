@@ -48,7 +48,9 @@ describe('spawnSubprocess', () => {
     expect(result.stdout.text).toBe('callers-choice\n')
   })
 
-  it.skipIf(process.platform === 'win32')('runs in the requested cwd', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('runs in the requested cwd', async () => {
     const result = await finish(spawnSubprocess(spec('pwd', { cwd: '/tmp' })))
     expect(result.stdout.text.trim()).toMatch(/\/tmp$/)
   })
@@ -68,7 +70,9 @@ describe('spawnSubprocess', () => {
     expect(result.exitCode).toBe(process.platform === 'win32' ? 1 : null)
   })
 
-  it.skipIf(process.platform === 'win32')('terminate() escalates to SIGKILL when SIGTERM is trapped', async () => {
+  const SKIP_ON_WIN32_2 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_2) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_2)('terminate() escalates to SIGKILL when SIGTERM is trapped', async () => {
     const running = spawnSubprocess(spec('trap \'\' TERM; echo ready; while :; do sleep 60 & wait $!; done', { graceMs: 200 }))
     await waitForStdout(running, 'ready\n')
     running.terminate()
@@ -121,7 +125,9 @@ describe('spawnSubprocess', () => {
     expect(forceSignals).toBe(0)
   })
 
-  it.skipIf(process.platform === 'win32')('terminates the whole process group (grandchildren die too)', async () => {
+  const SKIP_ON_WIN32_3 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_3) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_3)('terminates the whole process group (grandchildren die too)', async () => {
     // The subshell writes the sleep's pid then waits on it; terminating the
     // group must take the sleep down with bash.
     const pidFile = join(spillDir, `grandchild-${Date.now()}.pid`)
@@ -163,7 +169,9 @@ describe('spawnSubprocess', () => {
     expect(result.signal).toBe(process.platform === 'win32' ? null : 'SIGTERM')
   })
 
-  it.skipIf(process.platform === 'win32')('does not wait for a Linux group that has only zombie members', async () => {
+  const SKIP_ON_WIN32_4 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_4) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_4)('does not wait for a Linux group that has only zombie members', async () => {
     const pidFile = join(spillDir, `zombie-group-${Date.now()}.pid`)
     const running = spawnSubprocess(spec(`sleep 60 & echo $! > ${pidFile}; echo leader-done`, { graceMs: 100 }), {
       platform: 'linux',
@@ -179,7 +187,9 @@ describe('spawnSubprocess', () => {
     expect(exitVerdict).toBe(true)
   })
 
-  it.skipIf(process.platform === 'win32')('bounds inherited-pipe draining after the shell exits', async () => {
+  const SKIP_ON_WIN32_5 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_5) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_5)('bounds inherited-pipe draining after the shell exits', async () => {
     const pidFile = join(spillDir, `pipe-holder-${Date.now()}.pid`)
     const started = Date.now()
     const running = spawnSubprocess(spec(`sleep 60 & echo $! > ${pidFile}; echo shell-done`, { graceMs: 100 }))
@@ -209,7 +219,9 @@ describe('stdin and extra env (set by in-process plugins)', () => {
     expect(result.stdout.text).toBe('')
   })
 
-  it.skipIf(process.platform === 'win32')('gives fd 0 the exact pre-seam type: /dev/null when no stdin, a pipe when supplied', async () => {
+  const SKIP_ON_WIN32_6 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_6) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_6)('gives fd 0 the exact pre-seam type: /dev/null when no stdin, a pipe when supplied', async () => {
     // With no bytes, fd 0 remains the pre-spawn `ignore` default (/dev/null, a character device).
     // Supplied bytes use Node's spawn pipe, which is an AF_UNIX socket rather than a FIFO.
     const none = await finish(spawnSubprocess(spec('test -c /dev/stdin && echo char || echo other')))
@@ -254,7 +266,9 @@ describe('stdin and extra env (set by in-process plugins)', () => {
 })
 
 describe('waitForExit', () => {
-  it.skipIf(process.platform === 'win32')('waits for the whole detached tree, not just the shell', async () => {
+  const SKIP_ON_WIN32_7 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_7) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_7)('waits for the whole detached tree, not just the shell', async () => {
     const pidFile = join(spillDir, `tree-wait-${Date.now()}.pid`)
     const running = spawnSubprocess(spec(`sleep 60 & echo $! > ${pidFile}; wait`))
     const grandchild = await waitForPidFile(pidFile)
@@ -274,7 +288,9 @@ describe('waitForExit', () => {
   })
 })
 
-describe.skipIf(process.platform === 'win32')('synchronous host-exit termination', () => {
+const SKIP_ON_WIN32_8 = process.platform === 'win32'
+if (SKIP_ON_WIN32_8) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+describe.skipIf(SKIP_ON_WIN32_8)('synchronous host-exit termination', () => {
   it('force-kills the current process tree without waiting for the normal grace', async () => {
     const running = spawnSubprocess(spec('trap "" TERM; sleep 60', { graceMs: 60_000 }))
     running.terminateForHostExit()
@@ -289,7 +305,9 @@ describe.skipIf(process.platform === 'win32')('synchronous host-exit termination
   })
 })
 
-describe.skipIf(process.platform === 'win32')('tree-survivor escalation (terminate and bounded waits reach helpers the leader left behind)', () => {
+const SKIP_ON_WIN32_9 = process.platform === 'win32'
+if (SKIP_ON_WIN32_9) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+describe.skipIf(SKIP_ON_WIN32_9)('tree-survivor escalation (terminate and bounded waits reach helpers the leader left behind)', () => {
   it('terminate() SIGKILLs a TERM-trapping descendant after the direct child settles', async () => {
     // The leader spawns a TERM-trapping helper with all stdio detached from
     // the collected pipes, then exits: the helper holds the GROUP alive while
@@ -354,7 +372,9 @@ describe('argv validation', () => {
     expect(() => spawnSubprocess({ ...spec('true'), argv: [''] })).toThrow(/non-empty program name/)
   })
 
-  it.skipIf(process.platform === 'win32')('spawns argv verbatim without shell interpretation', async () => {
+  const SKIP_ON_WIN32_10 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_10) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_10)('spawns argv verbatim without shell interpretation', async () => {
     const result = await finish(spawnSubprocess({ ...spec('unused'), argv: ['printf', '%s', '$HOME'] }))
     expect(result.stdout.text).toBe('$HOME')
   })
@@ -373,7 +393,9 @@ describe('abort edge cases', () => {
       .toThrow(/aborted before spawn: aborted/)
   })
 
-  it.skipIf(process.platform === 'win32')('reports the terminating signal of an externally self-killed command', async () => {
+  const SKIP_ON_WIN32_11 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_11) console.info('[skip] spawn.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_11)('reports the terminating signal of an externally self-killed command', async () => {
     // spawnSubprocess reports the raw signal; whether it counts as timeout/cancel is the
     // executor's classification (a self-kill is neither) — see executor.spec.ts.
     const result = await finish(spawnSubprocess(spec('kill -TERM $$')))

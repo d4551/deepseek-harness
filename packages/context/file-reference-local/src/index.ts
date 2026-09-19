@@ -32,6 +32,31 @@ export type { FileSearchConfig } from './search.ts'
 export { FILE_REFERENCE_PROMPT } from '@deepseek-ai/dsh-file-reference'
 export { activeAtToken, formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected prompt-fiber disposal.
+ * @param reason - the Thrown the dispose path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Local file-reference discovery configuration. */
 export interface Config {
   /** Maximum ranked candidates returned for one query. */
@@ -81,8 +106,8 @@ export class LocalFileReferenceService extends FileReferenceService {
       const fiber = this.promptFibers.get(agent)
       if (fiber === undefined) return
       this.promptFibers.delete(agent)
-      const task = fiber.dispose().catch((error: unknown) => {
-        ctx.logger.warn(`file-reference-local: prompt cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
+      const task = fiber.dispose().catch((error: Thrown) => {
+        ctx.logger.warn(`file-reference-local: prompt cleanup failed: ${thrownMessage(error)}`)
       })
       this.promptDisposals.add(task)
       task.finally(() => {

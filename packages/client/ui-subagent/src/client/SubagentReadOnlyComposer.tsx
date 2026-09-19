@@ -21,11 +21,11 @@ export function SubagentReadOnlyComposer({
 }: Pick<SubagentReadOnlyComposerProps, 'matched' | 't'>) {
   const oneShot = matched.reason === 'one-shot'
   return (
-    <div className={css.frame} role="status">
+    <output className={css.frame}>
       <strong>{t(oneShot ? 'readonly.oneShot.title' : 'readonly.title')}</strong>
       <span>
         {t(oneShot ? 'readonly.oneShot.body' : 'readonly.body')}
       </span>
-    </div>
+    </output>
   )
 }

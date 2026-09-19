@@ -14,6 +14,8 @@ import { TextDecoder } from 'node:util'
 import { FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import { copyFileDaclWin32, replaceFileWin32 } from './win32.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const BINARY_SAMPLE_BYTES = 8192
 // Bound one non-abortable FileHandle.read so cancellation is observed between chunks.
 const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024
@@ -40,8 +42,27 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+/**
+ * Human text for a rejected filesystem, stream, or claim-boundary value.
+ * @param reason - the Thrown or claim-boundary unknown to render.
+ * @returns Error.message; primitive String; null/undefined literals; objects Object.prototype.toString.call(reason).
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 function isPermissionError(error: unknown): boolean {
@@ -58,13 +79,14 @@ function throwIfAborted(signal: AbortSignal | undefined, verb: string): void {
  * `readFile` with a bare `AbortError`, which would otherwise escape the seam's
  * error taxonomy — the streaming/write paths translate it the same way).
  */
-async function readFileAbortable(absolutePath: string, verb: 'read' | 'edit', signal?: AbortSignal): Promise<Buffer> {
-  try {
-    return await readFile(absolutePath, signal ? { signal } : {})
-  } catch (error: unknown) {
-    if (!isAbortError(error)) throw error
-    throw new FsError(`${verb} aborted`, 'FS_ABORTED')
-  }
+function readFileAbortable(absolutePath: string, verb: 'read' | 'edit', signal?: AbortSignal): Promise<Buffer> {
+  return readFile(absolutePath, signal ? { signal } : {}).then(
+    buffer => buffer,
+    (error: Thrown) => {
+      if (!isAbortError(error)) throw error
+      throw new FsError(`${verb} aborted`, 'FS_ABORTED')
+    },
+  )
 }
 
 /** Opaque version token from high-resolution identity and freshness metadata. */
@@ -132,6 +154,47 @@ export interface LocalDirEntry {
   size?: number
 }
 
+function continueMissingAncestor(
+  displayPath: string,
+  ancestor: string,
+  missing: string[],
+  error: Thrown,
+): Promise<LocalTarget> {
+  if (!isENOENT(error)) throw error
+  const parent = dirname(ancestor)
+  if (parent === ancestor) return Promise.resolve({ displayPath, targetKey: FsTargetKey(displayPath) })
+  missing.unshift(basename(ancestor))
+  return resolveMissingThroughAncestor(displayPath, parent, missing)
+}
+
+function resolveMissingThroughAncestor(
+  displayPath: string,
+  ancestor: string,
+  missing: string[],
+): Promise<LocalTarget> {
+  return realpath(ancestor).then(
+    (realAncestor) => {
+      // On Windows, realpath of a regular file succeeds where POSIX returns
+      // ENOTDIR (the OS reports ENOENT for `regular-file/child`, not ENOTDIR).
+      // Stat the ancestor to restore the semantic distinction: a non-directory
+      // ancestor means the target passes through a file and can never be created.
+      if (process.platform !== 'win32') {
+        return { displayPath, targetKey: FsTargetKey(join(realAncestor, ...missing)) }
+      }
+      return stat(realAncestor).then(
+        (parentInfo) => {
+          if (!parentInfo.isDirectory()) {
+            throw new FsError(`cannot resolve "${displayPath}": a parent path segment is not a directory`, 'FS_NOT_FOUND')
+          }
+          return { displayPath, targetKey: FsTargetKey(join(realAncestor, ...missing)) }
+        },
+        (error: Thrown) => continueMissingAncestor(displayPath, ancestor, missing, error),
+      )
+    },
+    (error: Thrown) => continueMissingAncestor(displayPath, ancestor, missing, error),
+  )
+}
+
 /**
  * Resolve a path to its absolute display path and realpath identity. For a missing target,
  * realpath the nearest existing ancestor and append the missing suffix, preserving identity
@@ -143,44 +206,21 @@ export interface LocalDirEntry {
 export async function resolveLocalTarget(cwd: string, path: string): Promise<LocalTarget> {
   if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
   const displayPath = resolve(cwd, path)
-  try {
+  return realpath(displayPath).then(
     // Prefer the file's own realpath (resolves a symlinked file to its target).
-    return { displayPath, targetKey: FsTargetKey(await realpath(displayPath)) }
-  } catch (error: unknown) {
-    // A path component is a file, not a directory (e.g. "afile/child.txt" where
-    // "afile" is a regular file): the target can neither exist nor be created,
-    // so surface the structured taxonomy instead of a raw Node ENOTDIR.
-    if (isENOTDIR(error)) throw new FsError(`cannot resolve "${displayPath}": a parent path segment is not a directory`, 'FS_NOT_FOUND')
-    if (!isENOENT(error)) throw error
-  }
-  // File absent: realpath the nearest existing ancestor and re-append the
-  // missing suffix (the file basename plus any not-yet-created intermediate
-  // dirs), so the key is stable across creation of those dirs.
-  const missing = [basename(displayPath)]
-  let ancestor = dirname(displayPath)
-  while (true) {
-    try {
-      const realAncestor = await realpath(ancestor)
-      // On Windows, realpath of a regular file succeeds where POSIX returns
-      // ENOTDIR (the OS reports ENOENT for `regular-file/child`, not ENOTDIR).
-      // Stat the ancestor to restore the semantic distinction: a non-directory
-      // ancestor means the target passes through a file and can never be created.
-      if (process.platform === 'win32') {
-        const parentInfo = await stat(realAncestor)
-        if (!parentInfo.isDirectory()) {
-          throw new FsError(`cannot resolve "${displayPath}": a parent path segment is not a directory`, 'FS_NOT_FOUND')
-        }
-      }
-      return { displayPath, targetKey: FsTargetKey(join(realAncestor, ...missing)) }
-    } catch (error: unknown) {
-      if (error instanceof FsError) throw error
+    resolved => ({ displayPath, targetKey: FsTargetKey(resolved) }),
+    (error: Thrown) => {
+      // A path component is a file, not a directory (e.g. "afile/child.txt" where
+      // "afile" is a regular file): the target can neither exist nor be created,
+      // so surface the structured taxonomy instead of a raw Node ENOTDIR.
+      if (isENOTDIR(error)) throw new FsError(`cannot resolve "${displayPath}": a parent path segment is not a directory`, 'FS_NOT_FOUND')
       if (!isENOENT(error)) throw error
-      const parent = dirname(ancestor)
-      if (parent === ancestor) return { displayPath, targetKey: FsTargetKey(displayPath) }
-      missing.unshift(basename(ancestor))
-      ancestor = parent
-    }
-  }
+      // File absent: realpath the nearest existing ancestor and re-append the
+      // missing suffix (the file basename plus any not-yet-created intermediate
+      // dirs), so the key is stable across creation of those dirs.
+      return resolveMissingThroughAncestor(displayPath, dirname(displayPath), [basename(displayPath)])
+    },
+  )
 }
 
 function pathType(info: Stats | BigIntStats): PathInfo['type'] {
@@ -194,19 +234,20 @@ function pathLinkType(info: Stats | BigIntStats): PathLinkInfo['type'] {
   return pathType(info)
 }
 
-async function probeStats<T extends Stats | BigIntStats>(
+function probeStats<T extends Stats | BigIntStats>(
   absolutePath: string,
   readStats: (path: string) => Promise<T>,
 ): Promise<T | null> {
-  try {
-    return await readStats(absolutePath)
-  } catch (error: unknown) {
-    // ENOENT (no such file) and ENOTDIR (a parent segment is a file) both mean
-    // the target is absent; any other metadata failure is a real permission/IO
-    // fault.
-    if (!isENOENT(error) && !isENOTDIR(error)) throw error
-    return null
-  }
+  return readStats(absolutePath).then(
+    info => info,
+    (error: Thrown) => {
+      // ENOENT (no such file) and ENOTDIR (a parent segment is a file) both mean
+      // the target is absent; any other metadata failure is a real permission/IO
+      // fault.
+      if (!isENOENT(error) && !isENOTDIR(error)) throw error
+      return null
+    },
+  )
 }
 
 /**
@@ -247,12 +288,41 @@ function listingIoError(displayPath: string, error: unknown): FsError {
   if (error instanceof FsError) return error
   if (isENOENT(error) || isENOTDIR(error)) return new FsError(`cannot list "${displayPath}": not found`, 'FS_NOT_FOUND', { cause: error })
   if (isPermissionError(error)) return new FsError(`cannot list "${displayPath}": permission denied`, 'FS_PERMISSION_DENIED', { cause: error })
-  return new FsError(`cannot list "${displayPath}": ${errorMessage(error)}`, 'FS_IO_ERROR', { cause: error })
+  return new FsError(`cannot list "${displayPath}": ${thrownMessage(error)}`, 'FS_IO_ERROR', { cause: error })
 }
 
 async function resolveListedChildTarget(parent: LocalTarget, name: string): Promise<LocalTarget> {
   const identity = await resolveLocalTarget(parent.targetKey, name)
   return { displayPath: join(parent.displayPath, name), targetKey: identity.targetKey }
+}
+
+async function collectListedChildren(
+  target: LocalTarget,
+  entries: Dirent[],
+  signal: AbortSignal | undefined,
+): Promise<LocalDirEntry[]> {
+  const result: LocalDirEntry[] = []
+  for (const entry of entries) {
+    throwIfAborted(signal, 'list')
+    await resolveListedChildTarget(target, entry.name).then(
+      childTarget => probe(childTarget.targetKey).then((childInfo) => {
+        result.push({
+          name: entry.name,
+          type: childInfo?.type ?? 'other',
+          target: childTarget,
+          ...(childInfo ? { version: childInfo.version } : {}),
+          ...(childInfo?.type === 'file' ? { size: childInfo.size } : {}),
+        })
+      }),
+    ).then(
+      undefined,
+      (error: Thrown) => {
+        throw listingIoError(join(target.displayPath, entry.name), error)
+      },
+    )
+    throwIfAborted(signal, 'list')
+  }
+  return result
 }
 
 /**
@@ -265,42 +335,28 @@ async function resolveListedChildTarget(parent: LocalTarget, name: string): Prom
  */
 export async function listDirectory(target: LocalTarget, signal?: AbortSignal): Promise<LocalDirEntry[]> {
   throwIfAborted(signal, 'list')
-  let info: PathInfo | null
-  try {
-    info = await probe(target.targetKey)
-  } catch (error: unknown) {
-    throw listingIoError(target.displayPath, error)
-  }
-  if (!info) throw new FsError(`cannot list "${target.displayPath}": not found`, 'FS_NOT_FOUND')
-  if (info.type !== 'directory') throw new FsError(`cannot list "${target.displayPath}": not a directory`, 'FS_NOT_DIRECTORY')
-
-  let entries: Dirent[]
-  try {
-    entries = await readdir(target.targetKey, { withFileTypes: true, encoding: 'utf8' })
-  } catch (error: unknown) {
-    throw listingIoError(target.displayPath, error)
-  }
-  throwIfAborted(signal, 'list')
-
-  const result: LocalDirEntry[] = []
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    throwIfAborted(signal, 'list')
-    try {
-      const childTarget = await resolveListedChildTarget(target, entry.name)
-      const childInfo = await probe(childTarget.targetKey)
-      result.push({
-        name: entry.name,
-        type: childInfo?.type ?? 'other',
-        target: childTarget,
-        ...(childInfo ? { version: childInfo.version } : {}),
-        ...(childInfo?.type === 'file' ? { size: childInfo.size } : {}),
-      })
-    } catch (error: unknown) {
-      throw listingIoError(join(target.displayPath, entry.name), error)
-    }
-    throwIfAborted(signal, 'list')
-  }
-  return result
+  return probe(target.targetKey).then(
+    (info) => {
+      if (!info) throw new FsError(`cannot list "${target.displayPath}": not found`, 'FS_NOT_FOUND')
+      if (info.type !== 'directory') throw new FsError(`cannot list "${target.displayPath}": not a directory`, 'FS_NOT_DIRECTORY')
+      return readdir(target.targetKey, { withFileTypes: true, encoding: 'utf8' }).then(
+        (entries) => {
+          throwIfAborted(signal, 'list')
+          return collectListedChildren(
+            target,
+            entries.sort((left, right) => left.name.localeCompare(right.name)),
+            signal,
+          )
+        },
+        (error: Thrown) => {
+          throw listingIoError(target.displayPath, error)
+        },
+      )
+    },
+    (error: Thrown) => {
+      throw listingIoError(target.displayPath, error)
+    },
+  )
 }
 
 // --- Reading ---
@@ -312,7 +368,7 @@ function notTextError(verb: 'read' | 'edit', displayPath: string): FsError {
 function decodeUtf8(buffer: Uint8Array, verb: 'read' | 'edit', displayPath: string): string {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
-  } catch (error: unknown) {
+  } catch (error) {
     if (!(error instanceof TypeError)) throw error
     throw notTextError(verb, displayPath)
   }
@@ -326,23 +382,24 @@ function decodeUtf8Stream(
 ): string {
   try {
     return chunk ? decoder.decode(chunk, { stream: true }) : decoder.decode()
-  } catch (error: unknown) {
+  } catch (error) {
     if (!(error instanceof TypeError)) throw error
     throw notTextError(verb, displayPath)
   }
 }
 
-async function statRegularFile(target: LocalTarget, verb: 'read', signal?: AbortSignal): Promise<Stats> {
+function statRegularFile(target: LocalTarget, verb: 'read', signal?: AbortSignal): Promise<Stats> {
   throwIfAborted(signal, verb)
-  let info: Stats
-  try {
-    info = await stat(target.targetKey)
-  } catch (error: unknown) {
-    if (!isENOENT(error)) throw error
-    throw new FsError(`cannot ${verb} "${target.displayPath}": not found`, 'FS_NOT_FOUND')
-  }
-  if (!info.isFile()) throw new FsError(`cannot ${verb} "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
-  return info
+  return stat(target.targetKey).then(
+    (info) => {
+      if (!info.isFile()) throw new FsError(`cannot ${verb} "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
+      return info
+    },
+    (error: Thrown) => {
+      if (!isENOENT(error)) throw error
+      throw new FsError(`cannot ${verb} "${target.displayPath}": not found`, 'FS_NOT_FOUND')
+    },
+  )
 }
 
 /**
@@ -388,21 +445,27 @@ export async function readWholeBytes(
     end: maxBytes,
     ...signal ? { signal } : {},
   })
+  const iterator = (stream as AsyncIterable<Buffer>)[Symbol.asyncIterator]()
   const chunks: Buffer[] = []
   let bytes = 0
-  try {
-    for await (const chunk of stream as AsyncIterable<Buffer>) {
-      bytes += chunk.length
+  const pull = (): Promise<void> => iterator.next().then(
+    (step) => {
+      if (step.done) return
+      bytes += step.value.length
       if (bytes > maxBytes) {
         throw new FsError(`cannot read "${target.displayPath}": content exceeds the ${maxBytes}-byte limit`, 'FS_TOO_LARGE')
       }
-      chunks.push(chunk)
-    }
-  } catch (error: unknown) {
-    if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
-    throw error
-  }
-  return Buffer.concat(chunks, bytes)
+      chunks.push(step.value)
+      return pull()
+    },
+    (error: Thrown) => {
+      if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
+      throw error
+    },
+  )
+  return pull()
+    .finally(() => iterator.return?.())
+    .then(() => Buffer.concat(chunks, bytes))
 }
 
 /**
@@ -412,6 +475,7 @@ export async function readWholeBytes(
  * @param target - the resolved file to stream.
  * @param signal - aborts the stream, including between chunks (`FS_ABORTED`).
  * @returns decoded text chunks in file order; chunk boundaries carry no meaning.
+ * @yields decoded UTF-8 text chunks in file order.
  */
 export async function* streamWholeText(target: LocalTarget, signal?: AbortSignal): AsyncIterable<string> {
   await statRegularFile(target, 'read', signal)
@@ -428,68 +492,136 @@ export async function* streamWholeText(target: LocalTarget, signal?: AbortSignal
     sampledBytes += sample.length
   }
 
+  const iterator = (stream as AsyncIterable<Buffer>)[Symbol.asyncIterator]()
+  let finished = false
   try {
-    for await (const chunk of stream as AsyncIterable<Buffer>) {
-      scanBinarySample(chunk)
-      yield decodeUtf8Stream(decoder, chunk, 'read', target.displayPath)
+    while (true) {
+      const step = await iterator.next().then(
+        result => result,
+        (error: Thrown) => {
+          if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
+          throw error
+        },
+      )
+      if (step.done) {
+        finished = true
+        break
+      }
+      scanBinarySample(step.value)
+      yield decodeUtf8Stream(decoder, step.value, 'read', target.displayPath)
     }
     yield decodeUtf8Stream(decoder, undefined, 'read', target.displayPath)
-  } catch (error: unknown) {
-    if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
-    throw error
+  } finally {
+    if (!finished) await iterator.return?.()
   }
 }
 
 // --- Writing ---
 
-async function removeStagingDirOrThrow(
+type LocalFileHandle = Awaited<ReturnType<typeof open>>
+
+function removeStagingDirOrThrow(
   stagingDir: string,
   originalError: unknown,
   removeStagingDir: (path: string) => Promise<void>,
 ): Promise<never> {
-  try {
-    await removeStagingDir(stagingDir)
-  } catch (cleanupError: unknown) {
-    throw new FsError(`write failed (${errorMessage(originalError)}) and temp cleanup failed (${errorMessage(cleanupError)})`, 'FS_NOT_FOUND', { cause: originalError })
-  }
-  throw originalError
+  return removeStagingDir(stagingDir).then(
+    () => {
+      throw originalError
+    },
+    (cleanupError: Thrown) => {
+      throw new FsError(`write failed (${thrownMessage(originalError)}) and temp cleanup failed (${thrownMessage(cleanupError)})`, 'FS_NOT_FOUND', { cause: originalError })
+    },
+  )
 }
 
-async function throwGuardedCreateFailure(
+function throwGuardedCreateFailure(
   error: unknown,
   absolutePath: string,
   displayPath: string,
   inspectPublicationTarget: (path: string) => Promise<BigIntStats>,
 ): Promise<never> {
-  let existing: BigIntStats | undefined
-  try {
-    existing = await inspectPublicationTarget(absolutePath)
-  } catch (metadataError: unknown) {
-    if (!isENOENT(metadataError) && !isENOTDIR(metadataError)) {
-      throw new FsError(`cannot write "${displayPath}": ${errorMessage(metadataError)}`, 'FS_IO_ERROR', { cause: metadataError })
-    }
-  }
+  return inspectPublicationTarget(absolutePath).then(
+    (existing) => {
+      // Link errno values vary by platform and filesystem. Inspect the target entry
+      // after failure so a collision is not confused with missing hard-link support.
+      if (!existing.isFile()) {
+        throw new FsError(`cannot write "${displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE', { cause: error })
+      }
+      throw new FsError(
+        `cannot overwrite existing "${displayPath}" without reading it first`,
+        'FS_NOT_OBSERVED',
+        { cause: error },
+      )
+    },
+    (metadataError: Thrown) => {
+      if (!isENOENT(metadataError) && !isENOTDIR(metadataError)) {
+        throw new FsError(`cannot write "${displayPath}": ${thrownMessage(metadataError)}`, 'FS_IO_ERROR', { cause: metadataError })
+      }
+      if (isEEXIST(error)) {
+        throw new FsError(
+          `cannot overwrite existing "${displayPath}" without reading it first`,
+          'FS_NOT_OBSERVED',
+          { cause: error },
+        )
+      }
+      throw new FsError(`cannot write "${displayPath}": ${thrownMessage(error)}`, 'FS_IO_ERROR', { cause: error })
+    },
+  )
+}
 
-  // Link errno values vary by platform and filesystem. Inspect the target entry
-  // after failure so a collision is not confused with missing hard-link support.
-  if (existing !== undefined) {
-    if (!existing.isFile()) {
-      throw new FsError(`cannot write "${displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE', { cause: error })
-    }
-    throw new FsError(
-      `cannot overwrite existing "${displayPath}" without reading it first`,
-      'FS_NOT_OBSERVED',
-      { cause: error },
+function publishStagedFile(
+  absolutePath: string,
+  tempPath: string,
+  platform: NodeJS.Platform,
+  mode: number | undefined,
+  createIfAbsent: { displayPath: string } | undefined,
+  linkFile: (existingPath: string, newPath: string) => Promise<void>,
+  replaceFile: (replaced: string, replacement: string) => Promise<void>,
+  inspectPublicationTarget: (path: string) => Promise<BigIntStats>,
+): Promise<void> {
+  if (createIfAbsent !== undefined) {
+    return linkFile(tempPath, absolutePath).then(
+      undefined,
+      (error: Thrown) => throwGuardedCreateFailure(error, absolutePath, createIfAbsent.displayPath, inspectPublicationTarget),
     )
   }
-  if (isEEXIST(error)) {
-    throw new FsError(
-      `cannot overwrite existing "${displayPath}" without reading it first`,
-      'FS_NOT_OBSERVED',
-      { cause: error },
+  if (platform === 'win32' && mode !== undefined) {
+    return replaceFile(absolutePath, tempPath).then(
+      undefined,
+      (error: Thrown) => {
+        // If the observed target disappears during staging, the protected DACL
+        // already copied to the temp remains authoritative for recreation.
+        if (!isENOENT(error)) throw error
+        return rename(tempPath, absolutePath)
+      },
     )
   }
-  throw new FsError(`cannot write "${displayPath}": ${errorMessage(error)}`, 'FS_IO_ERROR', { cause: error })
+  return rename(tempPath, absolutePath)
+}
+
+function settleFailedWrite(
+  error: Thrown,
+  handle: LocalFileHandle | undefined,
+  stagingCreated: boolean,
+  stagingDir: string,
+  removeStagingDir: (path: string) => Promise<void>,
+): Promise<never> {
+  const mapped: Thrown = isAbortError(error) ? new FsError('write aborted', 'FS_ABORTED') : error
+  const afterClose: Promise<Thrown> = handle === undefined
+    ? Promise.resolve(mapped)
+    : handle.close().then(
+      () => mapped,
+      (closeError: Thrown) => new FsError(
+        `write failed (${thrownMessage(mapped)}) and temp close failed (${thrownMessage(closeError)})`,
+        'FS_NOT_FOUND',
+        { cause: mapped },
+      ),
+    )
+  return afterClose.then((failure: Thrown) => {
+    if (!stagingCreated) throw failure
+    return removeStagingDirOrThrow(stagingDir, failure, removeStagingDir)
+  })
 }
 
 /**
@@ -532,61 +664,46 @@ export async function writeFileAtomic(
     ?? (path => lstat(path, { bigint: true }))
   const removeStagingDir = internals.removeStagingDir
     ?? (path => rm(path, { recursive: true, force: true }))
-  let handle: Awaited<ReturnType<typeof open>> | undefined
+  let handle: LocalFileHandle | undefined
   let stagingCreated = false
-  try {
-    await mkdir(stagingDir, { mode: 0o700 })
+  return mkdir(stagingDir, { mode: 0o700 }).then(() => {
     stagingCreated = true
-    await chmod(stagingDir, 0o700)
-
-    handle = await open(tempPath, 'wx', 0o600)
-    await handle.chmod(0o600)
-    if (platform === 'win32' && mode !== undefined) {
-      await copyFileDacl(absolutePath, tempPath)
-    }
-    await handle.writeFile(content, { encoding: 'utf8', ...signal ? { signal } : {} })
-    await handle.sync()
-    await internals.inspectTemp?.({ stagingDir, tempPath })
-    if (mode !== undefined) await handle.chmod(mode)
-    await handle.close()
-    handle = undefined
-
-    throwIfAborted(signal, 'write')
-    if (createIfAbsent !== undefined) {
-      try {
-        await linkFile(tempPath, absolutePath)
-      } catch (error: unknown) {
-        await throwGuardedCreateFailure(error, absolutePath, createIfAbsent.displayPath, inspectPublicationTarget)
-      }
-    } else if (platform === 'win32' && mode !== undefined) {
-      try {
-        await replaceFile(absolutePath, tempPath)
-      } catch (error: unknown) {
-        // If the observed target disappears during staging, the protected DACL
-        // already copied to the temp remains authoritative for recreation.
-        if (!isENOENT(error)) throw error
-        await rename(tempPath, absolutePath)
-      }
-    } else {
-      await rename(tempPath, absolutePath)
-    }
-    try {
-      await removeStagingDir(stagingDir)
-    } catch (_committedStagingCleanupFailure) {
-      // The target is committed; owner-only staging residue cannot turn that write into a failure.
-    }
-  } catch (error: unknown) {
-    let failure: unknown = isAbortError(error) ? new FsError('write aborted', 'FS_ABORTED') : error
-    if (handle) {
-      try {
-        await handle.close()
-      } catch (closeError: unknown) {
-        failure = new FsError(`write failed (${errorMessage(failure)}) and temp close failed (${errorMessage(closeError)})`, 'FS_NOT_FOUND', { cause: failure })
-      }
-    }
-    if (!stagingCreated) throw failure
-    return removeStagingDirOrThrow(stagingDir, failure, removeStagingDir)
-  }
+    return chmod(stagingDir, 0o700)
+      .then(() => open(tempPath, 'wx', 0o600))
+      .then((opened) => {
+        handle = opened
+        return opened.chmod(0o600)
+          .then(() => (platform === 'win32' && mode !== undefined)
+            ? copyFileDacl(absolutePath, tempPath)
+            : undefined)
+          .then(() => opened.writeFile(content, { encoding: 'utf8', ...signal ? { signal } : {} }))
+          .then(() => opened.sync())
+          .then(() => internals.inspectTemp?.({ stagingDir, tempPath }))
+          .then(() => (mode !== undefined ? opened.chmod(mode) : undefined))
+          .then(() => opened.close())
+          .then(() => {
+            handle = undefined
+            throwIfAborted(signal, 'write')
+            return publishStagedFile(
+              absolutePath,
+              tempPath,
+              platform,
+              mode,
+              createIfAbsent,
+              linkFile,
+              replaceFile,
+              inspectPublicationTarget,
+            )
+          })
+          .then(() => removeStagingDir(stagingDir).then(
+            undefined,
+            (_committedStagingCleanupFailure: Thrown) => undefined,
+          ))
+      })
+  }).then(
+    undefined,
+    (error: Thrown) => settleFailedWrite(error, handle, stagingCreated, stagingDir, removeStagingDir),
+  )
 }
 
 // --- Editing ---
@@ -673,49 +790,57 @@ export async function readTextForDiff(
   signal?: AbortSignal,
 ): Promise<string | null> {
   throwIfAborted(signal, 'read')
-  try {
-    const handle = await open(absolutePath, 'r')
-    let buffer: Buffer
-    let total = 0
-    let openedSize = 0
-    try {
-      throwIfAborted(signal, 'read')
-      const info = await handle.stat()
-      throwIfAborted(signal, 'read')
-      if (!info.isFile()) return null
-      if (info.size >= maxBytes) return null
-      openedSize = info.size
-      // One extra byte detects growth after stat without retaining per-read backing buffers.
-      buffer = Buffer.allocUnsafe(openedSize + 1)
-      while (total < buffer.length) {
+  return open(absolutePath, 'r').then((handle) => {
+    type DiffRead = { kind: 'skip' } | { kind: 'bytes'; buffer: Buffer; total: number; openedSize: number }
+    return Promise.resolve()
+      .then(() => {
         throwIfAborted(signal, 'read')
-        const length = Math.min(buffer.length - total, DIFF_BASIS_READ_CHUNK_BYTES)
-        const { bytesRead } = await handle.read(buffer, total, length, null)
-        if (bytesRead === 0) break
-        total += bytesRead
-      }
-    } finally {
-      await handle.close()
-    }
-    throwIfAborted(signal, 'read')
-    if (total !== openedSize) return null
-    const basis = buffer.subarray(0, total)
-    if (basis.includes(0)) return null
-    try {
-      return normalizeLineEndings(new TextDecoder('utf-8', { fatal: true }).decode(basis))
-    } catch (error: unknown) {
-      if (!(error instanceof TypeError)) throw error
-      return null
-    }
-  } catch (error: unknown) {
-    // Cancellation is the caller's intent and still propagates.
-    if (error instanceof FsError) throw error
-    // A descriptor-phase errno — deleted or made unreadable after the caller's
-    // preflight, or a faulted read — costs only the optional basis: a committed
-    // write must not fail for a presentation-only pre-read.
-    if (error instanceof Error && 'code' in error) return null
-    throw error
-  }
+        return handle.stat()
+      })
+      .then((info): Promise<DiffRead> | DiffRead => {
+        throwIfAborted(signal, 'read')
+        if (!info.isFile()) return { kind: 'skip' }
+        if (info.size >= maxBytes) return { kind: 'skip' }
+        const openedSize = info.size
+        // One extra byte detects growth after stat without retaining per-read backing buffers.
+        const buffer = Buffer.allocUnsafe(openedSize + 1)
+        const readMore = (total: number): Promise<DiffRead> => {
+          if (total >= buffer.length) return Promise.resolve({ kind: 'bytes', buffer, total, openedSize })
+          throwIfAborted(signal, 'read')
+          const length = Math.min(buffer.length - total, DIFF_BASIS_READ_CHUNK_BYTES)
+          return handle.read(buffer, total, length, null).then(({ bytesRead }) => {
+            if (bytesRead === 0) return { kind: 'bytes', buffer, total, openedSize }
+            return readMore(total + bytesRead)
+          })
+        }
+        return readMore(0)
+      })
+      .finally(() => handle.close())
+      .then((read) => {
+        if (read.kind === 'skip') return null
+        throwIfAborted(signal, 'read')
+        if (read.total !== read.openedSize) return null
+        const basis = read.buffer.subarray(0, read.total)
+        if (basis.includes(0)) return null
+        try {
+          return normalizeLineEndings(new TextDecoder('utf-8', { fatal: true }).decode(basis))
+        } catch (error) {
+          if (!(error instanceof TypeError)) throw error
+          return null
+        }
+      })
+  }).then(
+    result => result,
+    (error: Thrown) => {
+      // Cancellation is the caller's intent and still propagates.
+      if (error instanceof FsError) throw error
+      // A descriptor-phase errno — deleted or made unreadable after the caller's
+      // preflight, or a faulted read — costs only the optional basis: a committed
+      // write must not fail for a presentation-only pre-read.
+      if (error instanceof Error && 'code' in error) return null
+      throw error
+    },
+  )
 }
 
 /**

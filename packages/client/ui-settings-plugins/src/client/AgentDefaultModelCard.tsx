@@ -60,7 +60,7 @@ export function AgentDefaultModelCard(props: AgentDefaultModelCardProps) {
             : null}
       </div>
       {state.conflicted
-        ? <p className={css.conflict} role="status">{t('agentDefaultModelConflict')}</p>
+        ? <output className={css.conflict}>{t('agentDefaultModelConflict')}</output>
         : null}
     </PluginCard>
   )

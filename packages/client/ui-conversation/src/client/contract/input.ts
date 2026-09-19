@@ -166,6 +166,15 @@ declare module '@deepseek-ai/cordis' {
 export type DraftAttachmentId = Branded<'DraftAttachmentId'>
 
 /**
+ * Brand a string as a {@link DraftAttachmentId}.
+ * @param id - runtime-minted draft identity.
+ * @returns the same string, branded; no validation is performed.
+ */
+export function DraftAttachmentId(id: string): DraftAttachmentId {
+  return id as DraftAttachmentId
+}
+
+/**
  * The scoped-event application verbs: the hub's bail listeners call these,
  * and the boolean answer IS the event's bail value (true ⟺ the editor
  * applied the edit after phase and span guards).

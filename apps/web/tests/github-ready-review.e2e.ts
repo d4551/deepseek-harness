@@ -73,7 +73,9 @@ async function send(origin: string, delivery: string, body: object, event = 'pul
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: GitHub ready-for-review', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] github-ready-review.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: GitHub ready-for-review', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

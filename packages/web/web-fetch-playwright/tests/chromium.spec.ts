@@ -147,7 +147,9 @@ describe('Playwright browser access', () => {
   })
 })
 
-describe.skipIf(!installed)('Playwright redirect routing', () => {
+const SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM = !installed
+if (SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM) console.info('[skip] chromium.spec.ts: Playwright Chromium is not installed; browser routing stays unexercised')
+describe.skipIf(SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM)('Playwright redirect routing', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
   it('reports a redirect hop to the request observer and to no interceptor', async () => {
@@ -219,7 +221,9 @@ describe.skipIf(!installed)('Playwright redirect routing', () => {
   })
 })
 
-describe.skipIf(!installed)('Playwright WebSocket routing', () => {
+const SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM_2 = !installed
+if (SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM_2) console.info('[skip] chromium.spec.ts: Playwright Chromium is not installed; browser routing stays unexercised')
+describe.skipIf(SKIP_WITHOUT_PLAYWRIGHT_CHROMIUM_2)('Playwright WebSocket routing', () => {
   it('refuses a page WebSocket to a non-public address before it reaches the network', async () => {
     const browser = shared
     if (browser === undefined) throw new Error('the shared browser was never launched')

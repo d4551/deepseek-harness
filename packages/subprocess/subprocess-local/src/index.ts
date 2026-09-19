@@ -27,6 +27,8 @@ import { createProcessInspector } from './process-inspector.ts'
 import type { ProcessInspector } from './process-inspector.ts'
 import { LocalTerminalHandle } from './terminal.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * The extension list Windows treats as directly executable when a command
  * carries no extension of its own. Windows ships `.COM;.EXE;.BAT;.CMD;…`; this
@@ -136,23 +138,28 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     // direct child's settlement — so even a TERM-trapping descendant cannot
     // outlive the fiber. Keep both sets authoritative while these waits are
     // pending so a shorter process-level exit bound can still force-kill them.
-    const pending: Promise<unknown>[] = []
+    const pending: Promise<void>[] = []
+    let recorded: { error: Thrown } | undefined
+    const failures: Thrown[] = []
+    const recordFailure = (error: Thrown): void => {
+      recorded ??= { error }
+      failures.push(error)
+    }
     for (const handle of this.live) {
       handle.terminate()
       // Spawn-failure rejections already settled and left the live set.
-      pending.push(handle.done.catch(() => {}).then(() => handle.waitForExit()))
+      pending.push(
+        handle.done.catch((_error: Thrown) => {}).then(() => handle.waitForExit()).then(undefined, recordFailure),
+      )
     }
     for (const terminal of this.terminals) {
-      pending.push(terminal.terminate())
+      pending.push(terminal.terminate().then(undefined, recordFailure))
     }
-    const outcomes = await Promise.allSettled(pending)
-    const failures = outcomes.flatMap<unknown>(outcome => outcome.status === 'rejected'
-      ? [outcome.reason as unknown]
-      : [])
-    if (failures.length > 0) this.terminateForHostExit()
+    await Promise.all(pending)
+    if (recorded !== undefined) this.terminateForHostExit()
     this.live.clear()
     this.terminals.clear()
-    if (failures.length === 1) throw failures[0]
+    if (recorded !== undefined && failures.length === 1) throw recorded.error
     if (failures.length > 1) throw new AggregateError(failures, 'local subprocess teardown failed')
   }
 
@@ -232,14 +239,14 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
         env: childEnv(spec.env),
       }
       const inspector = this.terminalInspector ?? createProcessInspector()
-      const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options)
+      const terminal = nodePty.spawn(file, spec.argv.slice(1), options)
       const handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs)
       this.terminals.add(handle)
       const release = async (): Promise<void> => {
         await handle.terminate()
         this.terminals.delete(handle)
       }
-      handle.done.then(release, release).catch(() => {})
+      handle.done.then(release, release).catch((_error: Thrown) => {})
       resolve(handle)
     })
   }

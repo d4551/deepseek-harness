@@ -36,7 +36,9 @@ interface PwshLoaderReport {
   backgroundText: string
 }
 
-describe.skipIf(!hasPwsh)('the pwsh dialect through a real Loader composition', () => {
+const SKIP_WITHOUT_PWSH = !hasPwsh
+if (SKIP_WITHOUT_PWSH) console.info('[skip] pwsh-loader.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH)('the pwsh dialect through a real Loader composition', () => {
   // Self-hosted Windows runners reach ~40s for this smoke under the full
   // coverage load (measured on the 192-thread CI pool), against the
   // 30s default process deadline. Give the subprocess headroom so the

@@ -77,7 +77,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
 }
 
@@ -94,7 +94,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 17px;
 }
 
@@ -183,13 +183,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
 }
 
 .renameInput {
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
   padding: 0 2px;
   border: 1px solid var(--dsw-alias-border-l2);
@@ -207,14 +207,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .time {
   flex: none;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -307,21 +307,21 @@
 }
 
 .hoverTitle {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
   color: var(--dsw-static-neutral-bluish-00);
   overflow-wrap: break-word;
 }
 
 .hoverPath {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 16px;
   color: var(--dsw-static-neutral-bluish-300);
   word-break: break-all;
 }
 
 .hoverTime {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 16px;
   color: var(--dsw-static-neutral-bluish-300);
 }
@@ -330,7 +330,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 20px;
   color: var(--dsw-static-neutral-bluish-400);
 }

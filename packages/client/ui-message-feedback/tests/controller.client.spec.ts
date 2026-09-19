@@ -239,7 +239,7 @@ describe('MessageFeedbackController', () => {
   it('notifies subscribers on publication and stops after unsubscribe', async () => {
     const { remote } = fakeRemote()
     const controller = new MessageFeedbackController(remote, SESSION)
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     const unsubscribe = controller.subscribe(listener)
 
     await controller.ensure()
@@ -256,7 +256,7 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(remote, SESSION)
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     controller.subscribe(() => { throw new Error('subscriber exploded') })
-    const healthy = vi.fn()
+    const healthy = vi.fn<() => void>()
     controller.subscribe(healthy)
 
     await controller.ensure()
@@ -270,7 +270,7 @@ describe('MessageFeedbackController', () => {
     const { remote, calls } = fakeRemote()
     const controller = new MessageFeedbackController(remote, SESSION)
     await controller.ensure()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     controller.subscribe(listener)
 
     controller.dispose()
@@ -319,7 +319,7 @@ describe('MessageFeedbackController', () => {
     })
     const controller = new MessageFeedbackController(remote, SESSION)
     const pending = controller.ensure()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     controller.subscribe(listener)
 
     controller.dispose()
@@ -345,8 +345,7 @@ describe('MessageFeedbackController', () => {
   })
 
   it('preserves a non-Error list rejection as a diagnostic string', async () => {
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test.
-    const { remote } = fakeRemote({ list: () => Promise.reject('socket string') })
+    const { remote } = fakeRemote({ list: async () => { throw 'socket string' } })
     const controller = new MessageFeedbackController(remote, SESSION)
 
     expect(await controller.ensure()).toEqual({
@@ -356,8 +355,7 @@ describe('MessageFeedbackController', () => {
   })
 
   it('preserves a non-Error mutation rejection as a diagnostic string', async () => {
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test.
-    const { remote } = fakeRemote({ put: () => Promise.reject('nope') })
+    const { remote } = fakeRemote({ put: async () => { throw 'nope' } })
     const controller = new MessageFeedbackController(remote, SESSION)
 
     expect(await controller.rate(MSG, 'positive')).toEqual({
@@ -417,7 +415,7 @@ describe('MessageFeedbackController', () => {
     })
     const controller = new MessageFeedbackController(remote, SESSION)
     await controller.ensure()
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     controller.subscribe(listener)
     const pending = controller.rate(MSG, 'negative')
 
@@ -443,7 +441,7 @@ describe('MessageFeedbackController', () => {
     await controller.ensure()
     const pending = controller.clear(MSG)
 
-    const listener = vi.fn()
+    const listener = vi.fn<() => void>()
     controller.subscribe(listener)
     controller.dispose()
     release()

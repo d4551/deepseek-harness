@@ -17,6 +17,16 @@ import type { WebProviderSpec } from './web-provider-catalog.ts'
 /** Section values a web backend's card edits; every field is optional in its schema. */
 export type WebProviderSettings = Record<string, unknown>
 
+/**
+ * Claim one wire section as a web-backend field map.
+ * @param section - Host-served namespace value.
+ * @returns a shallow object copy, or undefined when the section is not an object.
+ */
+export function decodeWebProviderSettings(section: unknown): WebProviderSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  return { ...section }
+}
+
 /** What one web backend's card renders. */
 export interface WebProviderCardState extends CardShell {
   /** Each catalogued field's staged control state, keyed by field name. */

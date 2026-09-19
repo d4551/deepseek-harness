@@ -33,6 +33,8 @@ import {
   type CodexWireFailureFacts,
 } from './wire.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Default POSIX grace between subprocess termination tiers. */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
 
@@ -196,7 +198,7 @@ export async function disposeCodexChild(
     child.done.then(
       (value) => { outcome = value },
       /* v8 ignore next -- a positive pid excludes spawn-level done rejection. */
-      () => {},
+      (_error: Thrown) => {},
     )
     try {
       child.stdin?.end()
@@ -204,18 +206,19 @@ export async function disposeCodexChild(
       // A concurrently closed stdin does not change tree ownership below.
     }
     child.terminate()
-    try {
-      await child.waitForExit()
-    } catch (error: unknown) {
-      throw new CodexRunFailure({
-        stage: 'teardown',
-        category: 'unknown',
-        outcome,
-      }, toError(error))
-    }
+    await child.waitForExit().then(
+      undefined,
+      (error: Thrown) => {
+        throw new CodexRunFailure({
+          stage: 'teardown',
+          category: 'unknown',
+          outcome,
+        }, toError(error))
+      },
+    )
     await child.done
   } else {
-    await child.done.catch(() => {})
+    await child.done.catch((_error: Thrown) => {})
   }
   const drained = await wire.waitForClosure()
   if (drained instanceof AggregateError) {
@@ -247,7 +250,7 @@ export async function startCodexRun(
       graceMs: spec.disposeGraceMs,
       env: spec.env,
     })
-  } catch (error: unknown) {
+  } catch (error) {
     throw new CodexRunFailure({
       stage: 'initialize',
       category: 'unknown',
@@ -298,7 +301,7 @@ export async function startCodexRun(
       }
       throw new CodexRunFailure(processFailureFacts)
     },
-    (error: unknown) => {
+    (error: Thrown) => {
       processFailureFacts = {
         stage: 'process',
         category: 'unknown',
@@ -308,7 +311,7 @@ export async function startCodexRun(
   )
   // A normal post-result dispose also closes the process. Keep its expected
   // late rejection observed when the terminal result settles first.
-  processFailure.catch(() => {})
+  processFailure.catch((_error: Thrown) => {})
 
   const runAbort = new AbortController()
   const requestCancel = (): void => {
@@ -320,12 +323,13 @@ export async function startCodexRun(
   request.signal.addEventListener('abort', onAbort, { once: true })
 
   let startupStage: 'initialize' | 'thread-start' = 'initialize'
-  try {
-    wire.start()
-    await Promise.race([wire.initialize(request.signal), processFailure])
-    startupStage = 'thread-start'
-    await Promise.race([wire.startThread(spec.cwd, spec.workspaceRoots, request.signal), processFailure])
-  } catch (error: unknown) {
+  wire.start()
+  await Promise.race([wire.initialize(request.signal), processFailure]).then(
+    () => {
+      startupStage = 'thread-start'
+      return Promise.race([wire.startThread(spec.cwd, spec.workspaceRoots, request.signal), processFailure])
+    },
+  ).then(undefined, async (error: Thrown): Promise<never> => {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = runAbort.signal.aborted
     if (!(error instanceof CodexRunFailure) && !cancelledBeforeCleanup) {
@@ -340,15 +344,16 @@ export async function startCodexRun(
         ? error.facts.outcome
         : processFailureFacts?.outcome,
     }, toError(error))
-    try {
-      await disposeProcess()
-    } catch (disposeError: unknown) {
-      const cleanupFailure = toError(disposeError)
-      throw new AggregateError(
-        [failure, cleanupFailure],
-        `${failure.message}; ${cleanupFailure.message}`,
-      )
-    }
+    await disposeProcess().then(
+      undefined,
+      (disposeError: Thrown) => {
+        const cleanupFailure = toError(disposeError)
+        throw new AggregateError(
+          [failure, cleanupFailure],
+          `${failure.message}; ${cleanupFailure.message}`,
+        )
+      },
+    )
     if (cancelledBeforeCleanup) {
       throw new Error('subagent-codex: request was aborted before run publication')
     }
@@ -358,7 +363,7 @@ export async function startCodexRun(
       throw new Error('subagent-codex: request was aborted before run publication')
     }
     throw failure
-  }
+  })
 
   const collectOutput = (): ContentBlock[] => wire.collectOutput()
   let diagnostic: string | undefined
@@ -377,7 +382,7 @@ export async function startCodexRun(
       : { ...facts, outcome }
   }
   const publishedProcessFailure = processFailure.catch(
-    async (error: unknown): Promise<never> => {
+    async (error: Thrown): Promise<never> => {
       // Frames already queued by the exiting app-server remain authoritative.
       // One I/O turn lets them settle before process exit ends the run.
       await new Promise<void>((resolve) => { setImmediate(resolve) })
@@ -385,19 +390,19 @@ export async function startCodexRun(
     },
   )
   const result: Promise<SubagentResult> = settleRunResult({
-    attempt: async () => {
-      try {
-        const terminal = await Promise.race([
-          wire.runTurn(texts, runAbort.signal),
-          publishedProcessFailure,
-        ])
+    attempt: () => Promise.race([
+      wire.runTurn(texts, runAbort.signal),
+      publishedProcessFailure,
+    ]).then(
+      async (terminal) => {
         if (terminal.stopReason === 'completed') return terminal
         // Let stderr already queued with the terminal frame reach the Host
         // before the non-completed result settles.
         await new Promise<void>((resolve) => { setImmediate(resolve) })
         const facts = withProcessOutcome(wire.collectFailure())
         return { ...terminal, diagnostic: recordFailureDiagnostic(facts) }
-      } catch (error: unknown) {
+      },
+      async (error: Thrown) => {
         // Give stderr data already queued in Node one turn to reach the Host
         // before error settlement.
         await new Promise<void>((resolve) => { setImmediate(resolve) })
@@ -407,14 +412,22 @@ export async function startCodexRun(
           && processFailureFacts === undefined
           && !runAbort.signal.aborted
         ) {
-          try {
-            const exited = await child.waitForExit(
-              AbortSignal.timeout(Math.ceil(spec.disposeGraceMs)),
-            )
-            if (exited) await child.done
-          } catch {
-            // The wire failure remains authoritative when exit observation fails.
-          }
+          await child.waitForExit(
+            AbortSignal.timeout(Math.ceil(spec.disposeGraceMs)),
+          ).then(
+            (exited) => {
+              if (!exited) return
+              return child.done.then(
+                undefined,
+                (_error: Thrown) => {
+                  // The wire failure remains authoritative when exit observation fails.
+                },
+              )
+            },
+            (_error: Thrown) => {
+              // The wire failure remains authoritative when exit observation fails.
+            },
+          )
         }
         const facts = error instanceof CodexRunFailure
           ? error.facts
@@ -425,8 +438,8 @@ export async function startCodexRun(
         throw error instanceof CodexRunFailure
           ? error
           : new CodexRunFailure(facts, toError(error))
-      }
-    },
+      },
+    ),
     collectOutput,
     collectDiagnostic: () => diagnostic,
     cancelled: () => runAbort.signal.aborted,

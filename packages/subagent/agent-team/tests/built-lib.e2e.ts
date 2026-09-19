@@ -16,7 +16,9 @@ const requiredArtifacts = [
   'packages/subagent/agent-team/lib/typert.remote-client.js',
 ].every(path => existsSync(artifact(path)))
 
-describe.skipIf(!requiredArtifacts)('Agent Teams built LIB service', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACTS = !requiredArtifacts
+if (SKIP_WITHOUT_BUILT_ARTIFACTS) console.info('[skip] built-lib.e2e.ts: built artifacts are absent; run the build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACTS)('Agent Teams built LIB service', () => {
   it('loads the Host service and its generated browser contribution under plain Node', async () => {
     const urls = {
       host: artifactUrl('packages/subagent/agent-team/lib/index.js'),

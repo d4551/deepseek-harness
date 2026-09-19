@@ -9,7 +9,7 @@
  */
 
 import type { Message } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, SurfaceEvent, SurfaceEventType, SurfaceOp } from './types.ts'
+import type { SessionEvent, SurfaceEvent, SurfaceOp } from './types.ts'
 
 /** Runtime counterpart of the message-producing event union. */
 const SURFACE_EVENT_TYPES = new Set<string>([
@@ -33,8 +33,14 @@ export function isSurfaceEligibleType(type: string): boolean {
  * @returns true when both the type and marker identify a surface event.
  */
 export function isSurfaceEvent(event: SessionEvent): event is SurfaceEvent {
-  if (!SURFACE_EVENT_TYPES.has(event.type)) return false
-  return (event as SessionEvent<SurfaceEventType>).surfaceOp !== undefined
+  switch (event.type) {
+    case 'user/message':
+    case 'assistant/message':
+    case 'tool/result':
+      return event.surfaceOp !== undefined
+    default:
+      return false
+  }
 }
 
 /**
@@ -164,6 +170,13 @@ function createFoldState(): SurfaceFoldState {
   return { nodes: [], replaceGeneration: 0 }
 }
 
+/** Reject a surface-contract violation; must not return. */
+export type SurfaceContractReject = (message: string) => never
+
+function throwSurfaceContract(message: string): never {
+  throw new Error(message)
+}
+
 /** Whether a runtime value is a non-negative safe event sequence. */
 function isEventSeq(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
@@ -171,74 +184,78 @@ function isEventSeq(value: unknown): value is number {
 
 /** Whether a runtime value is the exact positional-replacement shape. */
 function isReplaceOp(value: object): value is Extract<SurfaceOp, { op: 'replace' }> {
-  const op = value as Record<string, unknown>
-  return Object.keys(op).length === 3
-    && Object.hasOwn(op, 'op')
-    && Object.hasOwn(op, 'start')
-    && Object.hasOwn(op, 'end')
-    && op['op'] === 'replace'
-    && isEventSeq(op['start'])
-    && isEventSeq(op['end'])
+  if (!Object.hasOwn(value, 'op') || !Object.hasOwn(value, 'start') || !Object.hasOwn(value, 'end')) {
+    return false
+  }
+  if (Object.keys(value).length !== 3) return false
+  if (!('op' in value) || !('start' in value) || !('end' in value)) return false
+  return value.op === 'replace' && isEventSeq(value.start) && isEventSeq(value.end)
 }
 
 /** Validate event-local surface eligibility and return its operation. */
-function surfaceOpOf(event: SessionEvent): SurfaceOp | undefined {
-  const raw = event as SessionEvent & { surfaceOp?: unknown; sourceEventSeqs?: unknown }
-  if (!isSurfaceEligibleType(event.type)) {
-    if (raw.surfaceOp !== undefined) {
-      throw new Error(`session event "${event.type}" is not surface-eligible and cannot carry surfaceOp`)
+function surfaceOpOf(event: SessionEvent, reject: SurfaceContractReject): SurfaceOp | undefined {
+  switch (event.type) {
+    case 'user/message':
+    case 'assistant/message':
+    case 'tool/result': {
+      const { surfaceOp } = event
+      if (surfaceOp === undefined) {
+        reject(`session event "${event.type}" is surface-eligible and requires a surfaceOp marker`)
+      }
+      if (surfaceOp === 'append') return surfaceOp
+      if (typeof surfaceOp !== 'object' || Array.isArray(surfaceOp)) {
+        reject(`session event "${event.type}" carries an invalid surfaceOp`)
+      }
+      if (!isReplaceOp(surfaceOp)) {
+        reject(`session event "${event.type}" carries an invalid replace surfaceOp`)
+      }
+      return surfaceOp
     }
-    if (raw.sourceEventSeqs !== undefined) {
-      throw new Error(`session event "${event.type}" is not surface-eligible and cannot carry sourceEventSeqs`)
+    default: {
+      if ('surfaceOp' in event) {
+        reject(`session event "${event.type}" is not surface-eligible and cannot carry surfaceOp`)
+      }
+      if ('sourceEventSeqs' in event) {
+        reject(`session event "${event.type}" is not surface-eligible and cannot carry sourceEventSeqs`)
+      }
+      return
     }
-    return
   }
-  const op = raw.surfaceOp
-  if (op === undefined) {
-    throw new Error(`session event "${event.type}" is surface-eligible and requires a surfaceOp marker`)
-  }
-  if (op === 'append') return op
-  if (op === null || typeof op !== 'object' || Array.isArray(op)) {
-    throw new Error(`session event "${event.type}" carries an invalid surfaceOp`)
-  }
-  if (!isReplaceOp(op)) {
-    throw new Error(`session event "${event.type}" carries an invalid replace surfaceOp`)
-  }
-  return op
 }
 
 /** Validate cited source-event seqs against prior log entries and the replacement range. */
 function assertProvenance(
   event: SessionEvent,
   shadowedSeqs: readonly number[],
+  reject: SurfaceContractReject,
 ): void {
-  const raw = (event as SessionEvent & { sourceEventSeqs?: unknown }).sourceEventSeqs
+  const raw = 'sourceEventSeqs' in event ? event.sourceEventSeqs : undefined
   const sources = new Set<number>()
   if (raw !== undefined) {
     if (!Array.isArray(raw)) {
-      throw new Error(`sourceEventSeqs on event at seq ${event.seq} must be an array when present`)
+      reject(`sourceEventSeqs on event at seq ${event.seq} must be an array when present`)
     }
     if (raw.length === 0 && event.type !== 'assistant/message') {
-      throw new Error('sourceEventSeqs must not be empty except on assistant/message')
+      reject('sourceEventSeqs must not be empty except on assistant/message')
     }
     let nonEarlierSource: number | undefined
     for (const source of raw) {
       if (!isEventSeq(source)) {
-        throw new Error(`session event "${event.type}" sourceEventSeqs must densely contain non-negative safe integers`)
+        reject(`session event "${event.type}" sourceEventSeqs must densely contain non-negative safe integers`)
       }
       sources.add(source)
       if (nonEarlierSource === undefined && source >= event.seq) nonEarlierSource = source
     }
     if (sources.size !== raw.length) {
-      throw new Error('sourceEventSeqs must not contain duplicates')
+      reject('sourceEventSeqs must not contain duplicates')
     }
     if (nonEarlierSource !== undefined) {
-      throw new Error(`sourceEventSeqs must reference earlier events: ${nonEarlierSource} >= current seq ${event.seq}`)
+      reject(`sourceEventSeqs must reference earlier events: ${nonEarlierSource} >= current seq ${event.seq}`)
     }
   }
   const missing = shadowedSeqs.filter(seq => !sources.has(seq))
   if (missing.length > 0) {
-    throw new Error(`surface replace: sourceEventSeqs must include every shadowed surface node; missing ${missing.join(', ')}`)
+    reject(`surface replace: sourceEventSeqs must include every shadowed surface node; missing ${missing.join(', ')}`)
   }
 }
 
@@ -246,17 +263,18 @@ function assertProvenance(
 function replacementRange(
   state: SurfaceFoldState,
   op: Extract<SurfaceOp, { op: 'replace' }>,
+  reject: SurfaceContractReject,
 ): Pick<SurfaceReplacePlan, 'startIdx' | 'endIdx' | 'shadowedSeqs'> {
   const startIdx = state.nodes.indexOf(op.start)
   if (startIdx === -1) {
-    throw new Error(`surface replace: start seq ${op.start} not found in surface`)
+    reject(`surface replace: start seq ${op.start} not found in surface`)
   }
   const endIdx = state.nodes.indexOf(op.end)
   if (endIdx === -1) {
-    throw new Error(`surface replace: end seq ${op.end} not found in surface`)
+    reject(`surface replace: end seq ${op.end} not found in surface`)
   }
   if (startIdx > endIdx) {
-    throw new Error(`surface replace: start seq ${op.start} (index ${startIdx}) is after end seq ${op.end} (index ${endIdx})`)
+    reject(`surface replace: start seq ${op.start} (index ${startIdx}) is after end seq ${op.end} (index ${endIdx})`)
   }
   return {
     startIdx,
@@ -274,13 +292,17 @@ function isDeepEqualJson(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
-    return a.every((item, i) => isDeepEqualJson(item, b[i]))
+    return a.every((item, index) => isDeepEqualJson(item, b.at(index)))
   }
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
   const aKeys = Object.keys(a)
-  const bRecord = b as Record<string, unknown>
   if (aKeys.length !== Object.keys(b).length) return false
-  return aKeys.every(key => Object.hasOwn(b, key) && isDeepEqualJson((a as Record<string, unknown>)[key], bRecord[key]))
+  return aKeys.every((key) => {
+    if (!Object.hasOwn(b, key)) return false
+    const left: unknown = Reflect.get(a, key)
+    const right: unknown = Reflect.get(b, key)
+    return isDeepEqualJson(left, right)
+  })
 }
 
 /** Restrict a tool-result replacement to one current result's content. */
@@ -289,18 +311,19 @@ function assertToolResultRewrite(
   shadowedSeqs: readonly number[],
   events: readonly SessionEvent[],
   baseSeq: number,
+  reject: SurfaceContractReject,
 ): void {
   if (event.type !== 'tool/result') return
   if (shadowedSeqs.length !== 1) {
-    throw new Error('tool/result surface replacement must rewrite exactly one current node')
+    reject('tool/result surface replacement must rewrite exactly one current node')
   }
   for (const originalSeq of shadowedSeqs) {
     const original = events[originalSeq - baseSeq]
     if (original?.type !== 'tool/result') {
-      throw new Error('tool/result surface replacement must target a current tool/result')
+      reject('tool/result surface replacement must target a current tool/result')
     }
-    const originalRest = { ...original.data } as Record<string, unknown>
-    const replacementRest = { ...event.data } as Record<string, unknown>
+    const originalRest: Record<string, unknown> = { ...original.data }
+    const replacementRest: Record<string, unknown> = { ...event.data }
     const originalResult = original.data.message.content[0]
     const replacementResult = event.data.message.content[0]
     originalRest['message'] = {
@@ -312,7 +335,7 @@ function assertToolResultRewrite(
       content: [{ ...replacementResult, content: null }],
     }
     if (!isDeepEqualJson(originalRest, replacementRest)) {
-      throw new Error('tool/result surface replacement may change only content')
+      reject('tool/result surface replacement may change only content')
     }
   }
 }
@@ -324,19 +347,20 @@ function planSurfaceEvent(
   expectedSeq: number,
   events: readonly SessionEvent[],
   baseSeq: number,
+  reject: SurfaceContractReject,
 ): SurfacePlan | undefined {
   if (event.seq !== expectedSeq) {
-    throw new Error(`session event seq ${event.seq} is not contiguous; expected ${expectedSeq}`)
+    reject(`session event seq ${event.seq} is not contiguous; expected ${expectedSeq}`)
   }
-  const surfaceOp = surfaceOpOf(event)
+  const surfaceOp = surfaceOpOf(event, reject)
   if (surfaceOp === undefined) return
   if (surfaceOp === 'append') {
-    assertProvenance(event, [])
+    assertProvenance(event, [], reject)
     return { kind: 'append', seq: event.seq }
   }
-  const range = replacementRange(state, surfaceOp)
-  assertProvenance(event, range.shadowedSeqs)
-  assertToolResultRewrite(event, range.shadowedSeqs, events, baseSeq)
+  const range = replacementRange(state, surfaceOp, reject)
+  assertProvenance(event, range.shadowedSeqs, reject)
+  assertToolResultRewrite(event, range.shadowedSeqs, events, baseSeq, reject)
   return {
     kind: 'replace',
     seq: event.seq,
@@ -353,8 +377,9 @@ function applySurfaceEvent(
   expectedSeq: number,
   events: readonly SessionEvent[],
   baseSeq: number,
+  reject: SurfaceContractReject,
 ): SurfaceFoldReplacement | undefined {
-  const plan = planSurfaceEvent(state, event, expectedSeq, events, baseSeq)
+  const plan = planSurfaceEvent(state, event, expectedSeq, events, baseSeq, reject)
   return applySurfacePlan(state, plan)
 }
 
@@ -381,14 +406,18 @@ function applySurfacePlan(
 /**
  * Replay a complete session log through the canonical surface fold.
  * @param events - session events in contiguous seq order.
+ * @param reject - contract-violation terminator; defaults to throwing `Error`.
  * @returns detached current sequences and replacement history.
  * @throws when an event violates surface metadata, source-event references, range, or tool-result rewrite rules.
  */
-export function foldSurface(events: readonly SessionEvent[]): SurfaceFoldResult {
+export function foldSurface(
+  events: readonly SessionEvent[],
+  reject: SurfaceContractReject = throwSurfaceContract,
+): SurfaceFoldResult {
   const state = createFoldState()
   const replacements: SurfaceFoldReplacement[] = []
   for (const [index, event] of events.entries()) {
-    const replacement = applySurfaceEvent(state, event, index, events, 0)
+    const replacement = applySurfaceEvent(state, event, index, events, 0, reject)
     if (replacement !== undefined) replacements.push(replacement)
   }
   return { nodes: [...state.nodes], replacements }
@@ -424,7 +453,7 @@ export class SurfaceManager implements SessionSurface {
     this._pendingPlan = {
       event,
       expectedSeq,
-      plan: planSurfaceEvent(this._state, event, expectedSeq, this.log, this.baseSeq),
+      plan: planSurfaceEvent(this._state, event, expectedSeq, this.log, this.baseSeq, throwSurfaceContract),
     }
   }
 
@@ -445,13 +474,15 @@ export class SurfaceManager implements SessionSurface {
     const tailSeq = this.baseSeq + this.log.length - 1
     for (let seq = this._lastProcessedSeq + 1; seq <= tailSeq; seq++) {
       const index = seq - this.baseSeq
-      // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
-      const event = this.log[index]!
+      const event = this.log[index]
+      if (event === undefined) {
+        throw new Error(`session surface log missing event at index ${index}`)
+      }
       const pending = this._pendingPlan
       if (pending?.event === event && pending.expectedSeq === seq) {
         applySurfacePlan(this._state, pending.plan)
       } else {
-        applySurfaceEvent(this._state, event, seq, this.log, this.baseSeq)
+        applySurfaceEvent(this._state, event, seq, this.log, this.baseSeq, throwSurfaceContract)
       }
       if (pending !== undefined && pending.expectedSeq <= seq) this._pendingPlan = undefined
       this._lastProcessedSeq = seq

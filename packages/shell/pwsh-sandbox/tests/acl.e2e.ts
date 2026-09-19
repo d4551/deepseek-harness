@@ -26,7 +26,9 @@ function pwshAvailable(): boolean {
   return spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'], { encoding: 'utf8' }).status === 0
 }
 
-describe.skipIf(!isWin32 || !pwshAvailable())('pwsh-sandbox real ACL confinement', () => {
+const SKIP_WITHOUT_WIN32_PWSH = !isWin32 || !pwshAvailable()
+if (SKIP_WITHOUT_WIN32_PWSH) console.info('[skip] acl.e2e.ts: non-Windows host or no usable pwsh; Win32 ACL runner stays off')
+describe.skipIf(SKIP_WITHOUT_WIN32_PWSH)('pwsh-sandbox real ACL confinement', () => {
   let scratchRoot!: string
   let writableDir!: string
   let outsideTempDir!: string

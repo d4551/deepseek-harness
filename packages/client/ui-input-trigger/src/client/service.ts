@@ -42,6 +42,9 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
   /**
    * Register one trigger source. Live session controllers are notified so a
    * source arriving after scope birth still warms and joins the lexicon.
+   * A `{ hookFailed: true, message }` answer from `warm` or
+   * `subscribeLexicon` is recorded on that controller and does not unwind
+   * registration or skip remaining controllers.
    * @param src - the source; (trigger, name) must be unique — duplicates throw.
    * @returns the disposer (callers wrap registration in ctx.effect). Disposal
    * while a controller shows the source's menu group drops that group.
@@ -53,14 +56,7 @@ export class InputTriggerService extends Service implements InputTriggerServiceC
     }
     live.sources.push(src)
     for (const controller of live.controllers.values()) {
-      try {
-        controller.sourceAdded(src)
-      } catch (error) {
-        // Contain faulty source callbacks (warm/subscribeLexicon): the
-        // registration must stand with a usable disposer and the remaining
-        // controllers must still be notified.
-        console.error(`[ui-input-trigger] source "${src.trigger}${src.name}" late-registration setup failed:`, error)
-      }
+      controller.sourceAdded(src)
     }
     return () => {
       const at = live.sources.indexOf(src)

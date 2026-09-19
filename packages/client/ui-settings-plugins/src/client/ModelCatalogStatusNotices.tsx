@@ -33,7 +33,7 @@ export function ModelCatalogStatusNotices(props: ModelCatalogStatusNoticesProps)
   return (
     <>
       {props.status === 'loading'
-        ? <p className={css.notice} role="status">{props.loadingNotice}</p>
+        ? <output className={css.notice}>{props.loadingNotice}</output>
         : null}
       {props.status === 'error'
         ? (

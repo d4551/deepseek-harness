@@ -2,15 +2,15 @@
  * Composer keymap over the Lexical command layer: menu arbitration
  * (arrows/escape/enter), space adjudication, the Enter submit gesture, and
  * paste routing. Registered at CRITICAL priority so it decides before
- * @lexical/plain-text's own Enter/paste defaults; a handler returning false
+ * Lexical plain-text's own Enter/paste defaults; a handler returning false
  * falls through to those defaults (Shift+Enter's line break, ordinary
  * spaces, text paste the bar routes itself).
  *
  * IME guard: a composition-closing Enter/Space must not submit or adjudicate.
  * KeyboardEvent.isComposing covers most engines; Safari delivers the closing
  * keydown AFTER compositionend, so a root-element composition watch holds the
- * guard for 10ms more (the old textarea's proven window); keyCode
- * 229 is the legacy signal engines emit without isComposing.
+ * guard for 10ms more (the old textarea's proven window); key "Process" and
+ * keyCode 229 are the signals engines emit without isComposing.
  */
 import type { LexicalEditor } from 'lexical'
 import {
@@ -38,11 +38,45 @@ export interface ComposerKeymapHandlers {
   pasteText(text: string): void
 }
 
+/** Windows VK_PROCESSKEY — IME engines emit this on keydown without isComposing. */
+const IME_PROCESS_KEY_CODE = 229
+
+function isImeProcessKey(event: Event): boolean {
+  return Reflect.get(event, 'keyCode') === IME_PROCESS_KEY_CODE
+}
+
 /** Composition state a keydown can trust (see the module doc's Safari note). */
 function isComposingEvent(event: KeyboardEvent, recentlyComposing: () => boolean): boolean {
-  // keyCode 229 is the legacy IME-composition signal engines emit without isComposing.
-  // oxlint-disable-next-line typescript/no-deprecated
-  return event.isComposing || event.keyCode === 229 || recentlyComposing()
+  return event.isComposing || event.key === 'Process' || isImeProcessKey(event) || recentlyComposing()
+}
+
+/** Paste payload used by the composer keymap. */
+export interface ClipboardTransfer {
+  readonly items: ArrayLike<{ kind: string; getAsFile(): File | null }>
+  getData(format: string): string
+}
+
+function isClipboardTransfer(value: object): value is ClipboardTransfer {
+  return (
+    'getData' in value
+    && typeof value.getData === 'function'
+    && 'items' in value
+    && value.items !== null
+    && typeof value.items === 'object'
+  )
+}
+
+/**
+ * Claim clipboard data from a paste command payload.
+ * @param event - Lexical PASTE_COMMAND payload (ClipboardEvent or a test Event).
+ * @returns the transfer face, or undefined when the event carries none.
+ */
+export function clipboardTransferOf(event: Event): ClipboardTransfer | undefined {
+  if (!('clipboardData' in event)) return undefined
+  const data = event.clipboardData
+  if (data === null || data === undefined || typeof data !== 'object') return undefined
+  if (!isClipboardTransfer(data)) return undefined
+  return data
 }
 
 /**
@@ -128,10 +162,8 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
       return true
     }, COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(PASTE_COMMAND, (event) => {
-      // Duck-typed: the payload union includes InputEvent, and test engines
-      // deliver clipboardData on plain events.
-      const clipboardData = (event as ClipboardEvent).clipboardData ?? null
-      if (clipboardData === null) return false
+      const clipboardData = clipboardTransferOf(event)
+      if (clipboardData === undefined) return false
       const files = Array.from(clipboardData.items)
         .filter(item => item.kind === 'file')
         .map(item => item.getAsFile())

@@ -2,6 +2,7 @@
 import { AgentPresetSeatController } from './seat-store.ts'
 import type { AgentPresetSectionController } from './section-store.ts'
 import { messageOf, type AgentPresetSettingsController } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 type SurfaceController = AgentPresetSettingsController | AgentPresetSectionController | AgentPresetSeatController
 
@@ -28,14 +29,22 @@ export class AgentPresetSurfaceUpdates {
   }
 
   private async complete(controller: SurfaceController, action: 'load' | 'apply', key: symbol): Promise<void> {
-    const [result] = await Promise.allSettled([Promise.try<void | string, []>(() => {
-      if (action === 'load') return controller.load()
-      if (!(controller instanceof AgentPresetSeatController)) throw new Error('Preset selection requires a session seat')
-      return controller.apply()
+    const [result] = await Promise.allSettled([new Promise<void | string>((resolve, reject) => {
+      if (action === 'load') {
+        resolve(controller.load())
+        return
+      }
+      if (!(controller instanceof AgentPresetSeatController)) {
+        reject(new Error('Preset selection requires a session seat'))
+        return
+      }
+      resolve(controller.apply())
     })])
     if (result.status === 'rejected') {
+      const reason: Thrown = result.reason
+      const message = messageOf(reason)
       controller.store.update((state) => {
-        state.error = messageOf(result.reason)
+        state.error = message
         if ('status' in state) state.status = 'error'
         if ('busy' in state) state.busy = false
       })

@@ -101,7 +101,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     return { settled }
   }
 
-  it.skipIf(MODE !== 'record')('records the narrate-then-call turn live through the composer', async () => {
+  const SKIP_UNLESS_RECORD_MODE = MODE !== 'record'
+  if (SKIP_UNLESS_RECORD_MODE) console.info('[skip] turn-tail-actions.e2e.ts: replay mode; this record-only capture runs in record mode')
+  it.skipIf(SKIP_UNLESS_RECORD_MODE)('records the narrate-then-call turn live through the composer', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-record'))
     const { settled } = await sendPrompt(180_000)
@@ -109,13 +111,17 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     await recordFixture(scaffold!, sessionId, FIXTURE)
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('matches the canonical persisted session', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('matches the canonical persisted session', async () => {
     await launch()
     const { settled } = await sendPrompt(30_000)
     await settled
   })
 
-  it.skipIf(MODE === 'record')('withholds the footer while the turn runs and grants it at turn/end', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('withholds the footer while the turn runs and grants it at turn/end', async () => {
     expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     let marker = ''
     // Patch the SECOND call: the first one delivers the narration and the tool
@@ -163,7 +169,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('shows exact completed-Turn usage and expands its available facts', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('shows exact completed-Turn usage and expands its available facts', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-usage-expanded'))
     const { settled } = await sendPrompt(120_000)
@@ -188,7 +196,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('folds the Turn process after the completed reply becomes the answer', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('folds the Turn process after the completed reply becomes the answer', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-completed'))
     const { settled } = await sendPrompt()
@@ -210,7 +220,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('switches a completed Turn between Compact and Normal', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('switches a completed Turn between Compact and Normal', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-process-setting'))
     const { settled } = await sendPrompt()
@@ -244,7 +256,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps a focused process member open when the completed reply arrives', async () => {
+  const SKIP_IN_RECORD_MODE_6 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_6) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_6)('keeps a focused process member open when the completed reply arrives', async () => {
     await launch(undefined, 200)
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-focused'))
     const { settled } = await sendPrompt()
@@ -264,7 +278,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps a closed fixture inventory', async () => {
+  const SKIP_IN_RECORD_MODE_7 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_7) console.info('[skip] turn-tail-actions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_7)('keeps a closed fixture inventory', async () => {
     await assertFixtureInventory(
       SNAPSHOT_DIR,
       [

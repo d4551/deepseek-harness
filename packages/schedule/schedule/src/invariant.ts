@@ -19,7 +19,7 @@ export const inject = ['invariants']
 function validate(events: readonly SessionEvent[], seedLength: number, fail: InvariantFailure): void {
   try {
     foldScheduleEvents(events, seedLength)
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore next -- foldScheduleEvents normalizes every rejected stream to ScheduleLogError. */
     if (!(error instanceof ScheduleLogError)) throw error
     fail(error.message)

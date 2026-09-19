@@ -7,8 +7,8 @@
  * @module @deepseek-ai/dsh-sdk-client/api
  */
 
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
-import { createProcessHarnessClient, HarnessClient, isRecord, SdkProtocolError } from './client.ts'
+import { assertSessionEventObject, type SessionEvent } from '@deepseek-ai/dsh-session/types'
+import { createProcessHarnessClient, isRecord, SdkProtocolError } from './client.ts'
 import { DeepSeekHarness } from './index.ts'
 import type { RuntimeProcessOptions } from './launch.ts'
 import type { ContentBlock, DeepSeekHarnessOptions, HarnessNotification, RunResult, SdkPromptContentBlock } from './types.ts'
@@ -18,11 +18,7 @@ export function createProcessDeepSeekHarness(
   runtime: RuntimeProcessOptions,
   options: DeepSeekHarnessOptions = {},
 ): DeepSeekHarness {
-  const Constructor = DeepSeekHarness as unknown as new (
-    publicOptions: DeepSeekHarnessOptions,
-    clientFactory: () => HarnessClient,
-  ) => DeepSeekHarness
-  return new Constructor({
+  return new DeepSeekHarness({
     ...runtime.cwd === undefined ? {} : { processCwd: runtime.cwd },
     ...options,
   }, () => createProcessHarnessClient(runtime))
@@ -113,41 +109,40 @@ export function normalizeInput(input: string | SdkPromptContentBlock[]): SdkProm
   return typeof input === 'string' ? [{ type: 'text', text: input }] : input
 }
 
-/** Validate the provider-read fields of one wire turn-end reason. */
-function validatedTurnEndReason(value: unknown): TurnEndReason {
+/** Reject a wire turn-end reason that is not a kind-tagged envelope. */
+function assertWireTurnEndReason(value: unknown): void {
   if (!isRecord(value) || typeof value.kind !== 'string') {
     throw new SdkProtocolError(`turn/end carried no reason envelope: ${JSON.stringify(value)}`)
   }
-  if (value.kind === 'aborted') {
-    if (!isRecord(value.reason) || typeof value.reason.kind !== 'string') {
-      throw new SdkProtocolError(`turn/end carried a malformed aborted reason: ${JSON.stringify(value)}`)
-    }
-    switch (value.reason.kind) {
-      case 'user':
-      case 'parent':
-      case 'disposed':
-      case 'legacy':
-        break
-      case 'hook':
-        if (typeof value.reason.reason !== 'string') {
-          throw new SdkProtocolError(`turn/end carried a malformed hook abort reason: ${JSON.stringify(value)}`)
-        }
-        break
-      default:
-        throw new SdkProtocolError(`turn/end carried an unknown abort reason: ${JSON.stringify(value)}`)
-    }
+  if (value.kind !== 'aborted') return
+  if (!isRecord(value.reason) || typeof value.reason.kind !== 'string') {
+    throw new SdkProtocolError(`turn/end carried a malformed aborted reason: ${JSON.stringify(value)}`)
   }
-  return value as unknown as TurnEndReason
+  switch (value.reason.kind) {
+    case 'user':
+    case 'parent':
+    case 'disposed':
+    case 'legacy':
+      return
+    case 'hook':
+      if (typeof value.reason.reason !== 'string') {
+        throw new SdkProtocolError(`turn/end carried a malformed hook abort reason: ${JSON.stringify(value)}`)
+      }
+      return
+    default:
+      throw new SdkProtocolError(`turn/end carried an unknown abort reason: ${JSON.stringify(value)}`)
+  }
 }
 
 /** Validate the fields in a wire `session.event` envelope before returning the typed result. */
 function validatedSessionEvent(value: unknown): SessionEvent {
-  if (!isRecord(value) || typeof value.type !== 'string') {
+  if (!isRecord(value) || typeof value.type !== 'string'
+    || typeof value.seq !== 'number'
+    || typeof value.time !== 'number' || !Number.isSafeInteger(value.time)
+    || !('data' in value)) {
     throw new SdkProtocolError(`session.event carried no event envelope: ${JSON.stringify(value)}`)
   }
-  // The one variant this module reads into (finalResponse) must carry
-  // kind-tagged content blocks; other variants pass through under their
-  // envelope shape.
+  assertSessionEventObject(value)
   if (value.type === 'assistant/message') {
     const message = isRecord(value.data) ? value.data.message : undefined
     const content = isRecord(message) ? message.content : undefined
@@ -156,13 +151,13 @@ function validatedSessionEvent(value: unknown): SessionEvent {
     }
   }
   if (value.type === 'turn/end') {
-    const data = isRecord(value.data) ? value.data : undefined
-    if (data === undefined) {
-      throw new SdkProtocolError(`turn/end event carried malformed data: ${JSON.stringify(value)}`)
+    const data: unknown = value.data
+    if (!isRecord(data)) {
+      throw new SdkProtocolError(`turn/end carried malformed data: ${JSON.stringify(value)}`)
     }
-    validatedTurnEndReason(data.reason)
+    assertWireTurnEndReason(data.reason)
   }
-  return value as unknown as SessionEvent
+  return value
 }
 
 /** Whether a raw session event is the durable enqueue receipt for `messageId`. */

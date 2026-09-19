@@ -140,7 +140,9 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
     expect(tripwire.warnings).toEqual([])
   }, 300_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] approval-composer.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'ui.expected.md', 'workspace.expected'])
   })
 })

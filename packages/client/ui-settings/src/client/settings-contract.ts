@@ -55,11 +55,10 @@ export interface SettingsScopeSpec<T> {
   /** Settings namespace registered by the owning Host plugin. */
   namespace: string
   /**
-   * Narrow one wire section; undefined keeps the last accepted value. The
-   * default validates the section against the namespace's own serialized wire
-   * schema, so domains add a decoder only to narrow beyond that schema.
+   * Claim one wire section as this namespace's durable type. Undefined keeps
+   * the last accepted value.
    */
-  decode?: (section: unknown) => T | undefined
+  decode: (section: unknown) => T | undefined
 }
 
 /**

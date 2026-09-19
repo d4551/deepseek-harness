@@ -678,7 +678,7 @@ withoutInitiator<T>(operation: () => T): T
  *   Cordis effect disposer (single-shot): composite (generator) effects may
  *   yield it directly — exact identity nests the teardown in order.
  */
-setFactory(factory: AgentFactory): () => void
+setFactory(factory: AgentFactory): () => void | Promise<void>
 
 /**
  * Create and publish a new agent through the registered factory.
@@ -718,7 +718,7 @@ async resume(options: ResumeAgentOptions): Promise<AgentHandle>
  *   owner unload, unregistering the agent (and emitting `agent/disposed`)
  *   while its final turn is still draining.
  */
-register(agent: Agent): () => void
+register(agent: Agent): () => void | Promise<void>
 
 /**
  * Insert an already-constructed agent without announcing it. This is the
@@ -819,7 +819,7 @@ A fully configured agent and live session were published. Setup is composition-o
  * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
  * @mode emit
  */
-'agent/created'(this: Scoped<Agent>, payload: { agent: Agent }): void
+'agent/created'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>
 ```
 
 Types: [Scoped](scope.md)
@@ -841,7 +841,7 @@ An agent left the registry; AgentLoop emits this after driver quiescence and sco
  * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
  * @mode emit
  */
-'agent/disposed'(this: Scoped<Agent>, payload: { agent: Agent }): void
+'agent/disposed'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>
 ```
 
 Types: [Scoped](scope.md)
@@ -1138,10 +1138,10 @@ A declarative agent entry failed before it could publish a live agent. Consumers
  * transient signal to reject that work instead of waiting forever. Normal
  * factory teardown suppresses failures from the cancelled startup attempt.
  * @param payload.sessionId - exact shared agent/session identity that failed startup.
- * @param payload.error - persistence, setup, or publication failure.
+ * @param payload.error - contained persistence, setup, or publication failure.
  * @mode emit
  */
-'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: unknown }): void
+'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: ListenerFailure }): void | Promise<void>
 ```
 
 Source: [`packages/core/agent-loop/src/index.ts`](../../packages/core/agent-loop/src/index.ts)

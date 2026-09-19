@@ -4,6 +4,8 @@ import { Buffer } from 'node:buffer'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import { throwIfAborted } from './abort.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** A canonical workspace in the filesystem/subprocess execution world. */
 export interface HostWorkspace {
   /** Stable filesystem identity used for provider pooling. */
@@ -38,12 +40,12 @@ export async function canonicalizeWorkspace(
   let target: FsTarget
   try {
     target = await fs.resolve(workspaceRoot, signal === undefined ? {} : { signal })
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`workspace root "${workspaceRoot}" cannot be resolved: ${messageOf(error)}`, { cause: error })
   }
   throwIfAborted(signal)
-  const info = await fs.stat(target, signal).catch((error: unknown) => {
+  const info = await fs.stat(target, signal).then(undefined, (error: Thrown) => {
     throwIfAborted(signal)
     throw error
   })
@@ -83,7 +85,7 @@ export async function readHostSource(
       cwd: workspace.canonicalPath,
       ...signal === undefined ? {} : { signal },
     })
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" cannot be resolved: ${messageOf(error)}`, { cause: error })
   }
@@ -103,7 +105,7 @@ export async function readHostSource(
       if (bytes > maxDocumentBytes) break
       chunks.push(chunk)
     }
-  } catch (error: unknown) {
+  } catch (error) {
     throwIfAborted(signal)
     throw new Error(`source "${filePath}" could not be read: ${messageOf(error)}`, { cause: error })
   }

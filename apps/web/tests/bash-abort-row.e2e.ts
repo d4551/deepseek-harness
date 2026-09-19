@@ -19,7 +19,9 @@ const MODE = webSnapshotMode()
 const SEED_ID = 'bash-abort-row-web-e2e'
 const PROMPT = 'Run two shell commands: wait for cancellation, then write skipped.txt.'
 
-describe.skipIf(MODE === 'record')('web e2e: cancelled Bash row disclosure', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] bash-abort-row.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: cancelled Bash row disclosure', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

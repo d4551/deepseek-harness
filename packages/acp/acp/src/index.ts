@@ -55,6 +55,8 @@ import { AcpMcpConfigError } from './mcp.ts'
 import { AcpModelConfigError } from './model-control.ts'
 import { AcpSession } from './session.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const DEFAULT_SESSION_LIST_PAGE_SIZE = 100
 
 export const name = 'acp'
@@ -122,15 +124,14 @@ export function apply(ctx: Context, config: AcpConfig): void {
   }
 
   /** Send one ordered protocol update while containing transport-only failure. */
-  const notify = async (notification: SessionNotification): Promise<void> => {
-    try {
-      await conn.notify(methods.client.session.update, notification)
-    /* v8 ignore start -- the ACP SDK contains notification-handler failures; only a transport write failure reaches this guard. */
-    } catch (error: unknown) {
-      logger.warn(`acp: session/update failed: ${String(error)}`)
-    }
-    /* v8 ignore stop */
-  }
+  const notify = (notification: SessionNotification): Promise<void> =>
+    conn.notify(methods.client.session.update, notification).then(
+      undefined,
+      (error: Thrown) => {
+        /* v8 ignore next -- the ACP SDK contains notification-handler failures; only a transport write failure reaches this guard. */
+        logger.warn(`acp: session/update failed: ${String(error)}`)
+      },
+    )
 
   ctx.on('session/event', (session, event) => {
     const record = sessions.get(session.header.id)
@@ -201,39 +202,42 @@ export function apply(ctx: Context, config: AcpConfig): void {
       // the host plane, so this agent reads them from the global layer. A
       // deployment that configures a roster has to join one here first
       // (@deepseek-ai/dsh-agent-presets README, "Composing a child agent").
-      let record: AcpSession
-      try {
-        record = await AcpSession.create(ctx, {
-          sessionId,
-          cwd: params.cwd,
-          mcpServers: params.mcpServers,
-          agentOptions: agentOptions(config),
-          fallbackSelection: initialSelection(config),
-          signal,
-          notify,
-        })
-      } catch (error: unknown) {
+      const record = await AcpSession.create(ctx, {
+        sessionId,
+        cwd: params.cwd,
+        mcpServers: params.mcpServers,
+        agentOptions: agentOptions(config),
+        fallbackSelection: initialSelection(config),
+        signal,
+        notify,
+      }).then(undefined, (error: Thrown) => {
         if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
         throw error
-      }
+      })
       /* v8 ignore next 4 -- a real stdio close can race an in-flight create. */
       if (closed) {
         await record.close('connection closed during session/new')
         throw internalError('connection closed during session/new')
       }
       sessions.set(sessionId, record)
-      try {
+      return new Promise((resolve) => {
         setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
-        const configOptions = await record.configOptions(signal)
-        assertOpen()
-        await persistence.ensureMaterialized(record.agent.session)
-        assertOpen()
-        return { sessionId, configOptions }
-      } catch (error: unknown) {
-        sessions.delete(sessionId)
-        await record.close('session/new activation failed')
-        throw error
-      }
+        resolve(record.configOptions(signal))
+      })
+        .then((configOptions) => {
+          assertOpen()
+          return persistence.ensureMaterialized(record.agent.session).then(() => configOptions)
+        })
+        .then((configOptions) => {
+          assertOpen()
+          return { sessionId, configOptions }
+        })
+        .then(undefined, (error: Thrown) => {
+          sessions.delete(sessionId)
+          return record.close('session/new activation failed').then(() => {
+            throw error
+          })
+        })
     },
 
     async resumeSession(params: ResumeSessionRequest, signal: AbortSignal): Promise<ResumeSessionResponse> {
@@ -252,21 +256,18 @@ export function apply(ctx: Context, config: AcpConfig): void {
         if (!await sameDirectory(persisted.cwd, params.cwd)) {
           throw invalidParams(`session cwd does not match: ${params.cwd}`)
         }
-        let record: AcpSession
-        try {
-          record = await AcpSession.resume(ctx, {
-            sessionId,
-            cwd: params.cwd,
-            mcpServers: params.mcpServers ?? [],
-            agentOptions: agentOptions(config),
-            fallbackSelection: initialSelection(config),
-            signal,
-            notify,
-          })
-        } catch (error: unknown) {
+        const record = await AcpSession.resume(ctx, {
+          sessionId,
+          cwd: params.cwd,
+          mcpServers: params.mcpServers ?? [],
+          agentOptions: agentOptions(config),
+          fallbackSelection: initialSelection(config),
+          signal,
+          notify,
+        }).then(undefined, (error: Thrown) => {
           if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
           throw error
-        }
+        })
         /* v8 ignore start -- the persisted header was checked before resume; the factory restores that exact header. */
         if (!await sameDirectory(record.agent.session.header.cwd, params.cwd)) {
           await record.close('session/resume cwd mismatch')
@@ -279,16 +280,19 @@ export function apply(ctx: Context, config: AcpConfig): void {
           throw internalError('connection closed during session/resume')
         }
         sessions.set(sessionId, record)
-        try {
+        return new Promise((resolve) => {
           // The client restates its complete workspace on every resume, so the
           // request — not the stored log — decides the session's current roots.
           setAdditionalWorkspaceRoots(record.agent.session, additionalRoots)
-          return { configOptions: await record.configOptions(signal) }
-        } catch (error: unknown) {
-          sessions.delete(sessionId)
-          await record.close('session/resume option discovery failed')
-          throw error
-        }
+          resolve(record.configOptions(signal))
+        })
+          .then(configOptions => ({ configOptions }))
+          .then(undefined, (error: Thrown) => {
+            sessions.delete(sessionId)
+            return record.close('session/resume option discovery failed').then(() => {
+              throw error
+            })
+          })
       })().finally(() => { activating.delete(sessionId) })
     },
 
@@ -300,8 +304,8 @@ export function apply(ctx: Context, config: AcpConfig): void {
       let cursor: SessionListCursor | undefined
       try {
         cursor = decodeSessionListCursor(params.cursor)
-      } catch (error: unknown) {
-        throw invalidParams((error as Error).message)
+      } catch {
+        throw invalidParams('session/list cursor is invalid')
       }
       const listed = await persistence.list(signal)
       const filtered = await Promise.all(listed.map(async (header) => {
@@ -339,26 +343,27 @@ export function apply(ctx: Context, config: AcpConfig): void {
     ): Promise<SetSessionConfigOptionResponse> {
       assertOpen()
       const record = requireSession(SessionId(params.sessionId))
-      try {
-        return { configOptions: await record.setConfig(params.configId, params.value, signal) }
-      } catch (error: unknown) {
-        if (error instanceof AcpModelConfigError) throw invalidParams(error.message)
-        throw error
-      }
+      return record.setConfig(params.configId, params.value, signal).then(
+        configOptions => ({ configOptions }),
+        (error: Thrown) => {
+          if (error instanceof AcpModelConfigError) throw invalidParams(error.message)
+          throw error
+        },
+      )
     },
 
     async closeSession(params: CloseSessionRequest): Promise<CloseSessionResponse> {
       assertOpen()
       const sessionId = SessionId(params.sessionId)
       const record = requireSession(sessionId)
-      try {
-        await record.close('ACP session closed')
-      } catch (error: unknown) {
-        throw internalError(`session close failed: ${errorChain(error)}`)
-      } finally {
+      return record.close('ACP session closed').then(
+        () => ({}),
+        (error: Thrown) => {
+          throw internalError(`session close failed: ${errorChain(error)}`)
+        },
+      ).finally(() => {
         if (sessions.get(sessionId) === record) sessions.delete(sessionId)
-      }
-      return {}
+      })
     },
 
     async prompt(params: PromptRequest, requestSignal: AbortSignal): Promise<PromptResponse> {
@@ -407,9 +412,12 @@ export function apply(ctx: Context, config: AcpConfig): void {
         /* v8 ignore next -- closed blocks concurrent handlers; each captured record remains mapped until this loop. */
         if (sessions.get(record.agent.session.id) === record) sessions.delete(record.agent.session.id)
       }
-      const failures: unknown[] = []
+      const failures: Thrown[] = []
       for (const result of disposals) {
-        if (result.status === 'rejected') failures.push(result.reason as unknown)
+        if (result.status === 'rejected') {
+          const reason: Thrown = result.reason
+          failures.push(reason)
+        }
       }
       if (failures.length > 0) {
         // The production consumer logs this AggregateError through `String`,
@@ -427,12 +435,12 @@ export function apply(ctx: Context, config: AcpConfig): void {
 
   /* v8 ignore start -- production transport rejection and teardown failure. */
   connection.closed
-    .catch((error: unknown) => {
-      logger.warn(`acp: connection closed with an error: ${String(error)}`)
+    .then(undefined, (error: Thrown) => {
+      logger.warn(`acp: connection closed with an error: ${error instanceof Error ? error.message : String(error)}`)
     })
     .then(quiesce)
-    .catch((error: unknown) => {
-      logger.warn(`acp: connection-close teardown failed: ${String(error)}`)
+    .then(undefined, (error: Thrown) => {
+      logger.warn(`acp: connection-close teardown failed: ${error instanceof Error ? error.message : String(error)}`)
     })
   /* v8 ignore stop */
 
@@ -536,10 +544,8 @@ function workspaceRootsOf(params: { cwd: string; additionalDirectories?: string[
 /** Compare existing directories by physical identity and missing paths lexically. */
 async function sameDirectory(left: string | undefined, right: string): Promise<boolean> {
   if (left === undefined) return false
-  try {
-    const [realLeft, realRight] = await Promise.all([realpath(left), realpath(right)])
-    return realLeft === realRight
-  } catch (_unresolvablePath) {
-    return resolve(left) === resolve(right)
-  }
+  return await Promise.all([realpath(left), realpath(right)]).then(
+    ([realLeft, realRight]) => realLeft === realRight,
+    (_unresolvablePath: Thrown) => resolve(left) === resolve(right),
+  )
 }

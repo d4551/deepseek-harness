@@ -195,7 +195,7 @@ One `agent()` call established a published child run. Paired with Events['workfl
  * @param agent - the call's sequence number, label, phase, and child id.
  * @mode emit
  */
-'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void
+'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void | Promise<void>
 ```
 
 Source: [`packages/workflow/workflow/src/index.ts`](../../packages/workflow/workflow/src/index.ts)

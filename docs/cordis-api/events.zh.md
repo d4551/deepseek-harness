@@ -61,7 +61,8 @@ emit<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...
  * @returns the first bail value (non-null, non-false, non-undefined), if any.
  */
 serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
-serial<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+serial<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+serial<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): Promisify<ReturnType<Events[K]>>
 ```
 
 分发一个事件，依次等待各监听器，直到其中一个提前终止分发。
@@ -94,7 +95,7 @@ bail<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...
 
 **返回值**：第一个提前终止值（非 null、非 false 且非 undefined）；如果没有，则不返回此类值。
 
-[源码](../../vendor/cordis/src/events.ts#L73)
+[源码](../../vendor/cordis/src/events.ts#L75)
 
 ### ctx.waterfall(name, ...args)
 
@@ -110,7 +111,8 @@ bail<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...
  * @returns the outermost listener's return value.
  */
 waterfall<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
-waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: Parameters<Events[K]>): ReturnType<Events[K]>
+waterfall<K extends keyof Events>(thisArg: object, name: K, ...args: readonly unknown[]): ReturnType<Events[K]>
 ```
 
 分发一个事件，其最后一个参数是续接执行的 `next` 回调。
@@ -122,7 +124,7 @@ waterfall<K extends keyof Events>(thisArg: NoInfer<ThisType<Events[K]>>, name: K
 
 **返回值**：最外层监听器的返回值。
 
-[源码](../../vendor/cordis/src/events.ts#L86)
+[源码](../../vendor/cordis/src/events.ts#L88)
 
 ### ctx.on(name, listener, options?)
 
@@ -146,7 +148,7 @@ on<K extends keyof Events>(name: K, listener: Events[K], options?: boolean | Eve
 
 **返回值**：一个用于移除监听器的资源释放函数；如果调用该函数时监听器仍处于注册状态，则返回 `true`。
 
-[源码](../../vendor/cordis/src/events.ts#L97)
+[源码](../../vendor/cordis/src/events.ts#L101)
 
 ### ctx.once(name, listener, options?)
 
@@ -170,7 +172,7 @@ once<K extends keyof Events>(name: K, listener: Events[K], options?: boolean | E
 
 **返回值**：一个用于移除监听器的资源释放函数；如果调用该函数时监听器仍处于注册状态，则返回 `true`。
 
-[源码](../../vendor/cordis/src/events.ts#L106)
+[源码](../../vendor/cordis/src/events.ts#L110)
 
 ## EventOptions
 
@@ -186,7 +188,7 @@ interface EventOptions {
 }
 ```
 
-[源码](../../vendor/cordis/src/events.ts#L112)
+[源码](../../vendor/cordis/src/events.ts#L116)
 
 ## DispatchMode
 

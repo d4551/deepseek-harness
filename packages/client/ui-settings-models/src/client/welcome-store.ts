@@ -5,11 +5,22 @@
  * stays process-local here.
  */
 
+import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION,
 } from '../onboarding-copy.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null) return true
+  if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
 
 /** State rendered by the welcome step. */
 export interface WelcomeNoticeState {
@@ -19,27 +30,23 @@ export interface WelcomeNoticeState {
 }
 
 /** The welcome section as the notice reads it. */
-export type WelcomeSection = Record<string, unknown>
+export type WelcomeSection = { [key: string]: JsonValue }
 
 /**
- * Accept any object section verbatim; a malformed durable value reads as an
- * empty section, so the notice treats it as unacknowledged instead of leaving
- * the scope stuck on its previous value.
+ * Claim a JSON object section. A malformed durable value reads as an empty
+ * section, so the notice treats it as unacknowledged instead of leaving the
+ * scope stuck on its previous value.
  * @param section - the wire section value.
- * @returns the section object, or an empty one for non-object values.
+ * @returns the claimed section, or an empty object for a non-JSON object.
  */
 export function decodeWelcomeSection(section: unknown): WelcomeSection {
-  return typeof section === 'object' && section !== null && !Array.isArray(section)
-    ? section as WelcomeSection
-    : {}
+  if (!isJsonValue(section) || typeof section !== 'object' || section === null || Array.isArray(section)) {
+    return {}
+  }
+  return { ...section }
 }
 
-/* v8 ignore next 3 -- closed-union default only defends future source widening */
-function assertNever(_value: never): never {
-  throw new Error('unexpected welcome settings status')
-}
-
-/** Coordinates durable Host acknowledgement or a process-local remote fallback. */
+/** Coordinates durable Host acknowledgement or a process-local remote acknowledgement. */
 export class WelcomeNoticeStore {
   /** uSES-safe state source shared by the registered welcome step. */
   readonly store: SnapshotStore<WelcomeNoticeState> = createSnapshotStore<WelcomeNoticeState>({
@@ -72,28 +79,32 @@ export class WelcomeNoticeStore {
    * refused or failed write reports false after its recovery read settles.
    * @returns true when the selected persistence mode holds the acknowledgement.
    */
-  async acknowledge(): Promise<boolean> {
+  acknowledge(): Promise<boolean> {
     if (this.scope.getSnapshot().mode === 'memory') {
       this.localAcknowledged = true
       this.derive()
-      return true
+      return Promise.resolve(true)
     }
     this.saving = true
     this.store.update((state) => { state.status = 'saving'; state.error = null })
-    try {
-      await this.scope.set(WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION)
-    } finally {
-      this.saving = false
-    }
-    this.derive()
-    const { acknowledged } = this.store.getSnapshot()
-    if (!acknowledged) {
-      this.store.update((state) => {
-        state.status = 'error'
-        state.error = 'the acknowledgement did not persist'
-      })
-    }
-    return acknowledged
+    return this.scope.set(WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_VERSION).then(
+      () => {
+        this.saving = false
+        this.derive()
+        const { acknowledged } = this.store.getSnapshot()
+        if (!acknowledged) {
+          this.store.update((state) => {
+            state.status = 'error'
+            state.error = 'the acknowledgement did not persist'
+          })
+        }
+        return acknowledged
+      },
+      (reason: Thrown) => {
+        this.saving = false
+        throw reason
+      },
+    )
   }
 
   /** Stop following the scope. */
@@ -133,8 +144,6 @@ export class WelcomeNoticeStore {
         })
         return
       }
-      /* v8 ignore next -- every current settings scope status is handled above */
-      default: return assertNever(scope.status)
     }
   }
 }

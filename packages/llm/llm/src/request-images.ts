@@ -5,6 +5,8 @@ import type { AttachmentId, AttachmentStore, ImageAttachmentRef, ImageRequestPol
 import type { Message } from './message.ts'
 import type { ContentBlock } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function collectImageRefs(blocks: readonly ContentBlock[], refs: Map<string, ImageAttachmentRef>): void {
   for (const block of blocks) {
     if (block.type === 'image') refs.set(imageAttachmentRefKey(block.attachment), block.attachment)
@@ -40,7 +42,7 @@ export async function prepareRequestImages(
   const versions = new Map<AttachmentId, RequestImageAttachment>()
   for (const outcome of outcomes) {
     if (outcome.status === 'rejected') {
-      const reason: unknown = outcome.reason
+      const reason: Thrown = outcome.reason
       throw reason
     }
     versions.set(outcome.value.ref.attachmentId, outcome.value.version)

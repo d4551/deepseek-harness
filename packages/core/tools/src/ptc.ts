@@ -17,6 +17,33 @@ import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { PtcDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'
 import type {} from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected or aborted run_code reason.
+ * Product text for an Error is the first stack line (`Error: msg`).
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    const headline = reason.stack?.split('\n', 1)[0]
+    return headline !== undefined && headline !== '' ? headline : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** The model-facing name of the PTC mode tool. */
 export const RUN_CODE_NAME = 'run_code'
 
@@ -154,8 +181,8 @@ export class CodeRunFailedError extends HarnessError {
 function jsonNormalizeArgs(value: unknown): { dispatched: unknown; logged: unknown } {
   let snapshot: JsonValue | undefined
   try {
-    snapshot = snapshotJsonValue(value) as JsonValue | undefined
-  } catch (error: unknown) {
+    snapshot = snapshotJsonValue(value)
+  } catch (error) {
     throw new Error(`tool arguments must be lossless JSON: ${error instanceof Error ? error.message : String(error)}`)
   }
   if (snapshot === undefined) {
@@ -453,10 +480,21 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         // The abort already fired: the driver abandons queued-unstarted
         // entries, awaits the live pool, and drains the ordered commit lane —
         // including a commit already in progress when the program returned.
-        await drive()
+        let firstFailure: Thrown | undefined
+        await drive().then(undefined, (error: Thrown) => {
+          firstFailure = error
+        })
+        if (inFlight.size > 0) {
+          await Promise.all(
+            [...inFlight].map(pending => pending.then(() => undefined, (_error: Thrown) => {
+              firstFailure ??= _error
+            })),
+          )
+        }
         // Every settle event is appended inside the open run_code turn
         // (tasks self-remove on settlement).
-        while (logWork.size > 0) await Promise.allSettled([...logWork])
+        while (logWork.size > 0) await Promise.allSettled(logWork)
+        if (firstFailure !== undefined) throw firstFailure
       }
 
       // Read through a call, not a bare property: the abort state genuinely
@@ -466,7 +504,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
 
       const binding = (name: string): CodeBindingFunction => async (rawArgs: unknown): Promise<JsonValue> => {
         if (runOver()) {
-          throw new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} not dispatched`)
+          throw new Error(`run_code run is over (${thrownMessage(runController.signal.reason)}); ${name} not dispatched`)
         }
         const normalized = jsonNormalizeArgs(rawArgs)
         const n = ++dispatches
@@ -532,7 +570,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
             // declared; fail-closed exclusive when undeclared/invalid.
             classify: () => registry.executionMode(input).kind,
             abandon: () => {
-              reject(new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} tool call abandoned`))
+              reject(new Error(`run_code run is over (${thrownMessage(runController.signal.reason)}); ${name} tool call abandoned`))
             },
             async start(): Promise<void> {
               exec.agent?.session.append('tool/code-dispatch-start', {
@@ -547,10 +585,16 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               // scheduler. Only the launched body below overlaps.
               const prepared = await scheduler.prepare(input)
               if (prepared.kind === 'dispatch') {
-                this.flight = scheduler.dispatch(prepared.exec).then((dispatchOutcome) => {
-                  parked = { kind: dispatchOutcome.kind, exec: prepared.exec, result: dispatchOutcome.result }
-                  this.settled = true
-                })
+                this.flight = scheduler.dispatch(prepared.exec).then(
+                  (dispatchOutcome) => {
+                    parked = { kind: dispatchOutcome.kind, exec: prepared.exec, result: dispatchOutcome.result }
+                    this.settled = true
+                  },
+                  (error: Thrown) => {
+                    this.settled = true
+                    reject(error)
+                  },
+                )
                 return
               }
               parked = { kind: prepared.kind, exec: prepared.exec, result: prepared.result }
@@ -587,13 +631,13 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
             },
           })
           wakeup()
-          drive().then(undefined, reject)
+          drive().then(undefined, (error: Thrown) => { reject(error) })
         })
         // A budget expiry or outer cancel that occurs while this call was in
         // flight already aborted the dispatch; stop the program now rather
         // than hand it a result from a run that is over.
         if (runOver()) {
-          throw new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} result discarded`)
+          throw new Error(`run_code run is over (${thrownMessage(runController.signal.reason)}); ${name} result discarded`)
         }
         // The worker turns a binding rejection into ToolCallError and adds
         // only the binding name. Native content and internal error metadata

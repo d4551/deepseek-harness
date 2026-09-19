@@ -2,6 +2,8 @@ import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { JsonRpcLineTransport } from '../src/transport.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 describe('transport closing ownership', () => {
   it('joins a handler that closes synchronously and retains its later rejection', async () => {
     const input = new PassThrough()
@@ -24,6 +26,26 @@ describe('transport closing ownership', () => {
     expect(reason).toBeInstanceOf(AggregateError)
     if (!(reason instanceof AggregateError)) throw new Error('missing combined closure')
     expect(reason.errors).toEqual([closing.reason, failure])
+    expect(reason.cause).toBe(closing.reason)
+  })
+
+  it('retains a leftover string notification reject after local close', async () => {
+    const input = new PassThrough()
+    const transport = new JsonRpcLineTransport(input, new PassThrough())
+    const pending = Promise.withResolvers<undefined>()
+    const late: Thrown = 'leftover-late'
+    transport.onNotification(async () => {
+      transport.close()
+      await pending.promise
+    })
+    transport.start()
+    input.write('{"jsonrpc":"2.0","method":"close"}\n')
+    const closing = await transport.closing
+    pending.reject(late)
+    const reason = await transport.closed
+    expect(reason).toBeInstanceOf(AggregateError)
+    if (!(reason instanceof AggregateError)) throw new Error('missing combined closure')
+    expect(reason.errors).toEqual([closing.reason, new Error('leftover-late')])
     expect(reason.cause).toBe(closing.reason)
   })
 
@@ -58,6 +80,27 @@ describe('transport closing ownership', () => {
     expect(reason.cause).toBe(first)
     expect(input.listenerCount('data')).toBe(0)
     expect(output.listenerCount('error')).toBe(0)
+  })
+
+  it('joins the first terminal Error when a late frame rejects with that same Error', async () => {
+    const input = new PassThrough()
+    const transport = new JsonRpcLineTransport(input, new PassThrough())
+    const pending = Promise.withResolvers<undefined>()
+    const entered = Promise.withResolvers<undefined>()
+    const failure = new Error('same terminal failure')
+    transport.onNotification(async (method) => {
+      if (method === 'pending') {
+        entered.resolve(undefined)
+        await pending.promise
+      } else throw failure
+    })
+    transport.start()
+    input.write('{"jsonrpc":"2.0","method":"pending"}\n')
+    await entered.promise
+    input.write('{"jsonrpc":"2.0","method":"failure"}\n')
+    expect(await transport.closing).toEqual({ kind: 'failure', reason: failure })
+    pending.reject(failure)
+    expect(await transport.closed).toBe(failure)
   })
 
   it('distinguishes an owner close from a peer ending its input', async () => {

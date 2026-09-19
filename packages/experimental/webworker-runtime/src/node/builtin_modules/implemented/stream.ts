@@ -22,17 +22,26 @@ type StreamStatics = typeof import('node:stream').Stream & {
 }
 
 const nodeStream = Stream as unknown as StreamRuntime
-
-/* oxlint-disable typescript/unbound-method -- readable-stream's namespace statics do not read `this`. */
-const {
-  Duplex, PassThrough, Readable, Stream: StreamBase, Transform, Writable,
-  addAbortSignal, compose, destroy, finished, isDisturbed, isErrored, isReadable, pipeline, promises,
-} = nodeStream
-const streamStatics = StreamBase as unknown as StreamStatics
-const {
-  getDefaultHighWaterMark, isDestroyed, isWritable, setDefaultHighWaterMark,
-} = streamStatics
-/* oxlint-enable typescript/unbound-method */
+const streamStatics = nodeStream.Stream as unknown as StreamStatics
+const Duplex = nodeStream.Duplex
+const PassThrough = nodeStream.PassThrough
+const Readable = nodeStream.Readable
+const StreamBase = nodeStream.Stream
+const Transform = nodeStream.Transform
+const Writable = nodeStream.Writable
+const addAbortSignal = nodeStream.addAbortSignal.bind(nodeStream)
+const compose = nodeStream.compose.bind(nodeStream)
+const destroy = nodeStream.destroy.bind(nodeStream)
+const finished = nodeStream.finished.bind(nodeStream)
+const isDisturbed = nodeStream.isDisturbed.bind(nodeStream)
+const isErrored = nodeStream.isErrored.bind(nodeStream)
+const isReadable = nodeStream.isReadable.bind(nodeStream)
+const pipeline = nodeStream.pipeline.bind(nodeStream)
+const promises = nodeStream.promises
+const getDefaultHighWaterMark = streamStatics.getDefaultHighWaterMark.bind(streamStatics)
+const isDestroyed = streamStatics.isDestroyed.bind(streamStatics)
+const isWritable = streamStatics.isWritable.bind(streamStatics)
+const setDefaultHighWaterMark = streamStatics.setDefaultHighWaterMark.bind(streamStatics)
 
 // readable-stream tracks Node 18's 16 KiB byte default; this repository runs
 // Node 22+, whose generic and file streams use 64 KiB.

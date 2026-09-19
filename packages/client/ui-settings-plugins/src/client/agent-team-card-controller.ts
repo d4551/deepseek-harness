@@ -23,6 +23,23 @@ export interface AgentTeamSettings {
   maxTasks?: number
 }
 
+/**
+ * Claim one wire section as the Team card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is not a finite number.
+ */
+export function decodeAgentTeamSettings(section: unknown): AgentTeamSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const maxMembers = Reflect.get(section, 'maxMembers')
+  const maxTasks = Reflect.get(section, 'maxTasks')
+  if (maxMembers !== undefined && (typeof maxMembers !== 'number' || !Number.isFinite(maxMembers))) return undefined
+  if (maxTasks !== undefined && (typeof maxTasks !== 'number' || !Number.isFinite(maxTasks))) return undefined
+  const claimed: AgentTeamSettings = {}
+  if (maxMembers !== undefined) claimed.maxMembers = maxMembers
+  if (maxTasks !== undefined) claimed.maxTasks = maxTasks
+  return claimed
+}
+
 /** What the Agent Team card renders. */
 export interface AgentTeamCardState extends CardShell {
   /** Teammate capacity. */

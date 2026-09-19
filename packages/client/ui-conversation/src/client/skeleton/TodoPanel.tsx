@@ -17,10 +17,15 @@ export interface TodoPanelProps {
   t: TodoDockProps['t']
 }
 
-/** Local exhaustiveness helper — client packages do not depend on `dsh-llm`. */
-/* v8 ignore next 3 -- closed-union backstop; only reached if status is forged */
-function assertNever(value: never): never {
-  throw new Error(`unreachable todo status: ${String(value)}`)
+/**
+ * Claim a todo lifecycle status.
+ * @param status - stored or rendered status token.
+ * @returns the portable status.
+ * @throws {Error} when the token is not a TodoItem status.
+ */
+export function requireTodoStatus(status: string): TodoItem['status'] {
+  if (status === 'completed' || status === 'in_progress' || status === 'pending') return status
+  throw new Error(`unreachable todo status: ${status}`)
 }
 
 /** Status glyphs share the figma 14×14 artboard; the 16×16 `.glyph` cell centers them. */
@@ -62,12 +67,10 @@ function PendingGlyph() {
 }
 
 function StatusGlyph({ status }: { status: TodoItem['status'] }) {
-  switch (status) {
+  switch (requireTodoStatus(status)) {
     case 'completed': return <CompletedGlyph />
     case 'in_progress': return <ProgressGlyph />
     case 'pending': return <PendingGlyph />
-    /* v8 ignore next -- closed TodoItem status union */
-    default: return assertNever(status)
   }
 }
 

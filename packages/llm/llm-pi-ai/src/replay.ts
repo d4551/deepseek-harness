@@ -115,28 +115,60 @@ function readReplayState(value: unknown): PiAiReplayState {
   const response = rawResponse as Record<string, unknown>
   if (response['kind'] !== 'pi-ai') return invalidReplay('unknown state kind')
   if (response['version'] !== 2) return invalidReplay(`unsupported version ${String(response['version'])}`)
-  for (const key of ['api', 'provider', 'model'] as const) {
-    if (typeof response[key] !== 'string' || response[key].length === 0) return invalidReplay(`${key} must be a non-empty string`)
-  }
-  if (!['stop', 'length', 'toolUse', 'error', 'aborted'].includes(String(response['stopReason']))) {
-    return invalidReplay('unknown stopReason')
-  }
-  if (response['responseModel'] !== undefined && typeof response['responseModel'] !== 'string') return invalidReplay('responseModel must be a string')
-  if (response['responseId'] !== undefined && typeof response['responseId'] !== 'string') return invalidReplay('responseId must be a string')
   const blocks = envelope['blocks']
   if (!Array.isArray(blocks)) return invalidReplay('blocks must be an array')
-  for (const [index, value] of blocks.entries()) {
+  const narrowBlocks: PiAiReplayBlock[] = blocks.map((value, index) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return invalidReplay(`block ${index} must be an object`)
-    const block = value as Record<string, unknown>
-    if (!['text', 'reasoning', 'tool-call'].includes(String(block['type']))) return invalidReplay(`block ${index} has an unknown type`)
-    for (const signature of ['textSignature', 'thinkingSignature', 'thoughtSignature'] as const) {
-      if (block[signature] !== undefined && typeof block[signature] !== 'string') return invalidReplay(`block ${index} ${signature} must be a string`)
+    if (!('type' in value)) return invalidReplay(`block ${index} has an unknown type`)
+    const type: unknown = value.type
+    if (type === 'text') {
+      if (!('textSignature' in value) || value.textSignature === undefined) return { type: 'text' }
+      if (typeof value.textSignature !== 'string') return invalidReplay(`block ${index} textSignature must be a string`)
+      return { type: 'text', textSignature: value.textSignature }
     }
-    if (block['redacted'] !== undefined && typeof block['redacted'] !== 'boolean') return invalidReplay(`block ${index} redacted must be boolean`)
-  }
+    if (type === 'reasoning') {
+      const thinking: unknown = 'thinkingSignature' in value ? value.thinkingSignature : undefined
+      const redacted: unknown = 'redacted' in value ? value.redacted : undefined
+      if (thinking !== undefined && typeof thinking !== 'string') return invalidReplay(`block ${index} thinkingSignature must be a string`)
+      if (redacted !== undefined && typeof redacted !== 'boolean') return invalidReplay(`block ${index} redacted must be boolean`)
+      return {
+        type: 'reasoning',
+        ...thinking === undefined ? {} : { thinkingSignature: thinking },
+        ...redacted === undefined ? {} : { redacted },
+      }
+    }
+    if (type === 'tool-call') {
+      if (!('thoughtSignature' in value) || value.thoughtSignature === undefined) return { type: 'tool-call' }
+      if (typeof value.thoughtSignature !== 'string') return invalidReplay(`block ${index} thoughtSignature must be a string`)
+      return { type: 'tool-call', thoughtSignature: value.thoughtSignature }
+    }
+    return invalidReplay(`block ${index} has an unknown type`)
+  })
+  const api: unknown = response['api']
+  const provider: unknown = response['provider']
+  const model: unknown = response['model']
+  const stopReason: unknown = response['stopReason']
+  if (typeof api !== 'string' || api.length === 0) return invalidReplay('api must be a non-empty string')
+  if (typeof provider !== 'string' || provider.length === 0) return invalidReplay('provider must be a non-empty string')
+  if (typeof model !== 'string' || model.length === 0) return invalidReplay('model must be a non-empty string')
+  if (stopReason !== 'stop' && stopReason !== 'length' && stopReason !== 'toolUse'
+    && stopReason !== 'error' && stopReason !== 'aborted') return invalidReplay('unknown stopReason')
+  const responseModel: unknown = response['responseModel']
+  const responseId: unknown = response['responseId']
+  if (responseModel !== undefined && typeof responseModel !== 'string') return invalidReplay('responseModel must be a string')
+  if (responseId !== undefined && typeof responseId !== 'string') return invalidReplay('responseId must be a string')
   return {
-    response: response as unknown as PiAiReplayResponse,
-    blocks: blocks as PiAiReplayBlock[],
+    response: {
+      kind: 'pi-ai',
+      version: 2,
+      api: api as Api,
+      provider,
+      model,
+      ...responseModel === undefined ? {} : { responseModel },
+      ...responseId === undefined ? {} : { responseId },
+      stopReason,
+    },
+    blocks: narrowBlocks,
   }
 }
 
@@ -239,7 +271,7 @@ export function toPiAssistant(message: Message, onDegrade?: (reason: string) => 
   if (source.kind !== 'model' || source.replayState === undefined) return foreignAssistant(message)
   try {
     return replayedAssistant(message, source, source.replayState)
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore next -- replayedAssistant throws only INVALID_REPLAY_STATE LlmErrors; the
        guard keeps a future non-replay failure loud instead of silently degrading it */
     if (!(error instanceof LlmError) || error.code !== 'INVALID_REPLAY_STATE') throw error

@@ -3,6 +3,26 @@ import { Button, IconEditOutline16, MarkdownText } from '@deepseek-ai/dsh-client
 import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
 import css from './PlanReviewPanel.module.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** The panel's own props: the question domain face, the narrowed review, and the locale seat. */
 export type PlanReviewPanelProps =
   { pending: PendingQuestion; review: PlanReview } & Pick<QuestionComposerProps, 't'>
@@ -40,10 +60,13 @@ export function PlanReviewPanel({ pending, review, t }: PlanReviewPanelProps) {
   const settle = (send: () => Promise<void>): void => {
     setBusy(true)
     setError(null)
-    send().catch((cause: unknown) => {
-      setBusy(false)
-      setError(cause instanceof Error ? cause.message : String(cause))
-    })
+    send().then(
+      undefined,
+      (reason: Thrown) => {
+        setBusy(false)
+        setError(thrownMessage(reason))
+      },
+    )
   }
   const decide = (label: string): void => {
     settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }))
@@ -61,7 +84,7 @@ export function PlanReviewPanel({ pending, review, t }: PlanReviewPanelProps) {
           <MarkdownText text={review.plan} labels={markdownLabels} />
         </div>
         <div className={css.footer}>
-          <div className={css.feedback} role="status">{error}</div>
+          <output className={css.feedback}>{error}</output>
           <div className={css.actions}>
             <Button
               variant="ghost" className={css.discuss} icon={<IconEditOutline16 size={14} />}

@@ -4,7 +4,7 @@ import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
   ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR,
 } from '../src/client/input/submission-policy.ts'
-import type { ConversationSettings } from '../src/submission-settings.ts'
+import { requireBusyEnterBehavior, type ConversationSettings } from '../src/submission-settings.ts'
 
 describe('ComposerSubmissionPolicy', () => {
   it('defaults to Queue and only applies the preference while running', () => {
@@ -17,7 +17,7 @@ describe('ComposerSubmissionPolicy', () => {
     expect(policy.resolve(true, 'enter', false)).toBe('queue')
     expect(policy.resolve(true, 'accelerated', false)).toBe('queue')
 
-    const changed = vi.fn()
+    const changed = vi.fn<() => void>()
     policy.busyEnter.subscribe(changed)
     policy.setBusyEnter('steer')
     expect(changed).toHaveBeenCalledTimes(1)
@@ -62,5 +62,43 @@ describe('ComposerSubmissionPolicy', () => {
     host.publish({ status: 'ready', value: { busyEnter: 'steer' }, revision: 1, writable: true })
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
+  })
+
+  it('tracks a Host write and publishes persist rejection on that flight', async () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    host.set.mockRejectedValueOnce(new Error('mirror fold failed'))
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setBusyEnter(requireBusyEnterBehavior('steer'))
+    expect(policy.busyEnter.getSnapshot()).toBe('steer')
+    await expect(policy.hostWrite).rejects.toThrow('mirror fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('mirror fold failed')
+    })
+  })
+
+  it('retries a failed persist of the same behavior and clears writeError on Host adopt', async () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    host.set.mockRejectedValueOnce(new Error('mirror fold failed'))
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setBusyEnter(requireBusyEnterBehavior('steer'))
+    await expect(policy.hostWrite).rejects.toThrow('mirror fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('mirror fold failed')
+    })
+    host.set.mockResolvedValueOnce(undefined)
+    policy.setBusyEnter(requireBusyEnterBehavior('steer'))
+    expect(host.set).toHaveBeenCalledTimes(2)
+    await policy.hostWrite
+    expect(policy.writeError.getSnapshot()).toBeNull()
+
+    host.set.mockRejectedValueOnce(new Error('second fold failed'))
+    policy.setBusyEnter(requireBusyEnterBehavior('queue'))
+    await expect(policy.hostWrite).rejects.toThrow('second fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('second fold failed')
+    })
+    host.publish({ status: 'ready', value: { busyEnter: 'queue' }, revision: 3, writable: true })
+    expect(policy.busyEnter.getSnapshot()).toBe('queue')
+    expect(policy.writeError.getSnapshot()).toBeNull()
   })
 })

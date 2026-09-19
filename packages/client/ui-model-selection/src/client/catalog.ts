@@ -47,15 +47,18 @@ export class ModelCatalogDirectory {
         this.store.set({ value: response.value, status: 'ready', error: null })
       }
       return response.value
-    }).catch((error: unknown) => {
-      if (generation === this.generation) {
-        this.store.update((draft) => {
-          draft.status = 'error'
-          draft.error = error instanceof Error ? error.message : String(error)
-        })
-      }
-      throw error
-    }).finally(() => {
+    }).then(
+      value => value,
+      (error: Error) => {
+        if (generation === this.generation) {
+          this.store.update((draft) => {
+            draft.status = 'error'
+            draft.error = error.message
+          })
+        }
+        throw error
+      },
+    ).finally(() => {
       if (generation === this.generation && this.inflight === operation) this.inflight = undefined
     })
     this.inflight = operation
@@ -76,12 +79,12 @@ export class ModelCatalogDirectory {
   /** Invalidate and reload the catalog after a Host-side model input changes. */
   refresh(): void {
     this.invalidate()
-    this.load().catch(() => { /* the selector exposes the shared error */ })
+    this.load().then(() => undefined, () => undefined)
   }
 
   /** Clear Host-specific values and load the replacement Host generation. */
   resetGeneration(): void {
     this.invalidate(true)
-    this.load().catch(() => { /* the selector exposes the shared error */ })
+    this.load().then(() => undefined, () => undefined)
   }
 }

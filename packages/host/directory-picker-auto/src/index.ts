@@ -19,6 +19,8 @@ import { canExecute, hasLinuxChooserBinary } from './probe.ts'
 import type { DirectoryPickerBackendKind } from './resolve.ts'
 import { resolveDirectoryPickerBackend } from './resolve.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 export { canExecute, hasLinuxChooserBinary } from './probe.ts'
 export type { DirectoryPickerBackendKind, DirectoryPickerEnv, DirectoryPickerHostFacts } from './resolve.ts'
 export { resolveDirectoryPickerBackend } from './resolve.ts'
@@ -82,17 +84,18 @@ export async function apply(ctx: Context): Promise<void> {
         await ctx.loader.remove(id)
       }
     }
-    try {
+    const mount = async (): Promise<void> => {
       for (const name of [BACKEND_PACKAGES[backend], SURFACE_PACKAGES[backend]]) {
         ids.push(await ctx.loader.create({ name }))
       }
-    } catch (cause) {
-      // Setup owns the entries it created until it returns the disposer: leaving
-      // the backend mounted would make a retry collide with its own
-      // directoryPicker registration.
-      await unmount()
-      throw cause
     }
+    // Setup owns the entries it created until it returns the disposer: leaving
+    // the backend mounted would make a retry collide with its own
+    // directoryPicker registration.
+    await mount().then(undefined, async (error: Thrown) => {
+      await unmount()
+      throw error
+    })
     return unmount
   }, 'directory-picker-auto: interaction entries')
 }

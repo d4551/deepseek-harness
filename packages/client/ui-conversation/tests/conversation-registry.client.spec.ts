@@ -1,4 +1,4 @@
-import { Context } from '@deepseek-ai/cordis'
+import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -55,7 +55,11 @@ function fakeSession(): SessionFace {
   }
 }
 
-function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBinding } {
+function fakeSessions(ctx: Context): {
+  sessions: ISessions
+  binding: SessionBinding
+  fiber: Fiber
+} {
   const scope = createScope(ctx, SESSION_ID)
   const binding: SessionBinding = {
     sessionId: SESSION_ID,
@@ -90,7 +94,7 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
     sessionOf: candidate => candidate === binding.ctx ? binding.session : undefined,
     binding: id => id === SESSION_ID ? binding : undefined,
   } satisfies ISessions
-  return { sessions, binding }
+  return { sessions, binding, fiber: scope.fiber }
 }
 
 function eventDefinition(kind: string): ConversationNodeDefinition<null> {
@@ -244,5 +248,22 @@ describe('Conversation registries', () => {
     await Promise.resolve()
     expect(rebuild).toHaveBeenCalledTimes(2)
     rebuild.mockRestore()
+  })
+
+  it('refuses an inactive session fiber and still installs a later live fiber for the same session', async () => {
+    const ctx = new Context()
+    const inactive = fakeSessions(ctx)
+    const uiConversation = new UiConversation(ctx, inactive.sessions)
+    await inactive.fiber.dispose()
+
+    expect(() => uiConversation.binding(inactive.binding))
+      .toThrow(`uiConversation.binding: session "${SESSION_ID}" fiber is not active`)
+    expect(() => uiConversation.binding(inactive.binding))
+      .toThrow(`uiConversation.binding: session "${SESSION_ID}" fiber is not active`)
+
+    const live = fakeSessions(ctx)
+    const installed = uiConversation.binding(live.binding)
+    expect(installed).toBe(uiConversation.binding(live.binding))
+    await live.fiber.dispose()
   })
 })

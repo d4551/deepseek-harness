@@ -21,6 +21,8 @@ import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the
  * breadcrumb rows of a listing, every one a jump target.
@@ -78,15 +80,19 @@ export function boundedInsert(window: ListingCandidate[], candidate: ListingCand
   // oversized level costs O(1) per candidate past the head instead of a
   // window scan (100k children against a 1,001 window must not approach
   // 10^8 comparisons).
-  // oxlint-disable-next-line typescript/no-non-null-assertion -- a full window (length === keep >= 1) has a tail
-  if (window.length === keep && candidate.name.localeCompare(window[window.length - 1]!.name) >= 0) return true
+  if (window.length === keep) {
+    const tail = window.at(-1)
+    if (tail === undefined) throw new Error('bounded insert: full window has no tail')
+    if (candidate.name.localeCompare(tail.name) >= 0) return true
+  }
   // Binary insertion keeps a retained candidate at O(log keep) comparisons.
   let lo = 0
   let hi = window.length
   while (lo < hi) {
     const mid = (lo + hi) >>> 1
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- bounded by the loop condition
-    if (candidate.name.localeCompare(window[mid]!.name) < 0) hi = mid
+    const midpoint = window[mid]
+    if (midpoint === undefined) throw new Error('bounded insert: midpoint is missing')
+    if (candidate.name.localeCompare(midpoint.name) < 0) hi = mid
     else lo = mid + 1
   }
   window.splice(lo, 0, candidate)
@@ -109,7 +115,7 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
   if (signal === undefined) return operation
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => {
-      operation.catch(() => {
+      operation.catch((_reason: Thrown) => {
         // Abandoned read: its handle is being closed by the aborting caller,
         // and the abort reason already carried the outcome.
       })
@@ -125,7 +131,7 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (reason: unknown) => {
+      (reason: Thrown) => {
         signal.removeEventListener('abort', onAbort)
         reject(asError(reason))
       },
@@ -134,13 +140,13 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
 }
 
 /** The thrown value as an Error (wire/abort reasons may be anything). */
-function asError(reason: unknown): Error {
+function asError(reason: Thrown): Error {
   return reason instanceof Error ? reason : new Error(String(reason))
 }
 
 /* v8 ignore start -- a close failure of an abandoned handle has no consumer, and forcing one needs a filesystem torn down mid-request. */
 /** Swallow the close failure of a handle its caller already departed. */
-function swallowCloseFailure(): void {}
+function swallowCloseFailure(_reason: Thrown): void {}
 /* v8 ignore stop */
 
 /** Message text of an unknown thrown value. */
@@ -160,16 +166,17 @@ async function directoryRow(
   const path = join(parent, name)
   let enterable = isDirectory
   if (!enterable && isSymbolicLink) {
-    try {
-      // The probe races the caller too: a symlink target on a stalled
-      // network filesystem must not keep a departed caller's request alive.
-      enterable = (await raceAbort(stat(path), signal)).isDirectory()
-    } catch {
-      /* v8 ignore next 2 -- an abort landing mid-probe needs a stalled stat; the per-candidate check in list covers the settled path. */
-      if (signal?.aborted) throw asError(signal.reason)
-      // Broken or cyclic symlink: stat is the probe, failure means "not enterable".
-      return null
-    }
+    // The probe races the caller too: a symlink target on a stalled
+    // network filesystem must not keep a departed caller's request alive.
+    enterable = await raceAbort(stat(path), signal).then(
+      st => st.isDirectory(),
+      (_reason: Thrown) => {
+        /* v8 ignore next 2 -- an abort landing mid-probe needs a stalled stat; the per-candidate check in list covers the settled path. */
+        if (signal?.aborted) throw asError(signal.reason)
+        // Broken or cyclic symlink: stat is the probe, failure means "not enterable".
+        return false
+      },
+    )
   }
   if (!enterable) return null
   // POSIX hidden convention; Windows' hidden attribute is not exposed by
@@ -239,16 +246,16 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       // caller's scan alive, and an already-aborted request rejects even
       // when the level is empty.
       const opening = opendir(target)
-      const level = await raceAbort(opening, signal).catch((error: unknown) => {
+      const level = await raceAbort(opening, signal).catch((reason: Thrown) => {
         // The abandoned open can still mint a handle after the abort won;
         // close it so a departed caller cannot leak a descriptor. (A lost
         // race against opendir's own rejection has nothing to close, and
         // the close's own failure is swallowed — the request already
         // returned, so a cleanup error has no consumer.)
-        opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
+        opening.then(dir => dir.close().catch(swallowCloseFailure), (_reason: Thrown) => {
           // Already rejected: raceAbort surfaced or swallowed it.
         })
-        throw error
+        throw reason
       })
       try {
         for (;;) {
@@ -274,7 +281,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
           await closing
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // An abort is the caller's own reason, not an unreadable directory.
       signal?.throwIfAborted()
       throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${messageOf(error)}`)
@@ -309,16 +316,16 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       throw new DirectoryPickerError('directory-create-failed', join(parent, name), `"${name}" is not a single path segment`)
     }
     const target = join(parent, name)
-    try {
-      // Non-recursive: the parent is the directory the browser is showing, so
-      // a missing parent is a real failure, not a level to invent.
-      await mkdir(target)
-      return target
-    } catch (error: unknown) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST') {
-        throw new DirectoryPickerError('directory-exists', target, `${target} already exists`)
-      }
-      throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${messageOf(error)}`)
-    }
+    // Non-recursive: the parent is the directory the browser is showing, so
+    // a missing parent is a real failure, not a level to invent.
+    return await mkdir(target).then(
+      () => target,
+      (reason: Thrown) => {
+        if (typeof reason === 'object' && reason !== null && 'code' in reason && reason.code === 'EEXIST') {
+          throw new DirectoryPickerError('directory-exists', target, `${target} already exists`)
+        }
+        throw new DirectoryPickerError('directory-create-failed', target, `cannot create ${target}: ${messageOf(reason)}`)
+      },
+    )
   }
 }

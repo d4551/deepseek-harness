@@ -34,12 +34,15 @@ function noPendingInteraction() {
 
 function mount() {
   const policy = new ComposerSubmissionPolicy()
-  const setBusyEnter = vi.fn((behavior: 'queue' | 'steer') => { policy.setBusyEnter(behavior) })
+  const setBusyEnter = vi.fn<(behavior: 'queue' | 'steer') => void>((behavior) => {
+    policy.setBusyEnter(behavior)
+  })
   const props: EnterBehaviorRowProps = {
     useSessions: emptySessions(),
     useSessionPendingInteraction: noPendingInteraction(),
     useWorkspaces: emptyWorkspaces(),
     useBusyEnter: bindSnapshotSelector(policy.busyEnter),
+    useWriteError: bindSnapshotSelector(policy.writeError),
     setBusyEnter,
     t: makeTranslate(en),
   }

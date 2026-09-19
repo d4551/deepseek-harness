@@ -11,8 +11,9 @@ import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } fr
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertNever, deepFreeze, HarnessError } from '@deepseek-ai/dsh-llm'
+import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
+import { snapshotJsonObject, snapshotJsonValue } from '@deepseek-ai/dsh-session'
 import type { JsonValue, UserMessage } from '@deepseek-ai/dsh-session'
 import { FIRST_PARTY_SECTION_ORDER, type ToolProviderResult } from '@deepseek-ai/dsh-system-prompt'
 import type { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
@@ -27,6 +28,8 @@ import type { CodeSdkLanguage } from './ptc.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 import { renderToolsSdkPy } from './py-types.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * Language → SDK-section renderer. The registry looks up the loaded
@@ -310,6 +313,11 @@ declare const toolExecutionTokenBrand: unique symbol
 /** Opaque call identity that permits correlation without exposing mutable execution state. */
 export type ToolExecutionToken = symbol & { readonly [toolExecutionTokenBrand]: true }
 
+/** Mint a same-process correlation token whose identity is its value. */
+export function ToolExecutionToken(): ToolExecutionToken {
+  return Symbol('dsh.tool.execution') as ToolExecutionToken
+}
+
 /**
  * Caller-supplied description of one tool call. {@link ToolRuntime.execute}
  * adds the registry-owned token to form a pipeline {@link ToolExecution};
@@ -426,8 +434,8 @@ export interface ToolRunContext extends ToolExecution {
   concludeTurn(): void
 }
 
-/** Registry-owned live execution object; public pipeline views stay readonly. */
-type MutableToolRunContext = Omit<ToolRunContext, 'signal'> & { signal: AbortSignal }
+/** Registry-owned live execution: the same object wrappers may retarget `signal` on. */
+type LiveToolRunContext = ToolRunContext & { signal: AbortSignal }
 
 /**
  * Scheduler-only result after ordered pre-execute and guards. A `post-result`
@@ -533,29 +541,72 @@ function projectionError(toolName: string, projector: 'render' | 'presentationMe
 }
 
 /** Snapshot one projector result before later durable-result materialization. */
-function snapshotProjection<T>(toolName: string, projector: 'render' | 'presentationMeta', candidate: T): T {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) {
-      throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
-    }
-    return detached
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw projectionError(toolName, projector, error)
+function snapshotProjection(toolName: string, projector: 'render' | 'presentationMeta', candidate: unknown): JsonValue {
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) {
+    throw new ToolOutputError(toolName, [`output.${projector} returned non-lossless JSON`])
   }
+  return detached
 }
 
 /** Snapshot one body or policy value into the canonical invalid-output failure class. */
 function snapshotToolValue(toolName: string, candidate: unknown): JsonValue {
-  try {
-    const detached = snapshotJsonValue(candidate)
-    if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
-    return detached as JsonValue
-  } catch (error: unknown) {
-    if (error instanceof ToolOutputError) throw error
-    throw new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`])
+  const detached = snapshotJsonValue(candidate)
+  if (detached === undefined) throw new ToolOutputError(toolName, ['value is not lossless JSON'])
+  return detached
+}
+
+/** Classify a post-body snapshot throw as invalid tool output. */
+function toolOutputSnapshotResult(toolName: string, error: unknown): ToolExecutionResult {
+  if (error instanceof ToolOutputError) return toolErrorResult(error)
+  return toolErrorResult(new ToolOutputError(toolName, [`value snapshot failed: ${errorMessage(error)}`]))
+}
+
+/** Confirm a JSON value is an array of merge-extensible content blocks. */
+function assertContentBlocks(value: object): asserts value is ContentBlock[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('tool result content must be an array of content blocks')
   }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('tool result content must contain content-block objects')
+    }
+    if (!('type' in item) || typeof item.type !== 'string') {
+      throw new TypeError('tool result content block must have a string type')
+    }
+  }
+}
+
+/** Confirm a JSON value is an array of user messages. */
+function assertUserMessages(value: object): asserts value is UserMessage[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('tool result additionalContexts must be an array of messages')
+  }
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('tool result additionalContexts must contain message objects')
+    }
+  }
+}
+
+/** Detach one tool failure through the lossless JSON boundary. */
+function snapshotToolFailure(error: ToolFailure): ToolFailure {
+  const snapshot = snapshotJsonValue(error)
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  if (typeof snapshot.message !== 'string') {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  const info = snapshot.info
+  if (info === undefined) return { message: snapshot.message }
+  if (typeof info !== 'object' || info === null || Array.isArray(info)) {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  if (typeof info.name !== 'string' || typeof info.code !== 'string') {
+    throw new TypeError('tool result must be losslessly JSON-serializable')
+  }
+  return { message: snapshot.message, info: { name: info.name, code: info.code } }
 }
 
 /** Successful canonical tool execution, including its Native/model projection. */
@@ -606,25 +657,39 @@ export type PostToolDecision =
   | { kind: 'block'; feedback: ContentBlock[]; additionalContexts?: UserMessage[] }
 
 /**
- * Best-effort human-readable message from an arbitrary thrown value: Error
- * instances use `.message`; non-Error objects with a string `message`
- * property (e.g. `throw { message: 'denied' }`) use it too; everything else
- * is stringified.
+ * Human text for a thrown value: Error.message, a non-Error string
+ * `message` property, primitive String, null/undefined literals, or the
+ * object's toString tag.
  */
 function errorMessage(error: unknown): string {
-  try {
-    if (error instanceof Error) return error.message
-    if (typeof error === 'object' && error !== null
+  let text = '<unprintable thrown value>'
+  new Promise((resolve: (value: string) => void) => {
+    if (error instanceof Error) {
+      text = error.message
+    } else if (typeof error === 'object' && error !== null
       && 'message' in error && typeof error.message === 'string') {
-      return error.message
+      text = error.message
+    } else {
+      switch (typeof error) {
+        case 'string':
+        case 'number':
+        case 'boolean':
+        case 'bigint':
+        case 'symbol':
+        case 'function':
+          text = String(error)
+          break
+        case 'undefined':
+          text = 'undefined'
+          break
+        case 'object':
+          text = error === null ? 'null' : Object.prototype.toString.call(error)
+          break
+      }
     }
-    return String(error)
-  } catch {
-    // A hostile thrown value can trap `instanceof`, property access, or string
-    // coercion. Error normalization is the outermost safety boundary, so its
-    // fallback must itself be total.
-    return '<unprintable thrown value>'
-  }
+    resolve(text)
+  }).then(() => undefined, (_error: Thrown) => {})
+  return text
 }
 
 /** Derive one failure message from policy feedback without changing its rendered blocks. */
@@ -635,22 +700,26 @@ function failureMessageFromContent(content: ContentBlock[]): string {
   return text.length > 0 ? text : 'tool result blocked by post-execute policy'
 }
 
-/** Snapshot and freeze one durable tool-result projection or reject lossy data. */
-function materializePresentation<T>(candidate: T): T {
+/** Snapshot and freeze one JSON Schema node or reject lossy data. */
+function materializeJsonSchema(candidate: unknown): JsonSchemaNode {
   const detached = snapshotJsonValue(candidate)
   if (detached === undefined) {
     throw new TypeError('tool result must be losslessly JSON-serializable')
   }
+  assertSupportedJsonSchema(detached)
   return deepFreeze(detached)
 }
 
 /** Structured `{ name, code }` for a thrown HarnessError, else undefined. */
 function errorInfo(error: unknown): ToolErrorInfo | undefined {
-  try {
-    return error instanceof HarnessError ? { name: error.name, code: error.code } : undefined
-  } catch {
-    return undefined
-  }
+  let info: ToolErrorInfo | undefined
+  new Promise((resolve: (value: undefined) => void) => {
+    if (error instanceof HarnessError) {
+      info = { name: error.name, code: error.code }
+    }
+    resolve(undefined)
+  }).then(() => undefined, (_error: Thrown) => {})
+  return info
 }
 
 /** How the registry presents its tools to the model (see {@link Config.mode}). */
@@ -896,7 +965,6 @@ export class ToolRuntime extends Service {
         // Own-property read: a language like `toString`/`constructor` would
         // otherwise resolve an inherited Object.prototype member as a renderer.
         const render = SDK_RENDERERS[runtime.language]
-        /* v8 ignore next -- requireCodeRuntime rejects an unknown language before this runs. */
         if (render === undefined) throw new Error(`dsh-tools: no SDK renderer for ${runtime.language}`)
         return render(this.sdkSchemas(context.scope))
       },
@@ -1050,14 +1118,15 @@ export class ToolRuntime extends Service {
    */
   register(definition: ToolDefinition): () => void {
     const name = definition.name
-    const output = (definition as Partial<ToolDefinition>).output
-    if (output === undefined || typeof output !== 'object'
-      || typeof output.render !== 'function'
+    if (!('output' in definition) || typeof definition.output !== 'object' || definition.output === null) {
+      throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
+    }
+    const output = definition.output
+    if (typeof output.render !== 'function'
       || (output.presentationMeta !== undefined && typeof output.presentationMeta !== 'function')) {
       throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
     }
-    const outputSchema = materializePresentation(output.schema)
-    assertSupportedJsonSchema(outputSchema)
+    const outputSchema = materializeJsonSchema(output.schema)
     const timeoutMs = definition.timeoutMs
     if (timeoutMs !== undefined
       && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
@@ -1073,7 +1142,7 @@ export class ToolRuntime extends Service {
     if (effect !== undefined && effect !== 'none') {
       throw new TypeError(`tool "${name}" directWorkspaceEffect must be none when declared`)
     }
-    const parameters = snapshotJsonValue(definition.parameters)
+    const parameters = snapshotJsonObject(definition.parameters)
     if (parameters === undefined) {
       throw new TypeError(`tool "${name}" parameters must be lossless JSON before schema projection`)
     }
@@ -1279,10 +1348,10 @@ export class ToolRuntime extends Service {
       .filter(({ implementation }) => implementation.name !== RUN_CODE_NAME)
       .map(({ implementation: definition }): ToolSdkSchema => {
         const output = snapshotJsonValue(definition.output.schema)
-        /* v8 ignore next -- registration already validated and retained this schema as lossless JSON. */
         if (output === undefined) {
           throw new Error(`tool "${definition.name}" output schema must be lossless JSON before SDK projection`)
         }
+        assertSupportedJsonSchema(output)
         return {
           ...this.schemaOf(definition, true),
           output,
@@ -1293,7 +1362,7 @@ export class ToolRuntime extends Service {
   /** Project one definition onto the model-facing schema fields. */
   private schemaOf(definition: ToolDefinition, detachParameters: boolean): ToolSchema {
     const { name, description, parameters } = definition
-    const detached = detachParameters ? snapshotJsonValue(parameters) : parameters
+    const detached = detachParameters ? snapshotJsonObject(parameters) : parameters
     if (detached === undefined) {
       throw new Error(`tool "${name}" parameters must be lossless JSON before schema projection`)
     }
@@ -1337,7 +1406,7 @@ export class ToolRuntime extends Service {
         scopeTarget(this, dispatch.agent), 'tools/ptc-dispatch-log', dispatch,
         () => Promise.resolve(dispatch.content),
       )
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`tools: ptc-dispatch-log listener failed for ${dispatch.name}: ${errorMessage(error)}; logging the original settled content`)
       return dispatch.content
     }
@@ -1393,15 +1462,14 @@ export class ToolRuntime extends Service {
         return await this.finalizeScheduledExecution(prepared.exec, prepared.result)
       case 'final-result':
         return this.finishScheduledExecution(prepared.exec, prepared.result)
-      /* v8 ignore next -- closed-union exhaustiveness guard */
       default:
         return assertNever(prepared, 'scheduled tool preparation')
     }
   }
 
-  private createExecution(exec: ToolExecutionInput): ScheduledToolPreparation | { kind: 'ready'; exec: MutableToolRunContext } {
+  private createExecution(exec: ToolExecutionInput): ScheduledToolPreparation | { kind: 'ready'; exec: LiveToolRunContext } {
     const deferredContexts: UserMessage[] = []
-    const token = createExecutionToken()
+    const token = ToolExecutionToken()
     const callId = exec.callId
     const rootCallId = exec.rootCallId ?? callId
     const name = exec.name
@@ -1419,6 +1487,7 @@ export class ToolRuntime extends Service {
     const visible = registration?.definition
     const collapsed = visible !== undefined && this.collapses(name, agent, parent !== undefined)
     const concludingExecutions = this.concludingExecutions
+    let execution: LiveToolRunContext | undefined
     const base = {
       token,
       callId,
@@ -1431,7 +1500,10 @@ export class ToolRuntime extends Service {
         deferredContexts.push(context)
       },
       concludeTurn(): void {
-        concludingExecutions.add(this as unknown as ToolExecution)
+        if (execution === undefined) {
+          throw new Error('tool registry scheduler invariant violated: concludeTurn before execution mint')
+        }
+        concludingExecutions.add(execution)
       },
     }
     // Capture the finalizer BEFORE argument materialization: the
@@ -1452,15 +1524,16 @@ export class ToolRuntime extends Service {
       if (detached === undefined) {
         throw new TypeError('tool execution arguments must be losslessly JSON-serializable')
       }
-      const execution: MutableToolRunContext = { ...base, arguments: deepFreeze(detached) }
-      Object.defineProperty(execution, 'directWorkspaceEffect', {
+      const minted: LiveToolRunContext = { ...base, arguments: deepFreeze(detached) }
+      execution = minted
+      Object.defineProperty(minted, 'directWorkspaceEffect', {
         value: collapsed ? undefined : registration?.implementation.directWorkspaceEffect,
         enumerable: true,
       })
-      if (registration !== undefined) this.executionRegistrations.set(execution, registration)
-      this.deferredContexts.set(execution, deferredContexts)
-      this.contentFinalizers.set(execution, finalizerFor())
-      this.cancellationStates.set(execution, {
+      if (registration !== undefined) this.executionRegistrations.set(minted, registration)
+      this.deferredContexts.set(minted, deferredContexts)
+      this.contentFinalizers.set(minted, finalizerFor())
+      this.cancellationStates.set(minted, {
         callerSignal: signal,
         bodyInvoked: false,
       })
@@ -1471,7 +1544,7 @@ export class ToolRuntime extends Service {
         // final-results, so honor the abort here instead of surfacing
         // `UNKNOWN_TOOL` on an already-cancelled call.
         if (signal.aborted) {
-          return { kind: 'final-result', exec: execution, result: toolAbortedBeforeDispatchResult() }
+          return { kind: 'final-result', exec: minted, result: toolAbortedBeforeDispatchResult() }
         }
         // The name IS visible here, so the denial carries the route the model
         // must take instead. Without it the model reads a bare `unknown tool`
@@ -1479,18 +1552,19 @@ export class ToolRuntime extends Service {
         // broken rather than correcting itself.
         return {
           kind: 'final-result',
-          exec: execution,
+          exec: minted,
           result: toolErrorResult(new ToolNotFoundError(
             name,
             `only \`${RUN_CODE_NAME}\` is callable directly — call \`${name}\` from inside a \`${RUN_CODE_NAME}\` program instead`,
           )),
         }
       }
-      return { kind: 'ready', exec: execution }
-    } catch (error: unknown) {
-      const execution: MutableToolRunContext = { ...base, arguments: undefined }
-      this.contentFinalizers.set(execution, finalizerFor())
-      return { kind: 'final-result', exec: execution, result: toolErrorResult(error) }
+      return { kind: 'ready', exec: minted }
+    } catch (error) {
+      const failed: LiveToolRunContext = { ...base, arguments: undefined }
+      execution = failed
+      this.contentFinalizers.set(failed, finalizerFor())
+      return { kind: 'final-result', exec: failed, result: toolErrorResult(error) }
     }
   }
 
@@ -1545,7 +1619,7 @@ export class ToolRuntime extends Service {
         return await next({ kind: 'post-result', exec, result: toolAbortedBeforeDispatchResult() })
       }
       return await next({ kind: 'dispatch', exec })
-    } catch (error: unknown) {
+    } catch (error) {
       return next({ kind: 'final-result', exec, result: toolErrorResult(error) })
     }
   }
@@ -1553,7 +1627,6 @@ export class ToolRuntime extends Service {
   /** Whether the original caller signal is currently aborted. */
   private callerCancelled(exec: ToolRunContext): boolean {
     const state = this.cancellationStates.get(exec)
-    /* v8 ignore next -- only registry-minted executions reach the staged scheduler methods */
     if (state === undefined) throw new Error('tool registry scheduler invariant violated: missing cancellation state')
     return state.callerSignal.aborted
   }
@@ -1572,7 +1645,6 @@ export class ToolRuntime extends Service {
   /** Canonical cancellation outcome selected by whether the tool body started. */
   private cancellationResult(exec: ToolRunContext, prior?: ToolExecutionResult): ToolExecutionResult {
     const state = this.cancellationStates.get(exec)
-    /* v8 ignore next -- only registry-minted executions reach the staged scheduler methods */
     if (state === undefined) throw new Error('tool registry scheduler invariant violated: missing cancellation state')
     return state.bodyInvoked
       ? toolAbortedResult(prior)
@@ -1584,9 +1656,8 @@ export class ToolRuntime extends Service {
    * into any around-wrapper replacement. Cancellation never abandons the body:
    * a started promise reaches quiescence before its outcome becomes `ABORTED`.
    */
-  private async dispatchToolBody(exec: MutableToolRunContext): Promise<ToolExecutionResult> {
+  private async dispatchToolBody(exec: LiveToolRunContext): Promise<ToolExecutionResult> {
     const state = this.cancellationStates.get(exec)
-    /* v8 ignore next -- only registry-minted executions reach the staged scheduler methods */
     if (state === undefined) throw new Error('tool registry scheduler invariant violated: missing cancellation state')
     const wrapperSignal = exec.signal
     const fused = fuseToolSignals(state.callerSignal, wrapperSignal)
@@ -1597,16 +1668,18 @@ export class ToolRuntime extends Service {
       return toolAbortedBeforeDispatchResult()
     }
     exec.signal = signal
+    let snapshotting = false
     try {
       const tool = this.registeredExecution(exec)
       state.bodyInvoked = true
       const returned = await tool.execute(exec.arguments, exec)
+      snapshotting = true
       const result = this.createSuccessResult(exec, tool, returned)
       return isAborted(signal)
         ? toolAbortedResult(result)
         : result
-    } catch (error: unknown) {
-      return toolErrorResult(error)
+    } catch (error) {
+      return snapshotting ? toolOutputSnapshotResult(exec.name, error) : toolErrorResult(error)
     } finally {
       fused.dispose()
       exec.signal = wrapperSignal
@@ -1622,15 +1695,14 @@ export class ToolRuntime extends Service {
    */
   private async dispatchScheduledExecution(exec: ToolRunContext): Promise<ScheduledToolDispatch> {
     try {
-      const mutableExec = exec as MutableToolRunContext
+      const liveExec = Object.assign(exec, { signal: exec.signal })
       const carrier = scopeTarget(this, exec.agent)
       const result = await this.ctx.waterfall(
-        carrier, 'tools/execute', mutableExec,
-        () => this.dispatchToolBody(mutableExec),
+        carrier, 'tools/execute', liveExec,
+        () => this.dispatchToolBody(liveExec),
       )
       const normalized = this.normalizeDispatchResult(exec, result)
       const deferredContexts = this.deferredContexts.get(exec)
-      /* v8 ignore next -- dispatch only receives executions minted by this registry's prepare stage */
       if (deferredContexts === undefined) throw new Error('tool registry scheduler invariant violated: unprepared execution')
       const resultWithDeferredContexts: ToolExecutionResult = deferredContexts.length === 0
         ? normalized
@@ -1647,7 +1719,7 @@ export class ToolRuntime extends Service {
           ? this.cancellationResult(exec, resultWithDeferredContexts)
           : resultWithDeferredContexts,
       }
-    } catch (error: unknown) {
+    } catch (error) {
       return { kind: 'final-result', result: toolErrorResult(error) }
     }
   }
@@ -1669,7 +1741,7 @@ export class ToolRuntime extends Service {
           ? this.cancellationResult(exec, postResult)
           : postResult,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       return this.finishScheduledExecution(exec, toolErrorResult(error))
     }
   }
@@ -1686,13 +1758,13 @@ export class ToolRuntime extends Service {
     let materializedResult: ToolExecutionResult
     try {
       materializedResult = this.materializeFinalResult(result)
-    } catch (error: unknown) {
+    } catch (error) {
       materializedResult = this.materializeFinalResult(toolErrorResult(error))
     }
     let finalResult: ToolExecutionResult
     try {
       finalResult = this.materializeFinalResult(this.applyFinalContent(exec, materializedResult))
-    } catch (error: unknown) {
+    } catch (error) {
       finalResult = this.materializeFinalResult(toolErrorResult(error))
     }
     this.notifyResult(exec, finalResult)
@@ -1713,19 +1785,18 @@ export class ToolRuntime extends Service {
     // WeakMap-keyable view.
     Object.freeze(exec)
     const { name: toolName, callId } = exec
-    const reportFailure = (error: unknown): void => {
-      this.ctx.logger.warn(`tool "${toolName}" (${callId}): tools/result observer failed: ${errorMessage(error)}`)
+    const reportFailure = (error: Parameters<typeof renderListenerFailure>[0]): void => {
+      this.ctx.logger.warn(`tool "${toolName}" (${callId}): tools/result observer failed: ${renderListenerFailure(error)}`)
     }
     const callbacks = this.ctx.events.dispatch('emit', [
       scopeTarget(this, exec.agent), 'tools/result', exec, result,
     ])
     for (const callback of callbacks) {
-      try {
-        const returned: unknown = callback(exec, result)
-        Promise.resolve(returned).catch(reportFailure)
-      } catch (error: unknown) {
-        reportFailure(error)
-      }
+      observeListenerInvocation(
+        () => callback(exec, result),
+        reportFailure,
+        reportFailure,
+      )
     }
   }
 
@@ -1851,28 +1922,36 @@ export class ToolRuntime extends Service {
     let rendered: ContentBlock[]
     try {
       rendered = tool.output.render(exec.arguments, value)
-    } catch (error: unknown) {
+    } catch (error) {
       throw projectionError(tool.name, 'render', error)
     }
     const content = snapshotProjection(tool.name, 'render', rendered)
+    if (typeof content !== 'object' || content === null) {
+      throw new ToolOutputError(tool.name, ['output.render returned non-lossless JSON'])
+    }
+    assertContentBlocks(content)
     let meta: JsonValue | undefined
     if (exec.parent === undefined && tool.output.presentationMeta !== undefined) {
       let projected: JsonValue
       try {
         projected = tool.output.presentationMeta(exec.arguments, value)
-      } catch (error: unknown) {
+      } catch (error) {
         throw projectionError(tool.name, 'presentationMeta', error)
       }
       meta = snapshotProjection(tool.name, 'presentationMeta', projected)
     }
     const concludesTurn = this.concludingExecutions.has(exec)
-    return this.markCanonical(exec, this.materializeFinalResult({
+    const materialized = this.materializeFinalResult({
       isError: false,
       value,
       content,
       ...meta !== undefined ? { meta } : {},
       ...concludesTurn ? { concludesTurn: true as const } : {},
-    }) as ToolExecutionSuccess)
+    })
+    if (materialized.isError) {
+      throw new ToolOutputError(tool.name, ['success materialization produced a failure result'])
+    }
+    return this.markCanonical(exec, materialized)
   }
 
   /** Normalize an around-dispatch wrapper's authored result through the owning output contract. */
@@ -1897,26 +1976,46 @@ export class ToolRuntime extends Service {
 
   /** Materialize the authoritative commit outcome once, immediately before `tools/result`. */
   private materializeFinalResult(result: ToolExecutionResult): ToolExecutionResult {
-    const presentation = {
-      content: result.content,
-      ...result.meta !== undefined ? { meta: result.meta } : {},
-      ...result.additionalContexts !== undefined ? { additionalContexts: result.additionalContexts } : {},
+    const contentJson = snapshotJsonValue(result.content)
+    if (contentJson === undefined || typeof contentJson !== 'object' || contentJson === null) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    assertContentBlocks(contentJson)
+    const meta = result.meta === undefined ? undefined : snapshotJsonValue(result.meta)
+    if (result.meta !== undefined && meta === undefined) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    const additional = result.additionalContexts === undefined
+      ? undefined
+      : snapshotJsonValue(result.additionalContexts)
+    if (result.additionalContexts !== undefined && additional === undefined) {
+      throw new TypeError('tool result must be losslessly JSON-serializable')
+    }
+    if (additional !== undefined) {
+      if (typeof additional !== 'object' || additional === null) {
+        throw new TypeError('tool result must be losslessly JSON-serializable')
+      }
+      assertUserMessages(additional)
+    }
+    const snapped = {
+      content: contentJson,
+      ...meta === undefined ? {} : { meta },
+      ...additional === undefined ? {} : { additionalContexts: additional },
     }
     if (result.isError) {
-      return materializePresentation({ isError: true as const, error: result.error, ...presentation })
+      return deepFreeze({
+        isError: true as const,
+        error: snapshotToolFailure(result.error),
+        ...snapped,
+      })
     }
-    const detached = materializePresentation({
+    return deepFreeze({
       isError: false as const,
-      ...presentation,
+      value: result.value,
+      ...snapped,
       ...result.concludesTurn === true ? { concludesTurn: true as const } : {},
     })
-    return deepFreeze({ ...detached, value: result.value })
   }
-}
-
-/** Mint a same-process correlation token whose identity is its value. */
-function createExecutionToken(): ToolExecutionToken {
-  return Symbol('dsh.tool.execution') as ToolExecutionToken
 }
 
 function toolErrorResult(error: unknown): ToolExecutionResult {
@@ -1950,7 +2049,7 @@ function fuseToolSignals(caller: AbortSignal, wrapper: AbortSignal): FusedToolSi
     wrapper.removeEventListener('abort', abortFromWrapper)
   }
   const abortFrom = (source: AbortSignal): void => {
-    const reason: unknown = source.reason
+    const reason: Thrown = source.reason
     controller.abort(reason)
     dispose()
   }

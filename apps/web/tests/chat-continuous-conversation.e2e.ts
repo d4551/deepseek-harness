@@ -215,7 +215,9 @@ describe('web e2e: continuous conversation grown through the composer', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'continuous Chat e2e cleanup failed')
   })
 
-  it.skipIf(MODE === 'record')('keeps twelve generated turns and tool rows bound to one live session', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] chat-continuous-conversation.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('keeps twelve generated turns and tool rows bound to one live session', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-chat-continuous-conversation'))
     const composer = page.locator('[data-composer-input][contenteditable="true"]').last()
     await composer.waitFor({ timeout: 15_000 })

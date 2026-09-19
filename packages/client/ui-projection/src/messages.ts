@@ -42,12 +42,48 @@ export interface InboxState {
  * @param splice - the logged splice.
  * @returns the next cumulative state.
  */
+function inboxIdentity(value: unknown): InboxIdentity {
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('inbox identity is not an object')
+  }
+  const id: unknown = Reflect.get(value, 'id')
+  if (typeof id !== 'string') throw new TypeError('inbox identity id is not a string')
+  return { id }
+}
+
+function inboxState(value: unknown): InboxState {
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('inbox predecessor State is not an object')
+  }
+  const pending: unknown = Reflect.get(value, 'pending')
+  const claimed: unknown = Reflect.get(value, 'claimed')
+  if (!Array.isArray(pending) || !(claimed instanceof Set)) {
+    throw new TypeError('inbox predecessor State is not InboxState')
+  }
+  const identities: InboxIdentity[] = []
+  for (let index = 0; index < pending.length; index++) {
+    identities.push(inboxIdentity(Reflect.get(pending, index)))
+  }
+  const claimedIds = new Set<string>()
+  for (const id of claimed) {
+    if (typeof id !== 'string') throw new TypeError('inbox claimed identity is not a string')
+    claimedIds.add(id)
+  }
+  return { pending: identities, claimed: claimedIds }
+}
+
+/** Read Inbox State from a predecessor Context, when one exists. */
+export function readInboxState(previous: ConversationPreviousContext | undefined): InboxState | undefined {
+  return previous === undefined ? undefined : inboxState(previous.state)
+}
+
 export function applyInboxSplice(
-  previous: ConversationPreviousContext<InboxState> | undefined,
+  previous: ConversationPreviousContext | undefined,
   splice: InboxSplice,
 ): InboxState {
-  const pending = [...(previous?.state.pending ?? [])]
-  const claimed = new Set(previous?.state.claimed ?? [])
+  const state = readInboxState(previous)
+  const pending = [...(state?.pending ?? [])]
+  const claimed = new Set(state?.claimed ?? [])
   const removed = pending.splice(splice.start, splice.removedCount ?? 0, ...splice.inserted)
   for (const identity of splice.inserted) claimed.delete(identity.id)
   if (splice.target === 'next-step' && splice.outcome !== 'canceled') {

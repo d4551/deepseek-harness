@@ -194,6 +194,26 @@ const DEFAULT_PARTIAL_TEXT = 'discarded partial response'
 const DEFAULT_REASONING_TEXT = 'mock reasoning'
 const CONCRETE_BEHAVIORS = new Set<string>(MOCK_LLM_BEHAVIORS.filter(behavior => behavior !== 'random'))
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 function boundedInteger(name: string, value: number, min: number, max: number): number {
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new Error(`llm-mock-server: ${name} must be an integer between ${min} and ${max}`)
@@ -699,11 +719,11 @@ export async function startMockLlmServer(options: MockLlmServerOptions): Promise
 
   const server = createServer((request, response) => {
     /* v8 ignore start -- last-resort containment for Node response failures after validated test inputs */
-    handle(request, response).catch((error: unknown) => {
+    handle(request, response).catch((error: Thrown) => {
       const record = requests.at(-1)
       if (record !== undefined) finishRecord(resolved, record, 'server_error')
       if (response.headersSent) {
-        response.destroy(error instanceof Error ? error : new Error(String(error)))
+        response.destroy(error instanceof Error ? error : new Error(thrownMessage(error)))
         return
       }
       response.writeHead(500, { 'content-type': 'application/json' })

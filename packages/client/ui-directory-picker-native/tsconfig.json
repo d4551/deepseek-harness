@@ -19,6 +19,9 @@
     },
     {
       "path": "../ui-workspace"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

@@ -36,13 +36,15 @@
     "@deepseek-ai/dsh-document-queue": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-settings": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "workspace:^",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-thrown": "workspace:^",
     "chokidar": "^5.0.0",
     "@deepseek-ai/dsh-atomic-write": "workspace:^",
     "@deepseek-ai/dsh-document-queue": "workspace:^",

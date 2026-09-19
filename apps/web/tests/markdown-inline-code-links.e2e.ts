@@ -103,7 +103,9 @@ describe('web e2e: Markdown inline-code links', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('opens a complete HTTP URL from inline code and leaves other code inert', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] markdown-inline-code-links.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('opens a complete HTTP URL from inline code and leaves other code inert', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-inline-code-links'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

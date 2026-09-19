@@ -5,10 +5,14 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronUpOutline14, IconCloseOutline16,
   IconEditOutline16, IconQueueOutline14, IconSendOutline14, IconTrashOutline16, projectUserText, Tooltip,
+  useFocusWhen,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { QueueAction, QueueItemId } from '../contract/queue.ts'
 import { NS } from '../locales.ts'
 import css from './QueueDock.module.css'
+
+/** Values a queue mutation promise may reject with. */
+type QueueActionFailure = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** Queue operations injected by the session-scoped registration. */
 export interface QueueDockInjected {
@@ -29,6 +33,8 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
   const running = useSession(s => s.running)
   const queueMutable = useSession(s => s.subagent === null)
   const [editing, setEditing] = useState<{ id: QueueItemId; text: string } | null>(null)
+  const editorOpen = editing !== null && queueMutable && queue.some(row => row.id === editing.id)
+  const editorRef = useFocusWhen<HTMLInputElement>(editorOpen)
   const [busy, setBusy] = useState<QueueItemId | null>(null)
   const [collapsed, setCollapsed] = useState(true)
   const listId = useId()
@@ -44,21 +50,41 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
   const expanded = !collapsed || interactionActive
   const listVisible = queue.length === 1 || expanded
 
-  const applyAction = async (
+  const applyAction = (
     itemId: QueueItemId,
     action: QueueAction,
     failure: string,
   ): Promise<boolean> => {
     setBusy(itemId)
-    try {
-      await updateQueue(itemId, action)
-      return true
-    } catch {
-      notify('error', failure)
-      return false
-    } finally {
+    const clearBusy = (): void => {
       setBusy(current => current === itemId ? null : current)
     }
+    const reportFailure = (reason: QueueActionFailure): false => {
+      let text: string
+      if (reason instanceof Error) text = reason.message
+      else {
+        switch (typeof reason) {
+          case 'string': text = reason; break
+          case 'number':
+          case 'boolean':
+          case 'bigint':
+          case 'symbol':
+          case 'function':
+            text = String(reason); break
+          case 'undefined':
+            text = 'undefined'; break
+          case 'object':
+            text = reason === null ? 'null' : Object.prototype.toString.call(reason)
+        }
+      }
+      notify('error', `${failure}: ${text}`)
+      clearBusy()
+      return false
+    }
+    return updateQueue(itemId, action).then(() => {
+      clearBusy()
+      return true
+    }, reportFailure)
   }
 
   const saveEdit = async (): Promise<void> => {
@@ -97,7 +123,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
               {editing?.id === row.id
                 ? (
                   <input
-                    autoFocus
+                    ref={editorRef}
                     className={css.editor}
                     aria-label={t('queue.edit')}
                     value={editing.text}

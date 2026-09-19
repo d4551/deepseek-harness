@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 /** Section, setup-card, and hand-written editor behavior over a scripted wire face. */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import Schema from '@deepseek-ai/schemastery'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { CustomProviderCard } from '../src/client/CustomProviderCard.tsx'
 import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
 } from '../src/client/ModelsSection.tsx'
@@ -148,17 +149,17 @@ function scriptedFace(overrides: {
   unset?: ReturnType<typeof vi.fn>
 } = {}) {
   const providerNamespace = wireNamespaces().find(view => view.ns === 'llm-pi-ai')!
-  const update = overrides.update ?? vi.fn(() => Promise.resolve(remoteOk(providerNamespace)))
-  const mutate = overrides.mutate ?? vi.fn(() => Promise.resolve(remoteOk(providerNamespace)))
-  const set = overrides.set ?? vi.fn(() => Promise.resolve(remoteOk(undefined)))
-  const unset = overrides.unset ?? vi.fn(() => Promise.resolve(remoteOk(undefined)))
+  const update = overrides.update ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(providerNamespace)))
+  const mutate = overrides.mutate ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(providerNamespace)))
+  const set = overrides.set ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(undefined)))
+  const unset = overrides.unset ?? vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(undefined)))
   const face = {
     llm: {
-      listProviders: vi.fn(() => Promise.resolve(remoteOk([
+      listProviders: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([
         { id: 'deepseek-official', name: 'DeepSeek' },
         { id: 'openai', name: 'openai' },
       ]))),
-      listConfigurableProviders: vi.fn(() => Promise.resolve(remoteOk([
+      listConfigurableProviders: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([
         { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], active: true },
         { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: true },
         { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'], active: false },
@@ -166,15 +167,19 @@ function scriptedFace(overrides: {
         { provider: 'broken', displayName: 'broken', settingsNs: 'llm-pi-ai', settingsPath: ['nope', 'x'], active: false },
         { provider: 'plain', displayName: 'plain', settingsNs: 'llm-plain', settingsPath: ['profiles', 'plain'], active: false },
       ].map(({ active: _active, ...entry }) => entry)))),
-      discoverModels: vi.fn(() => Promise.resolve(remoteOk([]))),
+      discoverModels: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk([]))),
     },
     settings: {
-      describe: vi.fn(() => Promise.resolve(remoteOk({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
+      describe: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk({
+        writable: true,
+        hasDocument: false,
+        namespaces: wireNamespaces(),
+      }))),
       update,
       mutate,
     },
     credentials: {
-      describe: vi.fn((refs: string[]) => Promise.resolve(remoteOk(
+      describe: vi.fn<(refs: string[]) => Promise<unknown>>((refs: string[]) => Promise.resolve(remoteOk(
         Object.fromEntries(refs.map(ref => [ref, {
           configured: ref === 'OPENAI_API_KEY',
           ...ref === 'OPENAI_API_KEY' ? { source: 'file' } : {},
@@ -195,21 +200,40 @@ type RenderSlotCall = [name: string, owner: Record<string, unknown>, opts?: { en
 
 /** Child-slot dispatch stub: records every seat occurrence, renders nothing. */
 function stubRenderSlot() {
-  return vi.fn((..._call: RenderSlotCall) => null)
+  return vi.fn<(...call: RenderSlotCall) => null>(() => null)
 }
 
-/** The provider-card seat dispatches a stub recorded, as (route id, configured, keyConfigured, entryKey). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function providerCardOwner(owner: Record<string, unknown>): {
+  provider: string
+  configured: boolean
+  keyConfigured: boolean
+} {
+  const providerField = owner['provider']
+  if (!isRecord(providerField) || typeof providerField['provider'] !== 'string') {
+    throw new Error('provider-card owner.provider.provider must be a string')
+  }
+  const configured = owner['configured']
+  const keyConfigured = owner['keyConfigured']
+  if (typeof configured !== 'boolean' || typeof keyConfigured !== 'boolean') {
+    throw new Error('provider-card owner configured flags must be booleans')
+  }
+  return { provider: providerField['provider'], configured, keyConfigured }
+}
+
+/** Provider-card seat dispatches recorded as (route id, configured, keyConfigured, entryKey). */
 function cardSeatCalls(
   renderSlot: ReturnType<typeof stubRenderSlot>,
 ): Array<[string, boolean, boolean, string | undefined]> {
   return renderSlot.mock.calls
     .filter(call => call[0] === 'settings.models.provider-card')
-    .map(call => [
-      (call[1] as { provider: { provider: string } }).provider.provider,
-      (call[1] as { configured: boolean }).configured,
-      (call[1] as { keyConfigured: boolean }).keyConfigured,
-      call[2]?.entryKey,
-    ])
+    .map((call) => {
+      const owner = providerCardOwner(call[1])
+      return [owner.provider, owner.configured, owner.keyConfigured, call[2]?.entryKey]
+    })
 }
 
 async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
@@ -339,11 +363,11 @@ describe('ModelsSection', () => {
     // openai's key is stored, so the user is not blocked and nothing on the
     // page opens itself over them.
     expect(screen.queryByLabelText(en.keyInput)).toBeNull()
-    const configured = screen.getByRole('img', { name: en.credentialConfigured })
-    expect(configured.getAttribute('title')).toBe(en.credentialConfigured)
-    expect(configured.className).toContain('credentialDotConfigured')
+    const configured = screen.getByText(en.credentialConfigured)
+    expect(configured.parentElement?.getAttribute('title')).toBe(en.credentialConfigured)
+    expect(configured.previousElementSibling?.className).toContain('credentialDotConfigured')
     expect(configured.closest('li')?.textContent).toContain('openai')
-    const missing = screen.getByRole('img', { name: en.credentialMissing })
+    const missing = screen.getByText(en.credentialMissing)
     expect(missing.closest('li')?.textContent).toContain('DeepSeek')
     // The card is still one click away.
     fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) }))
@@ -366,12 +390,12 @@ describe('ModelsSection', () => {
       renderSlot={() => null}
     />)
 
-    const missing = screen.getByRole('img', { name: en.credentialMissing })
-    expect(missing.getAttribute('title')).toBe(en.credentialMissing)
-    expect(missing.className).toContain('credentialDotMissing')
+    const missing = screen.getByText(en.credentialMissing)
+    expect(missing.parentElement?.getAttribute('title')).toBe(en.credentialMissing)
+    expect(missing.previousElementSibling?.className).toContain('credentialDotMissing')
     expect(missing.closest('li')?.textContent).toContain('openai')
-    expect(screen.queryByRole('img', { name: en.credentialConfigured })).toBeNull()
-    expect(screen.getByText('zombie').closest('li')?.querySelector('[role="img"]')).toBeNull()
+    expect(screen.queryByText(en.credentialConfigured)).toBeNull()
+    expect(screen.getByText('zombie').closest('li')?.querySelector('[class*="credentialDot"]')).toBeNull()
   })
 
   it('turns the setup card into a row once the credential reports configured', async () => {
@@ -453,31 +477,35 @@ describe('ModelsSection', () => {
 
   it('reuses the provider editor as a required credential-only onboarding form', async () => {
     let finishSet: ((response: { ok: true; value: undefined }) => void) | undefined
-    const set = vi.fn(() => new Promise<{ ok: true; value: undefined }>((resolve) => {
+    const set = vi.fn<() => Promise<unknown>>(() => new Promise<{ ok: true; value: undefined }>((resolve) => {
       finishSet = resolve
     }))
     const { face, mutate } = scriptedFace({ set })
-    const onClose = vi.fn()
+    const onClose = vi.fn<() => void>()
     const { ProviderEditor } = await import('../src/client/ProviderEditor.tsx')
+    const { OnboardingModal } = await import('../src/client/OnboardingModal.tsx')
 
-    render(<ProviderEditor
-      provider="deepseek-official"
-      displayName="DeepSeek"
-      hideTitle
-      namespace={wireNamespaces()[0]!}
-      schema={settingsSchema}
-      settingsPath={[]}
-      api={face as never}
-      t={t}
-      readOnly={false}
-      credentialOnly
-      credentialRequired
-      autoFocusCredential
-      cancelLabelKey="onboardingLater"
-      submitLabelKey="onboardingSave"
-      submitBusyLabelKey="onboardingSaving"
-      onClose={onClose}
-    />)
+    render(
+      <OnboardingModal title="DeepSeek">
+        <ProviderEditor
+          provider="deepseek-official"
+          displayName="DeepSeek"
+          hideTitle
+          namespace={wireNamespaces()[0]!}
+          schema={settingsSchema}
+          settingsPath={[]}
+          api={face as never}
+          t={t}
+          readOnly={false}
+          credentialOnly
+          credentialRequired
+          cancelLabelKey="onboardingLater"
+          submitLabelKey="onboardingSave"
+          submitBusyLabelKey="onboardingSaving"
+          onClose={onClose}
+        />
+      </OnboardingModal>,
+    )
 
     const key = screen.getByLabelText<HTMLInputElement>(en.keyInput)
     const save = screen.getByText<HTMLButtonElement>(en.onboardingSave)
@@ -513,7 +541,7 @@ describe('ModelsSection', () => {
 
   it('applies customized deepseek fields as path ops', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     const baseURL = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
@@ -534,7 +562,7 @@ describe('ModelsSection', () => {
 
   it('materializes inherited models and adds an arbitrary DeepSeek id', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expect(screen.getByText(en.modelsInherited)).toBeTruthy()
@@ -638,7 +666,7 @@ describe('ModelsSection', () => {
 
   it('accepts a suffixed context window and stores the plain count', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -790,7 +818,7 @@ describe('ModelsSection', () => {
     // inherited row displayed text no settings layer stores — and because an
     // unreadable buffer never settles, it stayed there indefinitely.
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -813,7 +841,7 @@ describe('ModelsSection', () => {
 
   it('edits an output cap per model and carries its text across a removal', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     expandRow(1)
@@ -871,8 +899,8 @@ describe('ModelsSection', () => {
       defaultMaxTokens={undefined}
       t={t}
       disabled={true}
-      onChange={vi.fn()}
-      onReset={vi.fn()}
+      onChange={vi.fn<() => void>()}
+      onReset={vi.fn<() => void>()}
     />)
     expect(screen.getByLabelText<HTMLInputElement>(`${en.modelId} 1`).value).toBe('')
     expandRow(1)
@@ -884,7 +912,7 @@ describe('ModelsSection', () => {
 
   it('can empty and reset the model override, then clear optional fields without dropping hidden data', async () => {
     const { mutate } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(wireNamespaces()[0]))),
     })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.click(screen.getAllByLabelText(new RegExp(en.removeModel))[0] as HTMLElement)
@@ -1047,8 +1075,8 @@ describe('ModelsSection', () => {
       } },
       revision: 1,
     }
-    const mutate = vi.fn(() => Promise.resolve(remoteOk(afterSettings)))
-    const set = vi.fn()
+    const mutate = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteOk(afterSettings)))
+    const set = vi.fn<() => Promise<unknown>>()
       .mockResolvedValueOnce(remoteFail('credential store unavailable'))
       .mockResolvedValueOnce(remoteOk(undefined))
     const { face, controller, mirror } = await mountSection({ mutate, set })
@@ -1093,7 +1121,7 @@ describe('ModelsSection', () => {
 
   it('surfaces a rejected settings write and never stores the key after it', async () => {
     const { set } = await mountSection({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings-rejected'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings-rejected'))),
     })
     fireEvent.click(screen.getByText(en.add))
     await screen.findByLabelText(en.provider)
@@ -1107,34 +1135,53 @@ describe('ModelsSection', () => {
     // The probe is a placeholder hint, not a precondition: an escaping
     // rejection would surface in the browser as an unhandled rejection.
     const { face } = scriptedFace()
-    face.credentials.describe = vi.fn(() => Promise.reject(new Error('connection lost')))
-    const unhandled = vi.fn()
+    face.credentials.describe = vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost')))
+    const unhandled = vi.fn<() => void>()
     process.on('unhandledRejection', unhandled)
-    try {
-      const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
-      await controller.load()
-      render(<ModelsSection
-        controller={controller}
-        useSnapshot={bindSnapshotSelector(controller.store)}
-        api={face as never}
-        schema={settingsSchema}
-        t={t}
-        renderSlot={() => null}
-      />)
-      const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
-      expect(key.placeholder).toBe(en.keyPlaceholder)
-      await new Promise(resolve => setTimeout(resolve, 10))
-      expect(unhandled).not.toHaveBeenCalled()
-    } finally {
-      process.off('unhandledRejection', unhandled)
-    }
+    onTestFinished(() => { process.off('unhandledRejection', unhandled) })
+    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    await controller.load()
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
+    expect(key.placeholder).toBe(en.keyPlaceholder)
+    expect(await screen.findByText('connection lost')).toBeTruthy()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(unhandled).not.toHaveBeenCalled()
+  })
+
+  it('claims a non-Error credential probe refusal onto the card', async () => {
+    const { face } = scriptedFace()
+    face.credentials.describe = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    const unhandled = vi.fn<() => void>()
+    process.on('unhandledRejection', unhandled)
+    onTestFinished(() => { process.off('unhandledRejection', unhandled) })
+    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    await controller.load()
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(unhandled).not.toHaveBeenCalled()
   })
 
   it('tells the user to reopen when another writer moved the namespace first', async () => {
     // The stale-draft overwrite: two tabs open the same card, the other saves,
     // and this one must be refused rather than replay its opening snapshot.
     const { set } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('changed since it was read', 'settings-conflict'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('changed since it was read', 'settings-conflict'))),
     })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://mine' } })
@@ -1144,7 +1191,7 @@ describe('ModelsSection', () => {
   })
 
   it('keeps the card usable when the write rejects instead of answering', async () => {
-    const { mutate } = await mountDeepSeekCard({ mutate: vi.fn(() => Promise.reject(new Error('connection lost'))) })
+    const { mutate } = await mountDeepSeekCard({ mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost'))) })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
     fireEvent.click(screen.getByText(en.apply))
@@ -1165,9 +1212,55 @@ describe('ModelsSection', () => {
     expect(screen.getByLabelText<HTMLInputElement>(en.baseUrl).value).toBe('https://next')
   })
 
+  it('keeps the card usable when the write rejects with a non-Error', async () => {
+    const { mutate } = await mountDeepSeekCard({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
+    fireEvent.click(screen.getByText(en.apply))
+    await screen.findByText('plain refusal')
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: en.apply }).disabled).toBe(false)
+    })
+    expect(mutate).toHaveBeenCalledOnce()
+  })
+
+  it('reports a non-Error model discovery refusal', async () => {
+    const { face } = await mountSection()
+    face.llm.discoverModels = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.click(screen.getByText(en.fetchModels))
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
+  })
+
+  it('reports a non-Error custom provider create refusal', async () => {
+    const { face } = scriptedFace({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    render(
+      <CustomProviderCard
+        taken={[]}
+        protocols={['openai-completions']}
+        revision={7}
+        api={face as never}
+        t={t}
+        readOnly={false}
+        onClose={vi.fn<(changed: boolean) => void>()}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
+    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://acme.test/v1' } })
+    fireEvent.click(screen.getByRole('button', { name: en.addModel }))
+    fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
+    fireEvent.click(screen.getByText(en.create))
+    expect(await screen.findByText('plain refusal')).toBeTruthy()
+  })
+
   it('surfaces a shadowed credential write on the card', async () => {
     await mountFirstRun({
-      set: vi.fn(() => Promise.resolve(remoteFail('credentials: DEEPSEEK_API_KEY is shadowed by the read-only environment'))),
+      set: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('credentials: DEEPSEEK_API_KEY is shadowed by the read-only environment'))),
     })
     const key = screen.getByLabelText<HTMLInputElement>(en.keyInput)
     fireEvent.change(key, { target: { value: 'sk-live' } })
@@ -1234,7 +1327,7 @@ describe('ModelsSection', () => {
 
   it('blocks duplicate deletion while the confirmed removal is pending', async () => {
     let resolveRemoval!: (response: { ok: true; value: SettingsNamespaceView }) => void
-    const mutate = vi.fn(() => new Promise<{ ok: true; value: SettingsNamespaceView }>((resolve) => {
+    const mutate = vi.fn<() => Promise<unknown>>(() => new Promise<{ ok: true; value: SettingsNamespaceView }>((resolve) => {
       resolveRemoval = resolve
     }))
     await mountSection({ mutate })
@@ -1258,7 +1351,7 @@ describe('ModelsSection', () => {
 
   it('renders the load failure with a retry control', async () => {
     const face = scriptedFace()
-    face.face.llm.listProviders = vi.fn(() => Promise.resolve(remoteFail('directory down', 'internal'))) as never
+    face.face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal'))) as never
     const controller = new ModelsSettingsStore(
       face.face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face.face as never))
     await controller.load()
@@ -1336,7 +1429,7 @@ describe('ModelsSection', () => {
     expect(screen.getByLabelText(en.provider)).toBeTruthy()
     // …and DeepSeek collapsed to an ordinary row carrying the missing-key dot.
     expect(screen.getAllByLabelText(en.keyInput)).toHaveLength(1)
-    expect(screen.getAllByRole('img', { name: en.credentialMissing })
+    expect(screen.getAllByText(en.credentialMissing)
       .some(dot => dot.closest('li')?.textContent?.includes('DeepSeek') === true)).toBe(true)
     // Its card reopens through Edit, which closes the add card as any row does.
     fireEvent.click(screen.getByRole('button', { name: deepSeekCopy(en.editProvider) }))
@@ -1356,6 +1449,7 @@ describe('ModelsSection', () => {
       renderSlot={() => null}
     />)
     await screen.findByText('DeepSeek')
+    expect(screen.getByText('DeepSeek')).toBeTruthy()
   })
 
   it('removes by unsetting the profile path, never by rebuilding the section', async () => {
@@ -1376,7 +1470,7 @@ describe('ModelsSection', () => {
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {
     const { face, controller } = await mountSection({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('read-only', 'settings-rejected'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('read-only', 'settings-rejected'))),
     })
     const before = controller.store.getSnapshot().rows
     const failure = await removeProviderProfile(
@@ -1389,7 +1483,7 @@ describe('ModelsSection', () => {
   })
 
   it('keeps a failed identified deletion recoverable in its confirmation dialog', async () => {
-    const mutate = vi.fn()
+    const mutate = vi.fn<() => Promise<unknown>>()
       .mockResolvedValueOnce(remoteFail('the host refused', 'settings-rejected'))
       .mockResolvedValueOnce(remoteOk(wireNamespaces()[2]!))
     const { unset } = await mountSection({ mutate })
@@ -1428,7 +1522,7 @@ describe('ModelsSection', () => {
 
   it('does not remove provider settings when its managed credential removal is refused', async () => {
     const { face, controller, mutate } = await mountSection({
-      unset: vi.fn(() => Promise.resolve(remoteFail('credential is read-only'))),
+      unset: vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('credential is read-only'))),
     })
     const failure = await removeProviderProfile(
       face as unknown as Parameters<typeof removeProviderProfile>[0],
@@ -1445,7 +1539,7 @@ describe('ModelsSection', () => {
 
   it('reports a transport rejection instead of failing the removal silently', async () => {
     const { face, controller } = await mountSection({
-      mutate: vi.fn(() => Promise.reject(new Error('connection lost'))),
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject(new Error('connection lost'))),
     })
     const failure = await removeProviderProfile(
       face as unknown as Parameters<typeof removeProviderProfile>[0],
@@ -1453,6 +1547,88 @@ describe('ModelsSection', () => {
       { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
     )
     expect(failure).toBe('connection lost')
+  })
+
+  it('reports a non-Error mutate refusal', async () => {
+    const { face, controller } = await mountSection({
+      mutate: vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal')),
+    })
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
+    )
+    expect(failure).toBe('plain refusal')
+  })
+
+  it('reports a non-Error credential transport refusal', async () => {
+    const { face, controller, mutate } = await mountSection({
+      unset: vi.fn<() => Promise<unknown>>(() => Promise.reject('credential transport refusal')),
+    })
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      {
+        settingsNs: 'llm-pi-ai',
+        settingsPath: ['providers', 'openai'],
+        credentialRef: 'OPENAI_API_KEY',
+      },
+    )
+    expect(failure).toBe('credential transport refusal')
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('does not treat a settled load error as a deletion write failure', async () => {
+    const { face, controller } = await mountSection()
+    face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal')))
+    const failure = await removeProviderProfile(
+      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      controller,
+      { settingsNs: 'llm-plain', settingsPath: ['ghost-profile'] },
+    )
+    expect(failure).toBeUndefined()
+    expect(controller.store.getSnapshot()).toMatchObject({ status: 'error', error: 'directory down' })
+  })
+
+  it('does not remount the delete dialog after a successful write whose reload settled as error', async () => {
+    const { face } = await mountSection()
+    face.llm.listProviders = vi.fn<() => Promise<unknown>>(() => Promise.resolve(remoteFail('directory down', 'internal')))
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
+    fireEvent.click(within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) }))
+    expect(await screen.findByText(`${en.loadFailed}: directory down`)).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBeNull()
+    fireEvent.click(screen.getByText(en.retry))
+    expect(await screen.findByText(`${en.loadFailed}: directory down`)).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBeNull()
+  })
+
+  it('claims a non-Error load refusal onto the page', async () => {
+    const { face } = scriptedFace()
+    const controller = new ModelsSettingsStore(
+      face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    controller.load = vi.fn<() => Promise<void>>(() => Promise.reject('plain refusal'))
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      api={face as never}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    expect(await screen.findByText(/plain refusal/)).toBeTruthy()
+    expect(controller.store.getSnapshot().status).toBe('error')
+    expect(controller.store.getSnapshot().error).toBe('plain refusal')
+  })
+
+  it('keeps a non-Error deletion refusal recoverable in its confirmation dialog', async () => {
+    const mutate = vi.fn<() => Promise<unknown>>(() => Promise.reject('plain refusal'))
+    await mountSection({ mutate })
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
+    const dialog = screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })
+    fireEvent.click(within(dialog).getByRole('button', { name: openaiCopy(en.deleteConfirm) }))
+    await within(dialog).findByText('plain refusal')
+    expect(screen.getByRole('dialog', { name: openaiCopy(en.deleteTitle) })).toBe(dialog)
   })
 })
 

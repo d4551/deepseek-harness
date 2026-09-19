@@ -55,6 +55,8 @@ interface SessionReadState {
   readonly events: SessionEvent[]
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Implements Session business commands delegated by the Session Controller Remote service. */
 export class SessionCommandController {
   /**
@@ -96,27 +98,23 @@ export class SessionCommandController {
       }
     }
     const cwd = workspace?.path ?? request.cwd ?? this.defaultCwd
-    let adopted: Agent
-    try {
-      adopted = await this.agents.ensureSession(
-        sessionId,
-        cwd,
-        request.sessionId !== undefined,
-        request.agentPreset,
-      )
-    } catch (error) {
-      this.rejectCreation(sessionId, error)
-    }
+    const adopted = await this.agents.ensureSession(
+      sessionId,
+      cwd,
+      request.sessionId !== undefined,
+      request.agentPreset,
+    ).then(undefined, (error: Thrown) => this.rejectCreation(sessionId, error))
     if (workspace !== undefined) {
-      try {
-        await workspace.attachSession(sessionId)
-      } catch (error) {
-        reject(
-          'workspace-attach-failed',
-          `session "${sessionId}" was created but could not attach to workspace "${workspace.id}": ${String(error)}`,
-          { sessionId, workspaceId: workspace.id },
-        )
-      }
+      await workspace.attachSession(sessionId).then(
+        undefined,
+        (error: Thrown) => {
+          reject(
+            'workspace-attach-failed',
+            `session "${sessionId}" was created but could not attach to workspace "${workspace.id}": ${String(error)}`,
+            { sessionId, workspaceId: workspace.id },
+          )
+        },
+      )
     }
     setAdditionalWorkspaceRoots(adopted.session, additionalDirectories)
     const agentPreset = this.agents.presetForSession(adopted.session)
@@ -130,15 +128,14 @@ export class SessionCommandController {
    */
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
     const agent = await this.resolveAgent(request.sessionId)
-    return this.agents.serializeImageAdmission(agent, async () => {
-      try {
-        const resolved = await this.ctx.llm.resolveCallConfig({
-          provider: request.provider,
-          model: request.model,
-          ...(request.reasoningEffort === undefined
-            ? {}
-            : { reasoningEffort: ReasoningEffortId(request.reasoningEffort) }),
-        })
+    return this.agents.serializeImageAdmission(agent, () => this.ctx.llm.resolveCallConfig({
+      provider: request.provider,
+      model: request.model,
+      ...(request.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: ReasoningEffortId(request.reasoningEffort) }),
+    }).then(
+      async (resolved) => {
         const selected: AgentModelSelection = {
           provider: resolved.provider,
           model: resolved.model,
@@ -147,23 +144,24 @@ export class SessionCommandController {
             : { reasoningEffort: resolved.reasoningEffort }),
         }
         this.agents.selectForNextRequest(agent, selected)
-        try {
-          await this.ctx.agentDefaultModel.saveSelection(selected)
-        } catch (error) {
-          this.ctx.logger.warn(
-            `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
-          )
-        }
-        return { selected: { ...selected } }
-      } catch (error) {
-        if (error instanceof TypertRemoteFailure) throw error
-        reject(
-          'model-unavailable',
-          error instanceof Error ? error.message : String(error),
-          { provider: request.provider, model: request.model },
+        await this.ctx.agentDefaultModel.saveSelection(selected).then(
+          undefined,
+          (error: Thrown) => {
+            this.ctx.logger.warn(
+              `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
+            )
+          },
         )
-      }
-    })
+        return { selected: { ...selected } }
+      },
+    ).then(undefined, (error: Thrown) => {
+      if (error instanceof TypertRemoteFailure) throw error
+      reject(
+        'model-unavailable',
+        error instanceof Error ? error.message : String(error),
+        { provider: request.provider, model: request.model },
+      )
+    }))
   }
 
   /**
@@ -231,22 +229,22 @@ export class SessionCommandController {
       && (!Number.isInteger(request.atSeq) || request.atSeq < 0)) {
       reject('bad-request', 'atSeq must be a non-negative integer', {})
     }
-    let observed: SessionObservation
-    try {
-      observed = await this.ctx.sessionQuery.observeSession(request.sessionId)
-    } catch (error) {
-      if (error instanceof SessionQueryError
-        && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
-        reject('session-not-found', `session "${request.sessionId}" not found`, {
-          sessionId: request.sessionId,
-        })
-      }
-      reject(
-        'internal',
-        `fork source unavailable for session "${request.sessionId}": ${String(error)}`,
-        {},
-      )
-    }
+    const observed: SessionObservation = await this.ctx.sessionQuery.observeSession(request.sessionId).then(
+      undefined,
+      (error: Thrown) => {
+        if (error instanceof SessionQueryError
+          && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
+          reject('session-not-found', `session "${request.sessionId}" not found`, {
+            sessionId: request.sessionId,
+          })
+        }
+        reject(
+          'internal',
+          `fork source unavailable for session "${request.sessionId}": ${String(error)}`,
+          {},
+        )
+      },
+    )
     using source = observed
     const lastSeq = source.events.at(-1)?.seq ?? -1
     const atSeq = request.atSeq
@@ -268,51 +266,53 @@ export class SessionCommandController {
     }
     let cut = boundary.seq + 1
     while (cut < source.events.length && source.events[cut]?.type !== 'turn/start') cut++
-    let workspace: Workspace | undefined
-    try {
-      workspace = await this.forkWorkspace(source.header)
-    } catch (error) {
-      reject(
-        'internal',
-        `failed to resolve fork workspace for session "${request.sessionId}": ${String(error)}`,
-        {},
-      )
-    }
+    const workspace = await this.forkWorkspace(source.header).then(
+      undefined,
+      (error: Thrown) => {
+        reject(
+          'internal',
+          `failed to resolve fork workspace for session "${request.sessionId}": ${String(error)}`,
+          {},
+        )
+      },
+    )
     const childId = SessionId(`session-${randomUUID()}`)
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
-    try {
-      const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
-      await this.ctx.agents.create({
-        sessionId: childId,
-        seed: source.events.slice(0, cut),
-        meta: {
-          ...(source.header.cwd === undefined ? {} : { cwd: source.header.cwd }),
-          parentSession: source.header.id,
-          seedLength: cut,
-          ...(composition.agentPreset === undefined
-            ? {}
-            : { agentPreset: composition.agentPreset }),
-        },
-        agentOptions: { provider, model },
-        setup: composition.setup,
-      })
-    } catch (error) {
-      reject(
-        'internal',
-        `failed to fork session "${request.sessionId}": ${String(error)}`,
-        {},
-      )
-    }
-    if (workspace !== undefined) {
-      try {
-        await workspace.attachSession(childId)
-      } catch (error) {
+    const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
+    await this.ctx.agents.create({
+      sessionId: childId,
+      seed: source.events.slice(0, cut),
+      meta: {
+        ...(source.header.cwd === undefined ? {} : { cwd: source.header.cwd }),
+        parentSession: source.header.id,
+        seedLength: cut,
+        ...(composition.agentPreset === undefined
+          ? {}
+          : { agentPreset: composition.agentPreset }),
+      },
+      agentOptions: { provider, model },
+      setup: composition.setup,
+    }).then(
+      undefined,
+      (error: Thrown) => {
         reject(
-          'workspace-attach-failed',
-          `session "${childId}" was forked but could not attach to workspace "${workspace.id}": ${String(error)}`,
-          { sessionId: childId, workspaceId: workspace.id },
+          'internal',
+          `failed to fork session "${request.sessionId}": ${String(error)}`,
+          {},
         )
-      }
+      },
+    )
+    if (workspace !== undefined) {
+      await workspace.attachSession(childId).then(
+        undefined,
+        (error: Thrown) => {
+          reject(
+            'workspace-attach-failed',
+            `session "${childId}" was forked but could not attach to workspace "${workspace.id}": ${String(error)}`,
+            { sessionId: childId, workspaceId: workspace.id },
+          )
+        },
+      )
     }
     return { sessionId: childId }
   }
@@ -348,33 +348,33 @@ export class SessionCommandController {
       ...(clientTimeZone === undefined ? {} : { clientTimeZone }),
     }
     const hasImage = request.content.some(part => part.type === 'image')
-    const admit = async (): Promise<SessionPromptValue> => {
-      try {
-        if (hasImage) {
-          const current = this.agents.selectionFor(agent).current
-          const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
-          if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
-            reject(
-              'attachment-error',
-              `Model "${current.model}" does not support image input.`,
-              { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
-            )
-          }
-        }
-        const content = await durablePromptContent(this.ctx, request.content)
-        const message: UserMessage = createUserMessage({ content, source })
-        if (request.mode === 'steer') agent.steer(message)
-        else agent.followup(message)
-      } catch (error) {
-        if (error instanceof TypertRemoteFailure) throw error
-        if (error instanceof AttachmentError) {
-          reject('attachment-error', error.message, { reason: error.code })
-        }
-        reject('agent-busy', 'prompt rejected', { reason: String(error) })
+    const mapPromptFailure = (error: Thrown): never => {
+      if (error instanceof TypertRemoteFailure) throw error
+      if (error instanceof AttachmentError) {
+        reject('attachment-error', error.message, { reason: error.code })
       }
+      reject('agent-busy', 'prompt rejected', { reason: String(error) })
+    }
+    const admit = async (): Promise<SessionPromptValue> => {
+      if (hasImage) {
+        const current = this.agents.selectionFor(agent).current
+        const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
+        if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
+          reject(
+            'attachment-error',
+            `Model "${current.model}" does not support image input.`,
+            { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+          )
+        }
+      }
+      const content = await durablePromptContent(this.ctx, request.content)
+      const message: UserMessage = createUserMessage({ content, source })
+      if (request.mode === 'steer') agent.steer(message)
+      else agent.followup(message)
       return { accepted: true }
     }
-    return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
+    return (hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit())
+      .then(undefined, (error: Thrown) => mapPromptFailure(error))
   }
 
   /**
@@ -383,19 +383,19 @@ export class SessionCommandController {
    * @returns the durable attachment reference and base64-encoded bytes.
    */
   async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
-    let source: SessionReadState
-    try {
-      source = await this.readSessionState(request.sessionId)
-    } catch (error) {
-      if (error instanceof ApiSessionNotFound) {
-        reject('session-not-found', error.message, { sessionId: request.sessionId })
-      }
-      reject(
-        'internal',
-        `attachment authorization unavailable for session "${request.sessionId}": ${String(error)}`,
-        {},
-      )
-    }
+    const source = await this.readSessionState(request.sessionId).then(
+      undefined,
+      (error: Thrown) => {
+        if (error instanceof ApiSessionNotFound) {
+          reject('session-not-found', error.message, { sessionId: request.sessionId })
+        }
+        reject(
+          'internal',
+          `attachment authorization unavailable for session "${request.sessionId}": ${String(error)}`,
+          {},
+        )
+      },
+    )
     const ref = referencedImage(source.events, String(request.attachmentId))
     if (ref === undefined) {
       reject(
@@ -404,18 +404,18 @@ export class SessionCommandController {
         { reason: 'ATTACHMENT_NOT_REFERENCED' },
       )
     }
-    try {
-      const stored = await this.ctx.attachments.readImage(ref)
-      return {
+    return await this.ctx.attachments.readImage(ref).then(
+      stored => ({
         attachment: stored.ref,
         data: Buffer.from(stored.data).toString('base64'),
-      }
-    } catch (error) {
-      if (error instanceof AttachmentError) {
-        reject('attachment-error', error.message, { reason: error.code })
-      }
-      reject('internal', 'Unable to read image attachment.', {})
-    }
+      }),
+      (error: Thrown) => {
+        if (error instanceof AttachmentError) {
+          reject('attachment-error', error.message, { reason: error.code })
+        }
+        reject('internal', 'Unable to read image attachment.', {})
+      },
+    )
   }
 
   /**

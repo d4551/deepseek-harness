@@ -35,6 +35,9 @@
     },
     {
       "path": "../../util/brand"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

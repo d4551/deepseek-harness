@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { Session, SessionId, isJsonValue } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, SessionId, isJsonValue, assertSessionEventObject } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import {
   DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS,
@@ -10,42 +10,59 @@ import {
 import { runPersistenceContract, meta, oneTurnLog } from './contract.ts'
 import { runCoordinatorContract, type CoordinatorFixture } from './coordinator-contract.ts'
 
+/** One stored record before the coordinator refuses obsolete vocabulary. */
+type StoredEventRecord = {
+  type?: unknown
+  seq?: unknown
+  time?: unknown
+  data?: unknown
+  surfaceOp?: unknown
+  sourceEventSeqs?: unknown
+}
+
 /** The durable store shape: materialized sessions only (no lazy entries). */
-type MemoryStore = Map<string, { meta: SessionHeader; events: SessionEvent[] }>
+type MemoryStore = Map<string, { meta: SessionHeader; events: StoredEventRecord[] }>
 
 /** Test-store revision that changes for any metadata or event mutation. */
-function memoryRevision(entry: { meta: SessionHeader; events: SessionEvent[] }): SessionPersistenceRevision {
+function memoryRevision(entry: { meta: SessionHeader; events: StoredEventRecord[] }): SessionPersistenceRevision {
   return SessionPersistenceRevision(JSON.stringify(entry))
 }
 
+/** Copy a cloned event batch into a mutable stored-record array. */
+function clonedStoredRecords(events: readonly object[]): StoredEventRecord[] {
+  const cloned: StoredEventRecord[] = []
+  for (const event of structuredClone(events)) cloned.push(event)
+  return cloned
+}
+
 /** An obsolete event fixture that emulates an untyped pre-change producer. */
-function legacyHeaderDelta(seq = 0): SessionEvent {
+function legacyHeaderDelta(seq = 0): StoredEventRecord {
   return {
     type: 'request/header-delta',
     seq,
     time: 1,
     data: { config: { model: 'legacy' } },
-  } as unknown as SessionEvent
+  }
 }
 
 /** An unsupported named-mode fixture emulating an untyped producer. */
-function legacyModeSet(seq = 0): SessionEvent {
+function legacyModeSet(seq = 0): StoredEventRecord {
   return {
     type: 'mode/set',
     seq,
     time: 1,
     data: { mode: 'plan' },
-  } as unknown as SessionEvent
+  }
 }
 
 /** An obsolete full-header reason fixture from the removed delta codec. */
-function legacyFallbackHeader(seq = 0): SessionEvent {
+function legacyFallbackHeader(seq = 0): StoredEventRecord {
   return {
     type: 'request/header',
     seq,
     time: 1,
     data: { header: { config: { model: 'legacy' } }, reason: 'fallback' },
-  } as unknown as SessionEvent
+  }
 }
 
 /** Optional plugin config: an EXTERNAL store shared across backend instances. */
@@ -83,7 +100,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     // Assign the store BEFORE constructing the coordinator: the coordinator's
     // constructor installs the write path and synchronously seeds existing live
     // sessions through loadStored(), so store must exist first.
-    this.store = config?.store ?? new Map<string, { meta: SessionHeader; events: SessionEvent[] }>()
+    this.store = config?.store ?? new Map<string, { meta: SessionHeader; events: StoredEventRecord[] }>()
     this.coordinator = new PersistenceCoordinator<never>(this.ctx, this)
   }
 
@@ -126,6 +143,10 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     return this.coordinator.readFrom(id, fromSeq, signal)
   }
 
+  override exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return this.coordinator.exists(id, signal)
+  }
+
   // --- PersistenceBackend hooks (the Map storage primitives) ---
 
   // A Map-backed store has no torn tails, so `tornMarker` is never set.
@@ -153,9 +174,9 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     const existing = this.store.get(m.id)
     if (!existing) {
       // The coordinator sends the first batch for materialization; later batches append.
-      this.store.set(m.id, { meta: structuredClone(m), events: structuredClone(events) as SessionEvent[] })
+      this.store.set(m.id, { meta: structuredClone(m), events: clonedStoredRecords(events) })
     } else {
-      existing.events.push(...structuredClone(events) as SessionEvent[])
+      existing.events.push(...clonedStoredRecords(events))
     }
   }
 
@@ -169,9 +190,8 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
     // synthetic closers are appended (the same DELETE+INSERT a DB backend does,
     // minus the truncate).
     const entry = this.store.get(m.id)
-    /* v8 ignore next -- commitRepair only runs for a materialized (stored) session */
     if (!entry) return
-    if (closers.length > 0) entry.events.push(...structuredClone(closers) as SessionEvent[])
+    if (closers.length > 0) entry.events.push(...clonedStoredRecords(closers))
   }
 
   async list(signal?: AbortSignal): Promise<SessionHeader[]> {
@@ -231,16 +251,16 @@ class ControlledBackend implements PersistenceBackend<never> {
     await this.beforeAppend?.(attempt)
     const entry = this.store.get(m.id)
     if (entry === undefined) {
-      this.store.set(m.id, { meta: structuredClone(m), events: structuredClone(events) as SessionEvent[] })
+      this.store.set(m.id, { meta: structuredClone(m), events: clonedStoredRecords(events) })
     } else {
-      entry.events.push(...structuredClone(events) as SessionEvent[])
+      entry.events.push(...clonedStoredRecords(events))
     }
   }
 
   async commitRepair(m: SessionHeader, _tornMarker: undefined, closers: readonly SessionEvent[]): Promise<void> {
     this.repairAttempts += 1
     const entry = this.store.get(m.id)
-    if (entry !== undefined) entry.events.push(...structuredClone(closers) as SessionEvent[])
+    if (entry !== undefined) entry.events.push(...clonedStoredRecords(closers))
   }
 
   async list(): Promise<SessionHeader[]> {
@@ -273,7 +293,7 @@ describe('the inherited readRaw default', () => {
     ).rejects.toThrow('does not expose raw artifacts')
     await expect(
       ctx.sessionPersistence.readRaw(SessionId('any-session'), AbortSignal.abort()),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/aborted/)
     // A non-Error abort reason falls back to a wrapped Error rejection.
     const controller = new AbortController()
     controller.abort('boom')
@@ -718,9 +738,11 @@ describe('PersistenceCoordinator session preparations', () => {
     await ctx.plugin(SessionStore)
     const backend = new ControlledBackend()
     const id = SessionId('prepared-live-write')
+    const endSeed = { type: 'session/end-seed', seq: 6, time: 7, data: {} }
+    assertSessionEventObject(endSeed)
     const stored = [
       ...oneTurnLog(),
-      { type: 'session/end-seed', seq: 6, time: 7, data: {} } as SessionEvent,
+      endSeed,
     ]
     backend.store.set(id, { meta: meta(id), events: stored })
     let coordinator!: PersistenceCoordinator<never>
@@ -1490,7 +1512,7 @@ describe('PersistenceCoordinator observation cancellation', () => {
       backend.seekHook = async (hookId, fromSeq) => {
         const entry = backend.store.get(hookId)
         if (entry === undefined) return undefined
-        return { meta: structuredClone(entry.meta), events: entry.events.filter(e => e.seq >= fromSeq) }
+        return { meta: structuredClone(entry.meta), events: entry.events.filter(record => typeof record.seq === 'number' && record.seq >= fromSeq) }
       }
       const suffix = await coordinator.readFrom(id, 3)
       expect(suffix.events).toEqual(log.slice(3))
@@ -1566,6 +1588,43 @@ describe('PersistenceCoordinator observation cancellation', () => {
 
       appendGate.resolve(true)
       await observed
+    } finally {
+      appendGate.resolve(true)
+      await backendFiber.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('exists waits for an in-flight retirement then reports the materialized identity', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const backend = new ControlledBackend()
+    let coordinator!: PersistenceCoordinator<never>
+    const backendFiber = await ctx.plugin(Object.assign((inner: Context) => {
+      coordinator = new PersistenceCoordinator(inner, backend)
+    }, { inject: ['sessions'] }))
+    const appendGate = Promise.withResolvers<boolean>()
+    backend.beforeAppend = async () => { await appendGate.promise }
+
+    try {
+      const id = SessionId('retiring-exists')
+      let session!: Session
+      const sessionFiber = await ctx.plugin(Object.assign((inner: Context) => {
+        session = inner.sessions.create(id)
+      }, { inject: ['sessions'] }))
+      session.append('turn/start', { turn: 1 })
+      session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      await sessionFiber.dispose()
+      await vi.waitFor(() => { expect(backend.appendAttempts).toBe(1) })
+
+      const pending = coordinator.exists(id)
+      let outcome: 'pending' | 'resolved' | 'rejected' = 'pending'
+      pending.then(() => { outcome = 'resolved' }, () => { outcome = 'rejected' })
+      await Promise.resolve()
+      expect(outcome).toBe('pending')
+
+      appendGate.resolve(true)
+      await expect(pending).resolves.toBe(true)
     } finally {
       appendGate.resolve(true)
       await backendFiber.dispose()
@@ -2102,8 +2161,9 @@ describe('SessionPersistence service registration', () => {
     const session = ctx.sessions.create(SessionId('legacy-live'), { meta: { cwd: '/legacy' } })
     // Model the runtime shape available to JavaScript or a hot-loaded plugin
     // compiled against the obsolete event vocabulary.
-    const appendLegacy = session.append.bind(session) as (type: string, data: unknown) => SessionEvent
-    expect(() => appendLegacy('request/header-delta', { config: { model: 'legacy' } }))
+    const append = Reflect.get(session, 'append')
+    if (typeof append !== 'function') throw new TypeError('session.append is not a function')
+    expect(() => Reflect.apply(append, session, ['request/header-delta', { config: { model: 'legacy' } }]))
       .toThrow(/unsupported legacy request\/header-delta format/)
     expect(session.events).toHaveLength(0)
     await fiber.dispose()
@@ -2114,9 +2174,10 @@ describe('SessionPersistence service registration', () => {
     await ctx.plugin(SessionStore)
     const fiber = await ctx.plugin(MemoryPersistence)
     const session = ctx.sessions.create(SessionId('legacy-fallback-live'), { meta: { cwd: '/legacy' } })
-    const appendLegacy = session.append.bind(session) as (type: string, data: unknown) => SessionEvent
+    const append = Reflect.get(session, 'append')
+    if (typeof append !== 'function') throw new TypeError('session.append is not a function')
 
-    expect(() => appendLegacy('request/header', legacyFallbackHeader().data))
+    expect(() => Reflect.apply(append, session, ['request/header', legacyFallbackHeader().data]))
       .toThrow('unsupported legacy request/header reason "fallback"')
     expect(session.events).toHaveLength(0)
     await fiber.dispose()

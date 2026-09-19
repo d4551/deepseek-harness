@@ -2,7 +2,7 @@
    matches the sidebar's own fallback name, so an official artifact and a
    source build lay the header out identically. */
 .name {
-  font-size: 17px;
+  font-size: var(--dsw-font-size-17);
   font-weight: 600;
   letter-spacing: 0;
   white-space: nowrap;

@@ -20,6 +20,8 @@ const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this comma
 const SCROLLBACK_PAGE_LINES = 1_000
 const POLL_INTERVAL_MS = 25
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 interface ResolvedConfig {
   dialect: PersistentShellDialect
   backendType: string
@@ -237,7 +239,7 @@ function persistentShells(ctx: Context, config: ResolvedConfig): PersistentShell
 
   ctx.effect(() => async () => {
     lifecycle.abort(new Error('tool-shell-persistent disposed during shell creation'))
-    await Promise.allSettled([...creating])
+    await Promise.allSettled(creating)
     const closing = [...live].map(async ([owner, id]) => { await close(owner, id, 'tool-shell-persistent disposed') })
     await Promise.all(closing)
     live.clear()
@@ -279,7 +281,7 @@ function persistentShells(ctx: Context, config: ResolvedConfig): PersistentShell
           throw new Error(`persistent ${shell} shell did not accept initialization`)
         }
         return spawned.sessionId
-      } catch (error: unknown) {
+      } catch (error) {
         await reset(owner, `persistent ${shell} initialization failed`)
         throw error
       }
@@ -334,7 +336,7 @@ async function executeCommand(
       })
       first = false
       result = await operation.done
-    } catch (error: unknown) {
+    } catch (error) {
       await shells.reset(owner, `persistent ${dialect.toolName} send failed`)
       throw error
     }
@@ -393,8 +395,8 @@ function registerPersistentShell(ctx: Context, config: ResolvedConfig): void {
 
   const serialized = async <T>(owner: Agent, operation: () => Promise<T>): Promise<T> => {
     const prior = queues.get(owner) ?? Promise.resolve()
-    const run = prior.then(operation, operation)
-    const tail = run.then(() => undefined, () => undefined)
+    const run = prior.then(operation)
+    const tail = run.then(() => undefined, (_error: Thrown) => undefined)
     queues.set(owner, tail)
     try {
       return await run

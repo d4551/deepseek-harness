@@ -25,14 +25,14 @@
 .value {
   min-width: 18px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   font-variant-numeric: tabular-nums;
   color: var(--dsw-alias-label-primary);
 }
 
 .unit {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-secondary);
 }

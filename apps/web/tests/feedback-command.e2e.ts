@@ -77,7 +77,9 @@ describe('web e2e: /feedback command acknowledgement', () => {
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('records feedback and renders the acknowledgement with session id and sharing status', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] feedback-command.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('records feedback and renders the acknowledgement with session id and sharing status', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-command'))
     // The drive test settled the recorded turn: the transcript is active (a
     // command row does not render while a fresh session is still blank) and
@@ -103,7 +105,9 @@ describe('web e2e: /feedback command acknowledgement', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] feedback-command.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.jsonl', 'ack.expected.md', 'ack-expanded.expected.md',
     ])

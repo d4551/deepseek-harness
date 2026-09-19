@@ -137,7 +137,9 @@ describe('minimal agent preset', () => {
       .toEqual(scaffold.ctx.tools.schemas(agentHandle.agent).toSorted((left, right) => left.name.localeCompare(right.name)))
   })
 
-  it.skipIf(MODE === 'record')('expands the completed persistent Bash call in the Web conversation', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] minimal-preset.snapshot.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('expands the completed persistent Bash call in the Web conversation', async () => {
     onTestFailed(async () => { if (page !== undefined) await saveFailureShot(page, 'web-minimal-persistent-bash-card') })
     browser = await launchBrowser()
     page = await newEnglishPage(browser)

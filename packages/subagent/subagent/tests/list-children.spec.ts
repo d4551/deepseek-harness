@@ -356,9 +356,9 @@ describe('SubagentRuntime.listChildren', () => {
       origin: 'subagent',
     }, childEvents(descriptorPayload('unreadable child')))
     const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
-    vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation((id, options) => {
+    vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation(async (id, options) => {
       if (id === childId) {
-        return Promise.reject('backend unavailable') // oxlint-disable-line typescript/prefer-promise-reject-errors
+        throw 'backend unavailable'
       }
       return observe(id, options)
     })
@@ -375,7 +375,7 @@ describe('SubagentRuntime.listChildren', () => {
       parentSession: parent.id,
       origin: 'subagent',
     }, childEvents(descriptorPayload('cancelled child')))
-    const dispose = vi.fn()
+    const dispose = vi.fn<() => void>()
     vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation((id) => {
       if (id !== childId) throw new Error(`unexpected observation: ${id}`)
       controller.abort(new Error('cancelled after observation'))
@@ -391,7 +391,7 @@ describe('SubagentRuntime.listChildren', () => {
         events: [],
         cursor: -1,
         projections: { asOfSeq: -1, values: {} },
-        retain: vi.fn(),
+        retain: vi.fn<() => SessionObservation>(),
         [Symbol.dispose]: dispose,
       } as unknown as SessionObservation)
     })

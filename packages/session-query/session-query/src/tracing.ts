@@ -1,8 +1,9 @@
 /** One-shot session-lineage and event-relationship tracing helpers. */
 
-import { foldSurface, isSurfaceEvent, snapshotSessionEvent } from '@deepseek-ai/dsh-session'
-import type { SessionEvent, SessionId, SurfaceEvent, SurfaceEventType } from '@deepseek-ai/dsh-session'
+import { isSurfaceEvent, snapshotSessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId, SurfaceEvent } from '@deepseek-ai/dsh-session'
 import { SessionQueryError } from './config.ts'
+import { foldSessionQuerySurface } from './surface-fold.ts'
 import type {
   SessionEventRecord,
   SessionEventTrace,
@@ -44,7 +45,6 @@ export function currentSurfaceEvents(
   const analysis = analyzeEventLog(sessionId, events)
   return analysis.currentSeqs.map((seq) => {
     const event = events[seq]
-    /* v8 ignore next 6 -- analyzeEventLog validated contiguous seqs and foldSurface returned only surface-event seqs. */
     if (event === undefined || event.seq !== seq || !isSurfaceEvent(event)) {
       throw new SessionQueryError(
         `invalid session surface: current node ${seq} is not a surface event`,
@@ -90,9 +90,13 @@ export function traceEvent(
     if (eventSources(event).includes(seq)) derivedEventSeqs.push(event.seq)
   }
 
-  // The target check above proves the parallel record exists at this index.
-  // oxlint-disable-next-line typescript/no-non-null-assertion
-  const targetRecord = analysis.records[seq]!
+  const targetRecord = analysis.records[seq]
+  if (targetRecord === undefined) {
+    throw new SessionQueryError(
+      `session "${sessionId}" has no event record at seq ${seq}`,
+      'SESSION_QUERY_EVENT_NOT_FOUND',
+    )
+  }
   const replacedBy = analysis.replacedBy.get(seq)
   return {
     target: targetRecord,
@@ -176,17 +180,7 @@ function analyzeEventLog(
   sessionId: SessionId,
   events: readonly SessionEvent[],
 ): EventLogAnalysis {
-  let folded: ReturnType<typeof foldSurface>
-  try {
-    folded = foldSurface(events)
-  } catch (error: unknown) {
-    throw new SessionQueryError(
-      /* v8 ignore next -- foldSurface throws Error instances */
-      `invalid session surface: ${error instanceof Error ? error.message : 'unknown error'}`,
-      'SESSION_QUERY_INVALID_SURFACE',
-      { cause: error },
-    )
-  }
+  const folded = foldSessionQuerySurface(events)
   const current = new Set(folded.nodes)
   const replacedBy = new Map<number, number>()
   const replacedEventSeqs = new Map<number, number[]>()
@@ -214,7 +208,8 @@ function analyzeEventLog(
 }
 
 function eventSources(event: SessionEvent): readonly number[] {
-  return (event as SessionEvent<SurfaceEventType>).sourceEventSeqs ?? []
+  if (!isSurfaceEvent(event)) return []
+  return event.sourceEventSeqs ?? []
 }
 
 function buildDescendants(
@@ -224,9 +219,10 @@ function buildDescendants(
   const descendants: SessionLineageNode[] = []
   const stack = [{ sessionId, descendants }]
   while (stack.length > 0) {
-    // The length guard proves a frame exists.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const frame = stack.pop()!
+    const frame = stack.pop()
+    if (frame === undefined) {
+      throw new TypeError('session lineage walk underflow')
+    }
     const nodes: SessionLineageNode[] = []
     for (const child of childrenByParent.get(frame.sessionId) ?? []) {
       const node = { session: cloneRecord(child), descendants: [] }
@@ -234,9 +230,10 @@ function buildDescendants(
       frame.descendants.push(node)
     }
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
-      // The loop bounds prove this indexed node exists.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const node = nodes[index]!
+      const node = nodes[index]
+      if (node === undefined) {
+        throw new TypeError(`session lineage node missing at ${String(index)}`)
+      }
       stack.push({ sessionId: node.session.header.id, descendants: node.descendants })
     }
   }

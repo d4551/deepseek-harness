@@ -34,13 +34,34 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SkillEntry } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { InputTriggerServiceContract, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { SkillRow } from './SkillRow.tsx'
 import { en, NS, zh, type SkillKey } from './locales.ts'
+
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(
+    () => undefined,
+    (reason: ListenerFailure) => {
+      if (finishedSynchronously) onReject(reason)
+      else onThrow(reason)
+    },
+  )
+}
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -80,15 +101,12 @@ export function apply(ctx: ClientContext): void {
   const lexiconListeners = new Map<SessionId, Set<() => void>>()
 
   const notifyLexicon = (sessionId: SessionId): void => {
-    for (const listener of [...(lexiconListeners.get(sessionId) ?? [])]) {
-      try {
-        listener()
-      } catch (error) {
-        // Contain listener failures: settlement notifies from an ignored
-        // promise chain (a throw would surface as an unhandled rejection)
-        // and one faulty consumer must not starve the others.
-        console.error('[ui-skill] lexicon listener failed:', error)
-      }
+    for (const listener of Array.from(lexiconListeners.get(sessionId) ?? [])) {
+      observeListenerInvocation(
+        listener,
+        (reason) => { console.error('[ui-skill] lexicon listener threw:', reason) },
+        (reason) => { console.error('[ui-skill] lexicon listener rejected:', reason) },
+      )
     }
   }
 
@@ -127,7 +145,7 @@ export function apply(ctx: ClientContext): void {
   }
 
   const clearAll = (): void => {
-    for (const key of [...fetches.keys()]) invalidate(key)
+    for (const key of Array.from(fetches.keys())) invalidate(key)
   }
 
   // The bound translate resolves against the registered dictionaries with the
@@ -154,7 +172,12 @@ export function apply(ctx: ClientContext): void {
     warm(session) {
       // Fire-and-forget scope-birth prewarm; the shared fetch reports
       // through candidates.
-      fetchCatalog(session.sessionId).catch(() => {})
+      fetchCatalog(session.sessionId).then(
+        () => undefined,
+        (error: Error) => {
+          console.error('[ui-skill] catalog prewarm failed:', error)
+        },
+      )
     },
     lexicon(session) {
       return fetches.get(session.sessionId)?.settled?.map(skill => skill.name)
@@ -180,7 +203,8 @@ export function apply(ctx: ClientContext): void {
       return { text: `/${candidate.name} ` }
     },
   }
-  const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
+  const inputTriggers = ctx.get('inputTriggers')
+  if (inputTriggers === undefined) throw new Error('ui-skill: inputTriggers service unavailable')
   // A preset decides which skill providers an agent reads, so a switched
   // session's cached catalog belongs to the composition it no longer runs.
   ctx.remote.$on('agent-preset/selected', invalidate)

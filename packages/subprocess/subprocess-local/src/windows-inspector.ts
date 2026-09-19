@@ -225,6 +225,19 @@ const WAIT_OBJECT_0 = 0
 const WAIT_TIMEOUT = 0x102
 
 /**
+ * Narrow one koffi binding to its callable seat. Koffi types the binder as
+ * `unknown`, so the `typeof` guard is the honesty: a non-function binding
+ * fails closed on first use instead of crashing at the call site.
+ * @param value - the bound symbol.
+ * @param name - the Win32 export name named in the failure.
+ * @returns the callable binding.
+ */
+function requireBinding<T extends (...args: never[]) => unknown>(value: unknown, name: string): T {
+  if (typeof value !== 'function') throw new Error(`Win32 binding ${name} is unavailable`)
+  return value as T
+}
+
+/**
  * Bind every Win32 call this inspector makes from one kernel32 the loader
  * opens. Binding failures propagate on the first call, fail-closed.
  * @param load - opens the library; koffi's loader in production.
@@ -239,20 +252,20 @@ function bindWin32(load: Win32LibraryLoader): Win32Bindings {
     args: Array<ReturnType<typeof koffi.pointer> | string>,
   ): unknown => kernel32.func('__stdcall', name, result, args)
   return {
-    createToolhelp32Snapshot: bind('CreateToolhelp32Snapshot', PVOID, ['uint32', 'uint32']),
-    process32FirstW: bind('Process32FirstW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]),
-    process32NextW: bind('Process32NextW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]),
-    openProcess: bind('OpenProcess', PVOID, ['uint32', 'int', 'uint32']),
-    getProcessTimes: bind('GetProcessTimes', 'int', [
+    createToolhelp32Snapshot: requireBinding<Win32Bindings['createToolhelp32Snapshot']>(bind('CreateToolhelp32Snapshot', PVOID, ['uint32', 'uint32']), 'CreateToolhelp32Snapshot'),
+    process32FirstW: requireBinding<Win32Bindings['process32FirstW']>(bind('Process32FirstW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]), 'Process32FirstW'),
+    process32NextW: requireBinding<Win32Bindings['process32NextW']>(bind('Process32NextW', 'int', [PVOID, koffi.pointer(PROCESSENTRY32W)]), 'Process32NextW'),
+    openProcess: requireBinding<Win32Bindings['openProcess']>(bind('OpenProcess', PVOID, ['uint32', 'int', 'uint32']), 'OpenProcess'),
+    getProcessTimes: requireBinding<Win32Bindings['getProcessTimes']>(bind('GetProcessTimes', 'int', [
       PVOID,
       koffi.pointer(FILETIME),
       koffi.pointer(FILETIME),
       koffi.pointer(FILETIME),
       koffi.pointer(FILETIME),
-    ]),
-    waitForSingleObject: bind('WaitForSingleObject', 'uint32', [PVOID, 'uint32']),
-    closeHandle: bind('CloseHandle', 'int', [PVOID]),
-  } as unknown as Win32Bindings
+    ]), 'GetProcessTimes'),
+    waitForSingleObject: requireBinding<Win32Bindings['waitForSingleObject']>(bind('WaitForSingleObject', 'uint32', [PVOID, 'uint32']), 'WaitForSingleObject'),
+    closeHandle: requireBinding<Win32Bindings['closeHandle']>(bind('CloseHandle', 'int', [PVOID]), 'CloseHandle'),
+  }
 }
 
 /**

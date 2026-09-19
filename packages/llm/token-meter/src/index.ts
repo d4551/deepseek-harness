@@ -204,8 +204,10 @@ export class TokenMeter extends Service {
     }
 
     while (state.consumedEvents < session.events.length) {
-      // oxlint-disable-next-line typescript/no-non-null-assertion -- contiguous session seqs index the durable log
-      const event = session.events[state.consumedEvents]!
+      const event = session.events[state.consumedEvents]
+      if (event === undefined) {
+        throw new Error(`token meter: missing event at ${String(state.consumedEvents)}`)
+      }
       this._foldEvent(session, state, event)
       state.consumedEvents += 1
     }
@@ -259,8 +261,10 @@ export class TokenMeter extends Service {
       }
 
       // assistant/message is surface-mandatory at every append/seed boundary.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const eventTokens = plan!.tokens
+      if (plan === undefined) {
+        throw new Error(`token meter: assistant/message at seq ${event.seq} has no surface plan`)
+      }
+      const eventTokens = plan.tokens
       if (event.data.usage !== undefined && nextHeader !== undefined) {
         nextAnchor = {
           header: nextHeader,
@@ -309,11 +313,10 @@ export class TokenMeter extends Service {
         throw new Error(`token meter: assistant/message at seq ${event.seq} repeats source seq ${seq}`)
       }
       seen.add(seq)
-      const source = session.events[seq]
-      // Session construction validates contiguous seqs, and the explicit
-      // earlier-than-assistant check above therefore guarantees existence.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const sourceEvent = source!
+      const sourceEvent = session.events[seq]
+      if (sourceEvent === undefined) {
+        throw new Error(`token meter: assistant/message at seq ${event.seq} source seq ${seq} is missing`)
+      }
       if (sourceEvent.type !== 'assistant/chunk') {
         throw new Error(`token meter: assistant/message at seq ${event.seq} source seq ${seq} is not assistant/chunk`)
       }

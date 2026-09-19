@@ -47,6 +47,26 @@ export interface WebSearchSettings {
   maxUses?: number
 }
 
+/**
+ * Claim one wire section as the DeepSeek search card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is the wrong kind.
+ */
+export function decodeWebSearchSettings(section: unknown): WebSearchSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const apiKeyEnv = Reflect.get(section, 'apiKeyEnv')
+  const baseURL = Reflect.get(section, 'baseURL')
+  const maxUses = Reflect.get(section, 'maxUses')
+  if (apiKeyEnv !== undefined && typeof apiKeyEnv !== 'string') return undefined
+  if (baseURL !== undefined && typeof baseURL !== 'string') return undefined
+  if (maxUses !== undefined && (typeof maxUses !== 'number' || !Number.isFinite(maxUses))) return undefined
+  const claimed: WebSearchSettings = {}
+  if (apiKeyEnv !== undefined) claimed.apiKeyEnv = apiKeyEnv
+  if (baseURL !== undefined) claimed.baseURL = baseURL
+  if (maxUses !== undefined) claimed.maxUses = maxUses
+  return claimed
+}
+
 /** The credentials Remote methods this card reads and writes through. */
 export type WebSearchCredentials = Pick<ClientRemote['credentials'], 'describe' | 'set'>
 

@@ -12,7 +12,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   cursor: pointer;
 }
@@ -72,7 +72,7 @@
   padding: 6px 8px;
   border-radius: 8px;
   color: var(--dsw-alias-label-primary);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 18px;
 }
 
@@ -90,7 +90,7 @@
   border-radius: 5px;
   background: var(--dsw-alias-fill-l2);
   color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
 }
 
@@ -107,7 +107,7 @@
 .duration {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
 }
 

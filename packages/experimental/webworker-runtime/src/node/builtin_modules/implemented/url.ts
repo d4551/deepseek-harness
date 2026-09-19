@@ -64,12 +64,11 @@ export const __esModule = true
  * `URL.createObjectURL` and the `URLSearchParams` initializer union differently,
  * and re-declaring either would replace the objects the platform hands out.
  */
-type NodeFace = Partial<Omit<typeof import('node:url'), 'URL' | 'URLSearchParams'>>
+type NodeFace = Partial<Omit<typeof import('node:url'), 'URL' | 'URLSearchParams' | 'resolve'>>
   & Record<'URL' | 'URLSearchParams', unknown>
+  & { resolve(specifier: string, base: string): string }
 
 /** CommonJS default export: the members `require()` hands a caller of this module. */
 export default {
-  // `satisfies NodeFace` types this key against Node's `url.resolve`, which Node deprecated.
-  // oxlint-disable-next-line typescript/no-deprecated -- the module this worker stands in for exports it.
   fileURLToPath, pathToFileURL, resolve, URL: UrlClass, URLSearchParams: UrlSearchParamsClass,
 } satisfies NodeFace

@@ -453,11 +453,11 @@ describe('provider-routed retry policy', () => {
     const end = agent.session.events.at(-1)
     expect(end).toMatchObject({
       type: 'turn/end',
-      data: { reason: { kind: 'error', error: { code: 'NO_ADAPTER' } } },
+      data: { reason: { kind: 'error', error: {
+        code: 'NO_ADAPTER',
+        message: expect.stringContaining('no adapter registered for provider'),
+      } } },
     })
-    if (end?.type === 'turn/end' && end.data.reason.kind === 'error') {
-      expect(end.data.reason.error.message).toContain('no adapter registered for provider')
-    }
   })
 
   it('selects policy by the failed request provider', async () => {
@@ -747,6 +747,15 @@ describe('provider-routed retry policy', () => {
   it.each([
     ['synchronously', () => { throw new Error('downstream recovery failed') }],
     ['asynchronously', async () => { throw new Error('downstream recovery failed') }],
+    ['a string', () => { throw 'downstream recovery failed' }],
+    ['a number', () => { throw 42 }],
+    ['a boolean', () => { throw false }],
+    ['a bigint', () => { throw 1n }],
+    ['a symbol', () => { throw Symbol.for('llm-retry-downstream') }],
+    ['a function', () => { throw Object }],
+    ['null', () => { throw null }],
+    ['undefined', () => { throw undefined }],
+    ['an object', () => { throw { reason: 'downstream recovery failed' } }],
   ])('falls back to always retry when downstream recovery throws %s', async (_kind, failDownstream) => {
     vi.useFakeTimers()
     const adapter = new ScriptedAdapter([
@@ -832,6 +841,41 @@ describe('provider-routed retry policy', () => {
 
     expect(order[0]).toBe('downstream')
     expect(order).toEqual(expect.arrayContaining(['disposed', 'idle']))
+    expect(adapter.requests).toHaveLength(1)
+    expect(agent.session.events.some(event => event.type === 'llm/retry')).toBe(false)
+  })
+
+  it('drains a rejected delegated recovery before plugin disposal completes', async () => {
+    const adapter = new ScriptedAdapter([new LlmError('bad key', 'AUTH')])
+    const mounted = await harness(adapter, { mock: undefined })
+    context = mounted.ctx
+    const downstream = Promise.withResolvers<RequestErrorAction>()
+    const entered = Promise.withResolvers<undefined>()
+    context.on('agent/request-error', () => {
+      entered.resolve(undefined)
+      return downstream.promise
+    })
+    const agent = context.agentLoop.create(SessionId('retry-delegated-disposal-reject'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    const idle = waitForIdle(context, agent)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await entered.promise
+
+    const disposing = mounted.retryFiber.dispose()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const outcome = await Promise.race([
+      disposing.then(() => 'disposed' as const),
+      new Promise<'blocked'>((resolve) => { timer = setTimeout(() => { resolve('blocked') }, 100) }),
+    ])
+    if (timer !== undefined) clearTimeout(timer)
+    expect(outcome).toBe('blocked')
+
+    downstream.reject(new Error('delegated recovery failed'))
+    await disposing
+    await idle
+
     expect(adapter.requests).toHaveLength(1)
     expect(agent.session.events.some(event => event.type === 'llm/retry')).toBe(false)
   })

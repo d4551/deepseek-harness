@@ -102,7 +102,7 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * scroll/resize; return null to hide the list until the anchor is available.
  * @param props.footer - rows pinned below the scrolling items area, separated
  * by a hairline; they stay visible while the items above scroll.
- * @param props.autoFocus - take the focus into the list when it opens and give
+ * @param props.focusOnOpen - take the focus into the list when it opens and give
  * it back to whatever held it when the list closes. Set it when the gesture
  * that opened the list was keyboard work, which would otherwise be stranded
  * outside a portaled list that follows the whole document in tab order; leave
@@ -112,7 +112,7 @@ function menuItems(list: HTMLElement | null): HTMLButtonElement[] {
  * announces an unlabelled menu.
  * @returns anchor wrapper with the conditional list.
  */
-export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, autoFocus = false, ariaLabel, getAnchorRect, footer, className }: {
+export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, onClose, align = 'start', side = 'bottom', portal = false, closeOnPointerLeave = false, dense = false, compact = false, focusOnOpen = false, ariaLabel, getAnchorRect, footer, className }: {
   open: boolean
   anchor: ReactNode
   items: readonly MenuEntry[]
@@ -127,7 +127,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   closeOnPointerLeave?: boolean
   dense?: boolean
   compact?: boolean
-  autoFocus?: boolean
+  focusOnOpen?: boolean
   ariaLabel?: string
   getAnchorRect?: () => DOMRect | null
   className?: string
@@ -192,13 +192,13 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   // portal at the end of the document, so leaving the focus on the anchor would
   // put every other focusable element between the operator and these rows.
   useLayoutEffect(() => {
-    if (!open || !autoFocus || awaitingAnchor) return
+    if (!open || !focusOnOpen || awaitingAnchor) return
     const restore = document.activeElement
     menuItems(listRef.current)[0]?.focus()
     return () => {
       if (restore instanceof HTMLElement) restore.focus()
     }
-  }, [open, autoFocus, awaitingAnchor, portalHost])
+  }, [open, focusOnOpen, awaitingAnchor, portalHost])
 
   // The arrows walk the rows once the focus is on one of them — the menu
   // pattern's own navigation. A list the pointer opened keeps the arrows for
@@ -250,7 +250,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
 
   const renderEntry = (entry: MenuEntry) => {
     if (isSeparator(entry)) {
-      return <div key={entry.id} className={css.separator} role="separator" />
+      return <hr key={entry.id} className={css.separator} />
     }
     if (isLabel(entry)) {
       return <div key={entry.id} className={css.label} role="presentation">{entry.text}</div>
@@ -311,6 +311,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           <div
             className={clsx(css.submenu, compact && css.compactList)}
             role="menu"
+            tabIndex={-1}
             aria-labelledby={`${menuId}-${entry.id}`}
             ref={(node) => {
               if (node === null || !focusSubmenu.current) return
@@ -359,13 +360,18 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       data-anchored-position={fixedPos ?? undefined}
       role="menu"
+      tabIndex={-1}
       aria-hidden={awaitingAnchor || undefined}
       inert={awaitingAnchor}
       {...ariaLabel === undefined ? {} : { 'aria-label': ariaLabel }}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick
-      // (open/toggle) after onSelect.
+      // (open/toggle) after onSelect. Keyboard activation uses the same path.
       onClick={(e) => { e.stopPropagation() }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.stopPropagation()
+      }}
     >
       <div className={css.viewport} role="presentation">
         {items.map(renderEntry)}

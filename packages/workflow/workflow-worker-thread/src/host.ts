@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { assertNever } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentRun } from '@deepseek-ai/dsh-subagent'
 import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@deepseek-ai/dsh-workflow'
@@ -22,6 +24,74 @@ import type { ExecutionObserver } from './runtime.ts'
 import { HostToWorkerType, WorkerToHostType } from './protocol.ts'
 import type { HostToWorkerPayloads, WorkerToHostMessage } from './protocol.ts'
 import type { ChildResult, ChildStartRequest, WorkerInit } from './types.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected host-side promise.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the Error message, first stack line when that text is `Error: msg`, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    if (reason.message.length > 0) return reason.message
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+/** Confirm child output is an array of merge-extensible content blocks. */
+function assertChildOutput(value: JsonValue | ContentBlock[]): asserts value is ContentBlock[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  for (const item of value) {
+    if (typeof item !== 'object') {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (item === null || Array.isArray(item)) {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (!('type' in item)) {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+    if (typeof item.type !== 'string') {
+      throw new TypeError('child result is not losslessly JSON-serializable')
+    }
+  }
+}
+
+/** Rebuild a child result from its detached JSON snapshot. */
+function childResultFromJson(value: JsonValue): ChildResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  const output = value.output
+  const stopReason = value.stopReason
+  if (!Array.isArray(output) || typeof stopReason !== 'string') {
+    throw new TypeError('child result is not losslessly JSON-serializable')
+  }
+  assertChildOutput(output)
+  return {
+    output,
+    ...value.structured === undefined ? {} : { structured: value.structured },
+    stopReason,
+  }
+}
 
 /** One published child and its shared quiescent-disposal transaction. */
 interface ChildRecord {
@@ -197,7 +267,7 @@ export class WorkerRun implements WorkflowRun {
       // workflow/end.
       this.endStrandedAgents()
       this.settleResult(this.cancelledResult(this.hostStarted))
-      this.worker.terminate().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      this.worker.terminate().then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }, this.disposeGraceMs)
     // unref'd: an armed grace timer must never hold the process open.
     this.graceTimer.unref()
@@ -247,7 +317,7 @@ export class WorkerRun implements WorkflowRun {
     disposing.then(
       () => { claimed.resolve(undefined) },
       /* v8 ignore next -- result/quiescence never reject and Worker.terminate is the only external promise */
-      (error: unknown) => { claimed.reject(error) },
+      (error: Thrown) => { claimed.reject(error) },
     )
     return this.disposed
   }
@@ -257,7 +327,7 @@ export class WorkerRun implements WorkflowRun {
     if (this.workerGone || this.workerDeathObserved) return
     try {
       this.worker.postMessage({ type, ...payload })
-    } catch (error: unknown) {
+    } catch (error) {
       // Only a teardown race can land here (every engine message is JSON
       // data, so serialization cannot fail); there is nothing left to
       // deliver to — log and move on.
@@ -342,7 +412,7 @@ export class WorkerRun implements WorkflowRun {
     task.then(
       () => { this.finishPendingStart(task) },
       /* v8 ignore next -- startChild contains provider and cleanup failures */
-      () => { this.finishPendingStart(task) },
+      (_error: Thrown) => { this.finishPendingStart(task) },
     )
   }
 
@@ -364,7 +434,7 @@ export class WorkerRun implements WorkflowRun {
           }
           : {},
       })
-    } catch (error: unknown) {
+    } catch (error) {
       const failure = this.childAdmissionFailure()
       this.post(HostToWorkerType.ChildStartError, {
         callId,
@@ -377,7 +447,7 @@ export class WorkerRun implements WorkflowRun {
       this.post(HostToWorkerType.ChildStartError, { callId, rendered: failure.rendered })
       try {
         await run.dispose()
-      } catch (error: unknown) {
+      } catch (error) {
         this.ctx.logger.warn(`workflow-worker-thread: refused child dispose failed: ${renderThrown(error)}`)
       }
       return
@@ -391,20 +461,20 @@ export class WorkerRun implements WorkflowRun {
     run.result.then(
       (result) => {
         try {
-          const snapshot = snapshotJsonValue<ChildResult>({
+          const snapshot = snapshotJsonValue({
             output: result.output,
             ...result.structured !== undefined ? { structured: result.structured } : {},
             stopReason: result.stopReason,
           })
           if (snapshot === undefined) throw new TypeError('child result is not losslessly JSON-serializable')
-          this.post(HostToWorkerType.ChildSettled, { callId, result: snapshot })
-        } catch (error: unknown) {
+          this.post(HostToWorkerType.ChildSettled, { callId, result: childResultFromJson(snapshot) })
+        } catch (error) {
           const rendered = `workflow child result could not cross the worker boundary: ${renderThrown(error)}`
           this.post(HostToWorkerType.ChildFailed, { callId, rendered })
         }
       },
-      (error: unknown) => {
-        const rendered = renderThrown(error)
+      (error: Thrown) => {
+        const rendered = thrownMessage(error)
         this.post(HostToWorkerType.ChildFailed, { callId, rendered })
       },
     )
@@ -420,7 +490,7 @@ export class WorkerRun implements WorkflowRun {
       return
     }
     const ack = (): void => { this.post(HostToWorkerType.ChildDisposed, { callId }) }
-    this.disposeChild(callId, record).then(ack, ack) // disposeChild never rejects (containment is inside): the ack always follows
+    this.disposeChild(callId, record).then(ack, (_error: Thrown) => { ack() })
   }
 
   /**
@@ -437,10 +507,9 @@ export class WorkerRun implements WorkflowRun {
    */
   private disposeChild(callId: number, record: ChildRecord): Promise<void> {
     if (record.disposal !== undefined) return record.disposal
-    record.disposal = Promise.resolve()
-      .then(() => record.run.dispose())
-      .catch((error: unknown) => {
-        this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${renderThrown(error)}`)
+    record.disposal = Promise.resolve(record.run.dispose())
+      .catch((error: Thrown) => {
+        this.ctx.logger.warn(`workflow-worker-thread: child dispose failed: ${thrownMessage(error)}`)
       })
       .then(() => { this.finishChild(callId) })
     return record.disposal
@@ -473,7 +542,7 @@ export class WorkerRun implements WorkflowRun {
   /** Abort + dispose every registered child (worker death / final teardown); disposal is contained, not awaited. */
   private reapChildren(reason: string): void {
     this.abortChildren(this.cancelReason ?? reason)
-    for (const [callId, record] of [...this.children]) {
+    for (const [callId, record] of Array.from(this.children)) {
       record.disposal = this.disposeChild(callId, record)
     }
   }
@@ -546,7 +615,7 @@ export class WorkerRun implements WorkflowRun {
     // precede `exit`. Admission is already closed, so this final sweep only
     // joins/starts disposal for registry survivors; it deliberately does not
     // repeat explicit provider cancellation.
-    for (const [callId, record] of [...this.children]) record.disposal = this.disposeChild(callId, record)
+    for (const [callId, record] of Array.from(this.children)) record.disposal = this.disposeChild(callId, record)
     this.endStrandedAgents()
   }
 
@@ -576,7 +645,7 @@ export class WorkerRun implements WorkflowRun {
    * The ledger preserves exactly-once pairing in both orders.
    */
   private endStrandedAgents(): void {
-    for (const info of [...this.liveAgents.values()]) {
+    for (const info of Array.from(this.liveAgents.values())) {
       this.endAgent({ ...info, outcome: 'cancelled' })
     }
   }

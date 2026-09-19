@@ -15,6 +15,8 @@ import { initializePerRecord } from './initialization.ts'
 import { assertSafeKey, SAFE_KEY_RE } from './record-key.ts'
 import { JsonUnitLifecycle } from './unit-lifecycle.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Open a lazily initialized unit whose operations own import and durable publication.
  * @param descriptor - Validated unit identity and declared record layout.
@@ -67,12 +69,11 @@ async function loadTableRecords(records: Map<string, unknown>, version: number, 
 }
 
 /** Read one record document; an unreadable or stale document reads as absent. */
-async function readRecord(path: string, version: number): Promise<unknown> {
-  try {
-    return parseRecord(await readFile(path, 'utf8'), version)
-  } catch {
-    return undefined
-  }
+function readRecord(path: string, version: number): Promise<unknown> {
+  return readFile(path, 'utf8').then(
+    text => parseRecord(text, version),
+    (_error: Thrown) => undefined,
+  )
 }
 
 class PerRecordJsonUnit extends JsonUnitLifecycle implements KvUnit {

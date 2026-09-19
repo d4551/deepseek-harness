@@ -114,6 +114,33 @@ describe('injected SSOT violations', () => {
     ])
   })
 
+  it('fails a raw font-size and a content-font fallback outside the theme sheet', () => {
+    const findings = scanUiSsot([
+      THEME,
+      FRAME,
+      {
+        file: 'packages/client/ui-chat/src/Sized.module.css',
+        content: '.a { font-size: 14px; }\n.b { font-size: var(--dsh-content-font-size, 14px); }\n',
+      },
+      {
+        file: 'packages/client/ui-chat/src/Tokened.module.css',
+        content: '.c { font-size: var(--dsh-content-font-size); }\n',
+      },
+    ]).filter(finding => finding.kind === 'typography')
+    expect(findings).toEqual([
+      {
+        file: 'packages/client/ui-chat/src/Sized.module.css',
+        kind: 'typography',
+        detail: 'font-size: 14px is a raw size; use --dsh-content-font-size* or --dsw-font-*-font-size',
+      },
+      {
+        file: 'packages/client/ui-chat/src/Sized.module.css',
+        kind: 'typography',
+        detail: '--dsh-content-font-size carries a fallback length; set the default on :root and read the token with no comma',
+      },
+    ])
+  })
+
   it('fails an interactive control whose width and height are both under 24px', () => {
     // Fixture body lives in a data file: the geometry the detector must catch
     // is exactly what the repo's own UI rules forbid in authored sources.

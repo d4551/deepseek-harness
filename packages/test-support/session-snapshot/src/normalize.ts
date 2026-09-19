@@ -7,6 +7,7 @@
  */
 
 import {
+  assertSessionEventObject,
   decodeSeqRanges,
   decodeStorageRecord,
   packChunkRuns,
@@ -43,7 +44,7 @@ const EMBEDDED_EVENT_TIME_RE = /^(  "time": )\d+(?=,\r?$)/gm
 const EVENT_READ_OMITTED_BYTES_RE = /(\r?\n\r?\n\(Omitted )\d+( bytes\.)/g
 const EVENT_READ_TARGET_REGION_RE
   = /^Session [^\r\n]+ — [^\r\n]+\r?\nTarget event seq \d+:\r?\n```json\r?\n\{\r?\n[\s\S]*?(?=\r?\n```(?:\r?\n|$)|\r?\n\r?\n\(Omitted )/
-const PATH_TEXT_BOUNDARY_RE = /[\s<>'"`()\[\]{},;:!?=]/
+const PATH_TEXT_BOUNDARY_RE = /[\s<>'"`()[\]{},;:!?=]/
 const FILE_URI_PATH_PREFIX_RE = /(?:^|[^a-z0-9+.-])file:\/\/\/?$/i
 
 /** A UUID v4 string, the shape `randomUUID()` produces for session ids. */
@@ -478,11 +479,20 @@ function decodeFixtureRecord(record: Record<string, unknown>, nextSeq: number): 
   const packed = isPackedFixtureRow(record)
   const seqKey = packed ? 'seq0' : 'seq'
   const timeKey = packed ? 'time0' : 'time'
-  return decodeStorageRecord({
+  const decoded = decodeStorageRecord({
     ...record,
     [seqKey]: Object.hasOwn(record, seqKey) ? record[seqKey] : nextSeq,
     [timeKey]: Object.hasOwn(record, timeKey) ? record[timeKey] : 0,
   })
+  const events: SessionEvent[] = []
+  for (const item of decoded) {
+    if (typeof item !== 'object' || item === null) {
+      throw new TypeError('decoded fixture record must be an object')
+    }
+    assertSessionEventObject(item)
+    events.push(item)
+  }
+  return events
 }
 
 /**

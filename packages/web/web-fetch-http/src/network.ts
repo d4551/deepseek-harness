@@ -13,6 +13,8 @@ import type { Response } from 'undici'
 import ipaddr from 'ipaddr.js'
 import { WebError } from '@deepseek-ai/dsh-web'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** One address resolved and retained for the subsequent pinned connection. */
 export interface PublicAddress {
   /** Canonical textual IPv4 or IPv6 address. */
@@ -180,7 +182,7 @@ function embeddedIpv4Address(bytes: readonly number[], prefixLength: Nat64Prefix
  * @param signal - request and body-read cancellation signal.
  * @returns a response plus the dispatcher disposer its consumer must call.
  */
-export async function requestPinned(
+export function requestPinned(
   url: URL,
   addresses: readonly PublicAddress[],
   headers: Record<string, string>,
@@ -189,18 +191,22 @@ export async function requestPinned(
   // Keep the Node-only transport out of browser-worker startup. The preview
   // can load the provider and fail loud at its DNS stub without evaluating
   // Undici; a real request on Node resolves this maintained dependency here.
-  const { Agent, fetch } = await import('undici')
-  const dispatcher = new Agent({
-    autoSelectFamily: true,
-    connect: { lookup: createPinnedLookup(addresses) },
-  })
-  try {
-    const response = await fetch(url, { method: 'GET', redirect: 'manual', headers, signal, dispatcher })
-    return { response, close: async () => { await dispatcher.close() } }
-  } catch (error: unknown) {
-    await dispatcher.close()
-    throw error
-  }
+  return import('undici').then(
+    ({ Agent, fetch }) => {
+      const dispatcher = new Agent({
+        autoSelectFamily: true,
+        connect: { lookup: createPinnedLookup(addresses) },
+      })
+      return fetch(url, { method: 'GET', redirect: 'manual', headers, signal, dispatcher }).then(
+        response => ({ response, close: () => dispatcher.close() }),
+        (error: Thrown) => dispatcher.close().then(
+          () => { throw error },
+          (closeError: Thrown) => { throw closeError },
+        ),
+      )
+    },
+    (error: Thrown) => { throw error },
+  )
 }
 
 /** Production network operations kept as an object so provider tests can replace resolution only. */
@@ -255,7 +261,10 @@ function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T>
   return new Promise<T>((resolve, reject) => {
     const abort = () => { reject(abortError()) }
     signal.addEventListener('abort', abort, { once: true })
-    promise.then(resolve, reject).finally(() => { signal.removeEventListener('abort', abort) })
+    promise.then(
+      resolve,
+      (error: Thrown) => { reject(error) },
+    ).finally(() => { signal.removeEventListener('abort', abort) })
   })
 }
 

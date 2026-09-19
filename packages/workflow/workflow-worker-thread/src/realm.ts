@@ -67,7 +67,7 @@ export function materializeFromRealm(value: unknown, root = 'value'): unknown {
   if (value === undefined) return undefined
   try {
     return materialize(value, root, new Set())
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof MaterializeError) throw error
     // A property read ran script code that threw; total-ize it so callers can
     // keep the narrow MaterializeError contract.

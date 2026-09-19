@@ -20,22 +20,22 @@ interface Profile {
 // The counts dropped by the eight `sonarjs/*` rules the TypeScript 7 lint
 // toolchain cannot load; the Agent Note names their replacement coverage.
 // Commit 79711728bcfe9a8a084f4af246612ec0652490fb enabled no-void in all
-// three profiles; every other normalized rule retained its prior fingerprint.
+// three profiles.
 const profiles = {
   source: {
-    count: 83,
-    indexes: [0, 1, 4, 5],
-    sha256: 'df9baf14cf974f83cd850b8068d1a1b30fe855cc15c4e577cda19dc6bffdff6b',
+    count: 119,
+    indexes: [0, 1, 2, 5, 6],
+    sha256: '1f718ebbc0ab28bdd8150659c4e895e2ee80e8e27edd0a9f58c06b6b6047999c',
   },
   example: {
-    count: 82,
-    indexes: [0, 1, 2, 4, 5],
-    sha256: 'dc1f88c06e8013c7fc5c135a986bf411c52c9a996793e6d9ac502f5d96c609cc',
+    count: 81,
+    indexes: [0, 1, 3, 5, 6],
+    sha256: '884873518a8dcfc6709a760174f13496487845bd61131cb8389df87f961d2c9e',
   },
   test: {
-    count: 78,
-    indexes: [0, 3, 4, 5],
-    sha256: '10fa619bca1b6520197cf5c4ddc2d179cc1c9ed5ce63e1cac6adf2d784ea0498',
+    count: 114,
+    indexes: [0, 2, 4, 5, 6],
+    sha256: '86ea9116cbfed73ff2e876ea1050f0f04445594e35f9c298975a49cefd727fec',
   },
 } as const satisfies Record<string, Profile>
 
@@ -90,7 +90,7 @@ describe('Oxlint repository rule fingerprint', () => {
   const overrides: readonly unknown[] = parsed.overrides
 
   it('pins every override field', () => {
-    expect(overrides).toHaveLength(9)
+    expect(overrides).toHaveLength(10)
     assertLintScopeIntegrity(readLintScope(fileURLToPath(new URL('..', import.meta.url))))
   })
 
@@ -101,5 +101,6 @@ describe('Oxlint repository rule fingerprint', () => {
     expect(Object.keys(rules)).toHaveLength(profile.count)
     expect(fingerprint).toBe(profile.sha256)
     expect(rules['no-void']).toEqual([2])
+    expect(rules['typescript/use-unknown-in-catch-callback-variable']).toBeUndefined()
   })
 })

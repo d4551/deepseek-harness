@@ -30,7 +30,7 @@ function browserTimeZone(message: UserMessage): string | undefined {
   let canonical: string
   try {
     canonical = new Intl.DateTimeFormat('en-US', { timeZone: value }).resolvedOptions().timeZone
-  } catch (error: unknown) {
+  } catch (error) {
     throw new TypeError(`browser time zone is unsupported: ${JSON.stringify(value)}`, { cause: error })
   }
   if (canonical !== value) {

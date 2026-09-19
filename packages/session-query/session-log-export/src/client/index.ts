@@ -12,6 +12,8 @@ import type { SessionLogDownloadDialogInjected } from './Dialog.tsx'
 import { SessionLogDownloadHeaderAction } from './HeaderAction.tsx'
 import { en, NS, zh, type SessionLogDownloadKey } from './locales.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     sessionLogDownload: SessionLogDownloadController
@@ -38,7 +40,9 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => async () => { await controller.dispose() }, 'session-log-download: browser download lifecycle')
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-log-download: browser dictionaries')
   ctx.on('command/executed', (sessionId, commandName, result) => {
-    if (commandName === 'export' && result.kind === 'success') controller.download(sessionId).then(undefined, console.error)
+    if (commandName === 'export' && result.kind === 'success') {
+      controller.download(sessionId).then(undefined, (error: Thrown) => { console.error(error) })
+    }
   })
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
     name: 'conversation.session.header.utilities',

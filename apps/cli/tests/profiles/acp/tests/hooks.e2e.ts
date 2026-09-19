@@ -44,7 +44,9 @@ afterEach(async () => {
   await cleanupAcpExampleTest(ownedSpawned, ownedWorkdir)
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('acp-agent e2e: a PreToolUse hook blocks bash (real model)', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] hooks.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('acp-agent e2e: a PreToolUse hook blocks bash (real model)', () => {
   it('denies every bash command, so the requested file is never written (verified on disk)', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'acp-hooks-e2e-'))
     // `configPath` is process-relative, so placing the match-all hook in the

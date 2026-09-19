@@ -261,36 +261,40 @@ function bindingContext(): Win32BindingContext {
 function bindings(): Win32ProcessBindings {
   if (cached !== undefined) return cached
   const { kernel32, advapi32, bind } = bindingContext()
+  const fn = <K extends keyof Win32ProcessBindings>(value: unknown, name: K): Win32ProcessBindings[K] => {
+    if (typeof value !== 'function') throw new Error(`Win32 binding ${String(name)} is unavailable`)
+    return value as Win32ProcessBindings[K]
+  }
   cached = {
-    closeHandle: bind(kernel32, 'CloseHandle', 'int', [PVOID]),
-    getLastError: bind(kernel32, 'GetLastError', 'uint32', []),
-    formatMessageW: bind(kernel32, 'FormatMessageW', 'uint32', [
+    closeHandle: fn(bind(kernel32, 'CloseHandle', 'int', [PVOID]), 'closeHandle'),
+    getLastError: fn(bind(kernel32, 'GetLastError', 'uint32', []), 'getLastError'),
+    formatMessageW: fn(bind(kernel32, 'FormatMessageW', 'uint32', [
       'uint32', PVOID, 'uint32', 'uint32', PVOID, 'uint32', PVOID,
-    ]),
-    createPipe: bind(kernel32, 'CreatePipe', 'int', [PPVOID, PPVOID, PVOID, 'uint32']),
-    setHandleInformation: bind(kernel32, 'SetHandleInformation', 'int', [PVOID, 'uint32', 'uint32']),
-    createProcessAsUserW: bind(advapi32, 'CreateProcessAsUserW', 'int', [
+    ]), 'formatMessageW'),
+    createPipe: fn(bind(kernel32, 'CreatePipe', 'int', [PPVOID, PPVOID, PVOID, 'uint32']), 'createPipe'),
+    setHandleInformation: fn(bind(kernel32, 'SetHandleInformation', 'int', [PVOID, 'uint32', 'uint32']), 'setHandleInformation'),
+    createProcessAsUserW: fn(bind(advapi32, 'CreateProcessAsUserW', 'int', [
       PVOID, 'str16', 'str16', PVOID, PVOID, 'int', 'uint32', PVOID, 'str16',
       koffi.pointer(STARTUPINFOW), koffi.pointer(PROCESS_INFORMATION),
-    ]),
-    readFile: bind(kernel32, 'ReadFile', 'int', [PVOID, PVOID, 'uint32', koffi.pointer('uint32'), PVOID]),
-    peekNamedPipe: bind(kernel32, 'PeekNamedPipe', 'int', [
+    ]), 'createProcessAsUserW'),
+    readFile: fn(bind(kernel32, 'ReadFile', 'int', [PVOID, PVOID, 'uint32', koffi.pointer('uint32'), PVOID]), 'readFile'),
+    peekNamedPipe: fn(bind(kernel32, 'PeekNamedPipe', 'int', [
       PVOID, PVOID, 'uint32', koffi.pointer('uint32'), koffi.pointer('uint32'), koffi.pointer('uint32'),
-    ]),
-    waitForSingleObject: bind(kernel32, 'WaitForSingleObject', 'uint32', [PVOID, 'uint32']),
-    getExitCodeProcess: bind(kernel32, 'GetExitCodeProcess', 'int', [PVOID, koffi.pointer('uint32')]),
-    createJobObjectW: bind(kernel32, 'CreateJobObjectW', PVOID, [PVOID, 'str16']),
-    setInformationJobObject: bind(kernel32, 'SetInformationJobObject', 'int', [PVOID, 'int', PVOID, 'uint32']),
-    assignProcessToJobObject: bind(kernel32, 'AssignProcessToJobObject', 'int', [PVOID, PVOID]),
-    terminateJobObject: bind(kernel32, 'TerminateJobObject', 'int', [PVOID, 'uint32']),
-    queryInformationJobObject: bind(kernel32, 'QueryInformationJobObject', 'int', [
+    ]), 'peekNamedPipe'),
+    waitForSingleObject: fn(bind(kernel32, 'WaitForSingleObject', 'uint32', [PVOID, 'uint32']), 'waitForSingleObject'),
+    getExitCodeProcess: fn(bind(kernel32, 'GetExitCodeProcess', 'int', [PVOID, koffi.pointer('uint32')]), 'getExitCodeProcess'),
+    createJobObjectW: fn(bind(kernel32, 'CreateJobObjectW', PVOID, [PVOID, 'str16']), 'createJobObjectW'),
+    setInformationJobObject: fn(bind(kernel32, 'SetInformationJobObject', 'int', [PVOID, 'int', PVOID, 'uint32']), 'setInformationJobObject'),
+    assignProcessToJobObject: fn(bind(kernel32, 'AssignProcessToJobObject', 'int', [PVOID, PVOID]), 'assignProcessToJobObject'),
+    terminateJobObject: fn(bind(kernel32, 'TerminateJobObject', 'int', [PVOID, 'uint32']), 'terminateJobObject'),
+    queryInformationJobObject: fn(bind(kernel32, 'QueryInformationJobObject', 'int', [
       PVOID, 'int', PVOID, 'uint32', koffi.pointer('uint32'),
-    ]),
-    openProcess: bind(kernel32, 'OpenProcess', PVOID, ['uint32', 'int', 'uint32']),
-    resumeThread: bind(kernel32, 'ResumeThread', 'uint32', [PVOID]),
-    terminateProcess: bind(kernel32, 'TerminateProcess', 'int', [PVOID, 'uint32']),
-    getStdHandle: bind(kernel32, 'GetStdHandle', PVOID, ['int']),
-  } as unknown as Win32ProcessBindings
+    ]), 'queryInformationJobObject'),
+    openProcess: fn(bind(kernel32, 'OpenProcess', PVOID, ['uint32', 'int', 'uint32']), 'openProcess'),
+    resumeThread: fn(bind(kernel32, 'ResumeThread', 'uint32', [PVOID]), 'resumeThread'),
+    terminateProcess: fn(bind(kernel32, 'TerminateProcess', 'int', [PVOID, 'uint32']), 'terminateProcess'),
+    getStdHandle: fn(bind(kernel32, 'GetStdHandle', PVOID, ['int']), 'getStdHandle'),
+  }
   return cached
 }
 

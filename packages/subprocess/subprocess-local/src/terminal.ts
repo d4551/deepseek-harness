@@ -12,6 +12,8 @@ import type {
 } from '@deepseek-ai/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector, ProcessSnapshot } from './process-inspector.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -73,23 +75,20 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     })
   }
 
-  // node-pty writes synchronously; the seam returns a promise for remote transports.
-  // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
-  async write(data: string): Promise<void> {
-    if (this.exited) throw new Error('terminal process has exited')
+  write(data: string): Promise<void> {
+    if (this.exited) return Promise.reject(new Error('terminal process has exited'))
     this.terminal.write(data)
+    return Promise.resolve()
   }
 
-  // Local inspection is synchronous; the seam returns a promise for remote transports.
-  // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
-  async inspectForeground(): Promise<SubprocessTerminalForeground | undefined> {
+  inspectForeground(): Promise<SubprocessTerminalForeground | undefined> {
     this.descendants(this.inspector.snapshot())
     const processGroupId = this.inspector.foregroundPgid(this.pid)
-    if (processGroupId === undefined) return undefined
-    return {
+    if (processGroupId === undefined) return Promise.resolve(undefined)
+    return Promise.resolve({
       processGroupId,
       inputWaiting: this.inspector.isStdinWaiting(processGroupId, this.pid),
-    }
+    })
   }
 
   async signalForeground(signal: SubprocessTerminalSignal): Promise<number> {
@@ -121,7 +120,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     if (this.cleanup !== undefined) return this.cleanup
     const cleanup = this.closeOnce()
     this.cleanup = cleanup
-    cleanup.catch(() => { this.cleanup = undefined })
+    cleanup.catch((_error: Thrown) => { this.cleanup = undefined })
     return cleanup
   }
 

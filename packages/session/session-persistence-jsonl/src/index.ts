@@ -8,7 +8,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { open, mkdir, readFile, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -86,7 +86,7 @@ export interface Config {
 /** Opaque coordinator token for replacing bytes recovered from a torn frame. */
 interface JsonlTornMarker {
   truncateTo: number
-  recoveredEvents: SessionEvent[]
+  recoveredEvents: object[]
 }
 
 interface FileRevisionIdentity {
@@ -108,9 +108,56 @@ function fileRevision(identity: FileRevisionIdentity): PersistenceRevision {
   ].join(':'))
 }
 
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
-function isENOENT(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
+/** Parent of a session-log path exists but is not a directory. */
+class ParentNotDirectoryError extends Error {
+  readonly code = 'ENOTDIR'
+  readonly path: string
+  constructor(parent: string) {
+    super(`ENOTDIR: parent path exists but is not a directory: ${parent}`)
+    this.name = 'ParentNotDirectoryError'
+    this.path = parent
+  }
+}
+
+/** Whether a settled rejection is a Node ENOENT Error. */
+function isRejectedENOENT(result: PromiseRejectedResult): boolean {
+  return result.reason instanceof Error && 'code' in result.reason && result.reason.code === 'ENOENT'
+}
+
+/** Throw a settled rejection, preserving Error instances. */
+function throwRejected(result: PromiseRejectedResult, context: string): never {
+  if (result.reason instanceof Error) throw result.reason
+  throw new Error(context)
+}
+
+/** Refuse a missing log whose immediate parent is a non-directory. */
+async function assertLogParentAllowsAbsence(path: string): Promise<void> {
+  const parent = dirname(path)
+  const [result] = await Promise.allSettled([stat(parent)])
+  if (result.status === 'fulfilled') {
+    if (result.value.isDirectory()) return
+    throw new ParentNotDirectoryError(parent)
+  }
+  if (isRejectedENOENT(result)) return
+  throwRejected(result, `parent stat failed: ${parent}`)
+}
+
+/**
+ * Whether a session-log path is a readable file. A missing path whose parent
+ * is a regular file is a storage fault (ENOTDIR), not absence.
+ */
+export async function probeReadablePath(path: string): Promise<boolean> {
+  const [result] = await Promise.allSettled([open(path, 'r')])
+  if (result.status === 'fulfilled') {
+    const [closed] = await Promise.allSettled([result.value.close()])
+    if (closed.status === 'rejected') throwRejected(closed, `failed to close ${path}`)
+    return true
+  }
+  if (isRejectedENOENT(result)) {
+    await assertLogParentAllowsAbsence(path)
+    return false
+  }
+  throwRejected(result, `path open failed: ${path}`)
 }
 
 /**
@@ -200,15 +247,11 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     signal?.throwIfAborted()
     const path = await this.findLog(id, signal)
     if (path === undefined) return undefined
-    try {
-      const identity = await stat(path, { bigint: true })
-      signal?.throwIfAborted()
-      return fileRevision(identity)
-    } catch (error: unknown) {
-      signal?.throwIfAborted()
-      if (isENOENT(error)) return undefined
-      throw error
-    }
+    const [result] = await Promise.allSettled([stat(path, { bigint: true })])
+    signal?.throwIfAborted()
+    if (result.status === 'fulfilled') return fileRevision(result.value)
+    if (isRejectedENOENT(result)) return undefined
+    throwRejected(result, `revision stat failed: ${path}`)
   }
 
   /**
@@ -304,14 +347,15 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
             : {},
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // A parse-time format refusal predates any SessionHeader, so the
       // coordinator's locate-based enrichment cannot run; attach the artifact
       // this read actually refused.
       if (error instanceof SessionFormatUnsupportedError && error.location === undefined) {
         throw new SessionFormatUnsupportedError(`${error.message} (raw log: ${path})`, { kind: 'jsonl', path })
       }
-      throw error
+      if (error instanceof Error) throw error
+      throw new Error(`session log parse failed: ${path}`)
     }
     signal?.throwIfAborted()
     await this.assertStoredIdentity(path, prefix.meta, expectedId, signal)
@@ -416,8 +460,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     closers: readonly SessionEvent[],
   ): Promise<void> {
     if (tornMarker !== undefined) await this.repair(meta, tornMarker.truncateTo)
-    const repairedEvents = [...(tornMarker?.recoveredEvents ?? []), ...closers]
-    if (repairedEvents.length > 0) await this.appendLines(meta, repairedEvents)
+    if (tornMarker !== undefined && tornMarker.recoveredEvents.length > 0) {
+      await this.appendStoredRecords(meta, tornMarker.recoveredEvents)
+    }
+    if (closers.length > 0) await this.appendLines(meta, closers)
     if (tornMarker !== undefined) this.ctx.logger.warn(`${this.name}: session "${meta.id}" recovered from a torn tail; incomplete tail bytes were discarded`)
   }
 
@@ -431,17 +477,17 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     const snapshots: SessionPersistenceSnapshot[] = []
     for (const artifact of await this.listArtifacts(signal)) {
       signal?.throwIfAborted()
-      try {
-        const identity = await stat(artifact.path, { bigint: true })
-        signal?.throwIfAborted()
+      const [result] = await Promise.allSettled([stat(artifact.path, { bigint: true })])
+      signal?.throwIfAborted()
+      if (result.status === 'fulfilled') {
         snapshots.push({
           header: artifact.header,
-          revision: fileRevision(identity),
+          revision: fileRevision(result.value),
         })
-      } catch (error: unknown) {
-        signal?.throwIfAborted()
-        if (!isENOENT(error)) throw error
+        continue
       }
+      if (isRejectedENOENT(result)) continue
+      throwRejected(result, `snapshot stat failed: ${artifact.path}`)
     }
     signal?.throwIfAborted()
     return snapshots
@@ -458,11 +504,11 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
       for (const dir of await this.listSessionDirs(project, signal)) {
         signal?.throwIfAborted()
         const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-        const oppositeExists = await this.exists(opposite)
+        const oppositeExists = await this.pathExists(opposite)
         signal?.throwIfAborted()
         if (oppositeExists) throw this.encodingMismatch(opposite)
         const path = join(dir, `session${logSuffix(this.compression)}`)
-        const pathExists = await this.exists(path)
+        const pathExists = await this.pathExists(path)
         signal?.throwIfAborted()
         if (!pathExists) continue
         // Read only headers so listing scales with session count, not log size.
@@ -565,7 +611,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
   private async rejectExistingLog(finalPath: string, id: SessionId): Promise<void> {
     // Independent owners may discover absence before another owner publishes.
     // Existing committed bytes must survive either materialization path.
-    if (await this.exists(finalPath)) {
+    if (await this.pathExists(finalPath)) {
       throw new Error(`refusing to materialize "${id}": a log already exists on disk (load/resume it instead)`)
     }
   }
@@ -616,8 +662,17 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
    * previous size before rethrowing because the unchanged cursor will retry the
    * batch; leaving partial bytes would create duplicate sequence numbers.
    */
+  private async appendStoredRecords(meta: SessionHeader, records: readonly object[]): Promise<void> {
+    const body = records.map(record => JSON.stringify(record)).join('\n') + '\n'
+    const content = this.compression === 'zstd' ? await compressZstdFrame(body) : body
+    await this.appendContent(meta, content)
+  }
+
   private async appendLines(meta: SessionHeader, events: readonly SessionEvent[]): Promise<void> {
-    const content = await this.encodeEventBatch(events)
+    await this.appendContent(meta, await this.encodeEventBatch(events))
+  }
+
+  private async appendContent(meta: SessionHeader, content: Buffer | string): Promise<void> {
     const path = logPath(this.root, meta.cwd, meta.id, this.compression)
     const handle = await open(path, 'a')
     let closed = false
@@ -747,10 +802,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
       const dir = join(project, encodeSegment(id))
       const path = join(dir, `session${logSuffix(this.compression)}`)
       const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-      const oppositeExists = await this.exists(opposite)
+      const oppositeExists = await this.pathExists(opposite)
       signal?.throwIfAborted()
       if (oppositeExists) throw this.encodingMismatch(opposite)
-      const pathExists = await this.exists(path)
+      const pathExists = await this.pathExists(path)
       signal?.throwIfAborted()
       if (pathExists) matches.push(path)
     }
@@ -763,12 +818,10 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
 
   /** Require an existing configured root to be a readable directory. */
   private assertUsableRoot(): void {
-    try {
-      readdirSync(this.root)
-    } catch (error) {
-      if (isENOENT(error)) return
-      throw error
-    }
+    if (!existsSync(this.root)) return
+    const info = statSync(this.root)
+    if (!info.isDirectory()) throw new ParentNotDirectoryError(this.root)
+    readdirSync(this.root)
   }
 
   /** Reject metadata that does not identify the selected physical log. */
@@ -801,29 +854,26 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
    */
   private async sameFile(path: string, expectedPath: string, signal?: AbortSignal): Promise<boolean> {
     signal?.throwIfAborted()
-    try {
-      const [actual, expected] = await Promise.all([realpath(path), realpath(expectedPath)])
-      signal?.throwIfAborted()
-      return actual === expected
-    } catch (error) {
-      signal?.throwIfAborted()
-      if (isENOENT(error)) return false
-      throw error
-    }
+    const [actual, expected] = await Promise.allSettled([realpath(path), realpath(expectedPath)])
+    signal?.throwIfAborted()
+    if (actual.status === 'fulfilled' && expected.status === 'fulfilled') return actual.value === expected.value
+    if (actual.status === 'rejected' && isRejectedENOENT(actual)) return false
+    if (expected.status === 'rejected' && isRejectedENOENT(expected)) return false
+    if (actual.status === 'rejected') throwRejected(actual, `realpath failed: ${path}`)
+    if (expected.status === 'rejected') throwRejected(expected, `realpath failed: ${expectedPath}`)
+    throw new Error('realpath settlement incomplete')
   }
 
   /** The human-readable project directories under the configured root. */
   private async listProjectDirs(signal?: AbortSignal): Promise<string[]> {
-    try {
-      signal?.throwIfAborted()
-      const entries = await readdir(this.root, { withFileTypes: true })
-      signal?.throwIfAborted()
-      return entries.filter(e => e.isDirectory()).map(e => join(this.root, e.name))
-    } catch (error) {
-      // Only an absent root means no sessions; rethrow every other I/O failure.
-      if (isENOENT(error)) return []
-      throw error
+    signal?.throwIfAborted()
+    const [result] = await Promise.allSettled([readdir(this.root, { withFileTypes: true })])
+    signal?.throwIfAborted()
+    if (result.status === 'fulfilled') {
+      return result.value.filter(e => e.isDirectory()).map(e => join(this.root, e.name))
     }
+    if (isRejectedENOENT(result)) return []
+    throwRejected(result, `root readdir failed: ${this.root}`)
   }
 
   /** List session-owned directories and reject the obsolete flat-file layout. */
@@ -847,7 +897,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     for (const project of await this.listProjectDirs()) {
       for (const dir of await this.listSessionDirs(project)) {
         const incompatible = join(dir, `session${logSuffix(this.oppositeCompression())}`)
-        if (await this.exists(incompatible)) throw this.encodingMismatch(incompatible)
+        if (await this.pathExists(incompatible)) throw this.encodingMismatch(incompatible)
       }
     }
   }
@@ -861,7 +911,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     const encoded = encodeSegment(id)
     for (const compression of ['zstd', 'none'] as const) {
       const path = join(project, encoded + logSuffix(compression))
-      const artifactExists = await this.exists(path)
+      const artifactExists = await this.pathExists(path)
       signal?.throwIfAborted()
       if (artifactExists) throw this.legacyLayout(path)
     }
@@ -869,7 +919,7 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
 
   private async rejectOppositeArtifact(cwd: string | undefined, id: SessionId): Promise<void> {
     const path = logPath(this.root, cwd, id, this.oppositeCompression())
-    if (await this.exists(path)) throw this.encodingMismatch(path)
+    if (await this.pathExists(path)) throw this.encodingMismatch(path)
   }
 
   private oppositeCompression(): JsonlCompression {
@@ -891,37 +941,8 @@ export class JsonlSessionPersistence extends CoordinatedSessionPersistence<Jsonl
     )
   }
 
-  private async exists(path: string): Promise<boolean> {
-    try {
-      const handle = await open(path, 'r')
-      await handle.close()
-      return true
-    } catch (error) {
-      // Only ENOENT means absent. A permission/I/O error must surface rather
-      // than letting load or collision checks proceed under false absence.
-      // Windows reports ENOENT, not ENOTDIR, for `regular-file/child`; verify
-      // the immediate parent so a blocked session directory remains a storage fault.
-      if (isENOENT(error)) {
-        await this.assertLogParentAllowsAbsence(path)
-        return false
-      }
-      throw error
-    }
-  }
-
-  private async assertLogParentAllowsAbsence(path: string): Promise<void> {
-    try {
-      const parent = dirname(path)
-      const info = await stat(parent)
-      if (info.isDirectory()) return
-      const error = new Error(`ENOTDIR: parent path exists but is not a directory: ${parent}`) as NodeJS.ErrnoException
-      error.code = 'ENOTDIR'
-      error.path = parent
-      throw error
-    } catch (error) {
-      if (isENOENT(error)) return
-      throw error
-    }
+  private pathExists(path: string): Promise<boolean> {
+    return probeReadablePath(path)
   }
 }
 

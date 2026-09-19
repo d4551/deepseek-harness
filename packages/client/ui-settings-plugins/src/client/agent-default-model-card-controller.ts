@@ -13,6 +13,23 @@ import {
 /** Namespace of the Host-owned default model preference. */
 export const AGENT_DEFAULT_MODEL_NS = 'agent-default-model'
 
+/**
+ * Claim one wire section as the default-model settings type.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when provider or model is missing.
+ */
+export function decodeAgentDefaultModelSettings(section: unknown): AgentDefaultModelSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const provider = Reflect.get(section, 'provider')
+  const model = Reflect.get(section, 'model')
+  const reasoningEffort = Reflect.get(section, 'reasoningEffort')
+  if (typeof provider !== 'string' || typeof model !== 'string') return undefined
+  if (reasoningEffort !== undefined && typeof reasoningEffort !== 'string') return undefined
+  const claimed: AgentDefaultModelSettings = { provider, model }
+  if (reasoningEffort !== undefined) claimed.reasoningEffort = reasoningEffort
+  return claimed
+}
+
 /** State rendered by the staged default-model card. */
 export interface AgentDefaultModelCardState extends CardShell {
   /** Live catalog joined with the stored route. */

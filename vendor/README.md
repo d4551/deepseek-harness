@@ -58,6 +58,8 @@ Keep this log exhaustive — every divergence from upstream must be listed.
 
 23. **`cordis/src/fiber.ts` complete composite teardown**: generator-effect disposal awaits every collected disposer in reverse order even after a synchronous throw or asynchronous rejection. One failure retains its original identity; multiple failures are reported together after cleanup finishes. Covered by the real Team tool-removal observers in `packages/subagent/tool-agent-team/tests/preset-admission.spec.ts`.
 
+24. **`cordis/src/events.ts` serial/waterfall overloads and thenable plugin publication**: `EventsService.serial` and `EventsService.waterfall` declare the same `K extends keyof Events` overloads as `emit`/`parallel`/`bail`, take `thisArg` as `object` so generic fused dispatch can pass a scope carrier, copy the argument list before `shift`/`pop` so callers keep their original tuple, and type `internal/plugin` as `void | Promise<void>` because fiber publication already contains thenable listener results. Covered by first-party skill/agent disposer typing and `packages/skill/skill/tests/skill.spec.ts`.
+
 ## Sync procedure
 
 To update a vendored package from upstream:

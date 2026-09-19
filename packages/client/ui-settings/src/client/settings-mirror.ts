@@ -9,7 +9,7 @@
  * through {@link SettingsDescribeMirror.acceptView}.
  */
 
-import type { ClientRemote, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ClientRemote, SettingsDescribeValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /**
@@ -27,16 +27,52 @@ export interface SettingsWireFace {
 }
 
 type SettingsFace = SettingsWireFace
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+function isSettingsDescribeView(value: object): value is SettingsDescribeView {
+  return 'namespaces' in value && 'writable' in value && 'hasDocument' in value
+}
+
+function describeOutcome(value: Thrown): { view: SettingsDescribeView } | { failure: string } {
+  if (typeof value !== 'object' || value === null) return { failure: thrownMessage(value) }
+  if (!('ok' in value)) return { failure: thrownMessage(value) }
+  const ok = Reflect.get(value, 'ok')
+  if (ok === true) {
+    const view = 'value' in value ? Reflect.get(value, 'value') : undefined
+    if (typeof view === 'object' && view !== null && isSettingsDescribeView(view)) {
+      return { view }
+    }
+  }
+  if (ok === false) {
+    const error = 'error' in value ? Reflect.get(value, 'error') : undefined
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+      const message = Reflect.get(error, 'message')
+      if (typeof message === 'string') return { failure: message }
+    }
+  }
+  return { failure: thrownMessage(value) }
+}
 
 /** The full `settings.describe` answer the mirror serves. */
-export interface SettingsDescribeView {
-  /** Every namespace a live Host plugin registered, as the Host reported it. */
-  namespaces: readonly SettingsNamespaceView[]
-  /** Whether the settings provider accepts writes. */
-  writable: boolean
-  /** Whether a native settings document exists for the Host to open. */
-  hasDocument: boolean
-}
+export type SettingsDescribeView = SettingsDescribeValue
 
 /** Mirror state every derived settings surface renders from. */
 export interface SettingsMirrorSnapshot {
@@ -178,47 +214,54 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
   }
 
   private async run(): Promise<void> {
-    // The in-flight slot must clear in the same synchronous segment that
-    // observes `rerun` false (and on abrupt exit): a `.finally()` on the
-    // returned promise runs one microtask later, and a `load()` landing in
-    // that gap would mark a rerun nobody reads, losing the read.
-    try {
-      do {
-        const before = this.store.getSnapshot()
-        if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
-        // Cleared immediately before the wire read goes out: a load() marked
-        // earlier (including one reentering from the loading publish above)
-        // is covered by this very read, while one landing after needs the
-        // rerun.
-        this.rerun = false
-        const generation = ++this.generation
-        let outcome: { view: SettingsDescribeView } | { failure: string }
-        try {
-          const response = await this.api.settings.describe()
-          outcome = response.ok
-            ? { view: response.value }
-            : { failure: response.error.message }
-        } catch (error) {
-          outcome = { failure: error instanceof Error ? error.message : String(error) }
-        }
-        // A write answer invalidates a document read before that write committed.
-        if (generation !== this.generation) continue
-        if ('view' in outcome) {
-          this.store.set({ status: 'ready', view: outcome.view, error: null })
-        } else {
-          const held = this.store.getSnapshot()
-          // No answer yet: fall back to idle so `ensure` retries; with one, the
-          // held view keeps serving and only the error field reports the miss.
-          this.store.set({
-            status: held.view === undefined ? 'idle' : 'ready',
-            view: held.view,
-            error: outcome.failure,
-          })
-        }
-      } while (this.shouldRerun())
-    } finally {
-      this.inFlight = undefined
+    // Clear inFlight in the same synchronous segment that observes `rerun`
+    // false (and on abrupt exit). A promise `.finally()` runs one microtask
+    // later, and a `load()` landing in that gap would mark a rerun nobody
+    // reads, losing the read.
+    using _clearFlight = {
+      [Symbol.dispose]: (): void => {
+        this.inFlight = undefined
+      },
     }
+    do {
+      const before = this.store.getSnapshot()
+      if (before.status === 'idle') this.store.set({ ...before, status: 'loading' })
+      // Cleared immediately before the wire read goes out: a load() marked
+      // earlier (including one reentering from the loading publish above)
+      // is covered by this very read, while one landing after needs the
+      // rerun.
+      this.rerun = false
+      const generation = ++this.generation
+      const describe = this.api.settings.describe
+      let outcome: { view: SettingsDescribeView } | { failure: string }
+      if (typeof describe !== 'function') {
+        outcome = { failure: 'settings.describe is not a function' }
+      } else {
+        const response = await new Promise<Thrown>((resolve) => {
+          resolve(describe.call(this.api.settings))
+        }).then(
+          (value: Thrown) => ({ kind: 'settled' as const, value }),
+          (reason: Thrown) => ({ kind: 'failed' as const, reason }),
+        )
+        outcome = response.kind === 'failed'
+          ? { failure: thrownMessage(response.reason) }
+          : describeOutcome(response.value)
+      }
+      // A write answer invalidates a document read before that write committed.
+      if (generation !== this.generation) continue
+      if ('view' in outcome) {
+        this.store.set({ status: 'ready', view: outcome.view, error: null })
+      } else {
+        const held = this.store.getSnapshot()
+        // No answer yet: fall back to idle so `ensure` retries; with one, the
+        // held view keeps serving and only the error field reports the miss.
+        this.store.set({
+          status: held.view === undefined ? 'idle' : 'ready',
+          view: held.view,
+          error: outcome.failure,
+        })
+      }
+    } while (this.shouldRerun())
   }
 
   private shouldRerun(): boolean {

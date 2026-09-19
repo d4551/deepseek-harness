@@ -139,8 +139,32 @@ export function producedForClosing(
  * @param owner - Turn-tail owner currency for the closing assistant.
  * @returns Produced paths as the component's match, or null to decline before mount.
  */
+/** Read Deliverables data published on Location data. */
+export function publishedDeliverables(value: unknown): DeliverablesTurnData | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('deliverables Location data is not an object')
+  }
+  const produced: unknown = Reflect.get(value, 'produced')
+  if (!Array.isArray(produced)) throw new TypeError('deliverables Location data has no produced list')
+  const rows: ProducedPath[] = []
+  for (let index = 0; index < produced.length; index++) {
+    const item: unknown = Reflect.get(produced, index)
+    if (typeof item !== 'object' || item === null) {
+      throw new TypeError('deliverables produced row is not an object')
+    }
+    const seq: unknown = Reflect.get(item, 'seq')
+    const path: unknown = Reflect.get(item, 'path')
+    if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || typeof path !== 'string') {
+      throw new TypeError('deliverables produced row is malformed')
+    }
+    rows.push({ seq, path })
+  }
+  return { produced: rows }
+}
+
 export function selectProducedFiles(owner: TurnTailOwnerProps): readonly string[] | null {
-  const paths = producedForClosing(owner.turn.data.get('deliverables'), owner.seq)
+  const paths = producedForClosing(publishedDeliverables(owner.turn.data.get('deliverables')), owner.seq)
   return paths.length === 0 ? null : paths
 }
 

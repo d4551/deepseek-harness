@@ -1,6 +1,6 @@
 .description {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 24px;
   color: var(--dsw-alias-label-secondary);
 }

@@ -66,6 +66,7 @@
     { "path": "./packages/util/output-retention" },
     { "path": "./packages/util/atomic-write" },
     { "path": "./packages/util/sqlite-connection" },
+    { "path": "./packages/util/thrown" },
     { "path": "./packages/attachment/attachment" },
     { "path": "./packages/attachment/attachment-local" },
     { "path": "./packages/llm/llm" },

@@ -255,7 +255,7 @@ export function canonicalizeTimeZone(value: string): string {
   let canonical: string
   try {
     canonical = new Intl.DateTimeFormat('en-US', { timeZone: value }).resolvedOptions().timeZone
-  } catch (error: unknown) {
+  } catch (error) {
     throw new ScheduleInputError(
       'invalid_time_zone',
       'time_zone must be UTC or a valid IANA Area/Location name.',

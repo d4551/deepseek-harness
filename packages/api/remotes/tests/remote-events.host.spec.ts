@@ -10,6 +10,19 @@ import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/index.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+const leftoverThrown: Thrown[] = [
+  { tag: 'leftover-object' },
+  'leftover string',
+  0,
+  false,
+  1n,
+  Symbol.for('leftover-remotes'),
+  null,
+  undefined,
+]
+
 interface GatewayProbe {
   source: TypertRemoteEventSource | undefined
   host: RemoteEventHostInfo | undefined
@@ -192,10 +205,10 @@ describe('Remote event Host source', () => {
       [{ questions: [], agent }],
       () => Promise.resolve('host answer'),
     )
-    const rejected = expect(request).rejects.toThrow('api-remotes: forwarded Remote event source ended')
+    const ended = request.then(undefined, (reason: Thrown) => reason)
     if (iterator.return === undefined) throw new Error('Remote event source cannot be closed')
     await expect(iterator.return()).resolves.toEqual({ done: true, value: undefined })
-    await rejected
+    await expect(ended).resolves.toEqual(new Error('api-remotes: forwarded Remote event source ended'))
     expect(controller.signal.aborted).toBe(false)
     expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
     expect(() => { emitRaw(ctx, 'settings/document-updated', ['ui-theme', 1n]) }).not.toThrow()
@@ -281,10 +294,24 @@ describe('Remote event Host source', () => {
       [request],
       hostAnswer,
     )
-    const rejectedAssertion = expect(rejected).rejects.toBe(rejection)
+    const claimedRejection = rejected.then(undefined, (reason: Thrown) => reason)
     const rejectedDispatch = invocationOf((await iterator.next()).value)
     rejectedDispatch.reject(rejection)
-    await rejectedAssertion
+    await expect(claimedRejection).resolves.toBe(rejection)
+    expect(hostCalls).toBe(1)
+
+    for (const leftover of leftoverThrown) {
+      const leftoverPending = waterfallRaw(
+        ctx,
+        target,
+        'user-questions/request',
+        [request],
+        hostAnswer,
+      )
+      const leftoverClaim = leftoverPending.then(undefined, (reason: Thrown) => reason)
+      invocationOf((await iterator.next()).value).reject(leftover)
+      await expect(leftoverClaim).resolves.toBe(leftover)
+    }
     expect(hostCalls).toBe(1)
 
     const done = iterator.next()
@@ -307,13 +334,138 @@ describe('Remote event Host source', () => {
       [{ questions: [], agent }],
       () => Promise.resolve('host fallback'),
     )
-    const rejected = expect(pending).rejects.toBe(reason)
+    const claimed = pending.then(undefined, (reason: Thrown) => reason)
 
     abort.abort(reason)
 
-    await rejected
+    await expect(claimed).resolves.toBe(reason)
     await expect(delivery).resolves.toEqual({ done: true, value: undefined })
     await fiber.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('forwards leftover Thrown Host next() rejections through a live waterfall', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    const agent = { ctx: ctx.extend() }
+    const target = scopeTarget(ctx, agent)
+    const request = { questions: [], agent }
+    for (const leftover of leftoverThrown) {
+      const pending = waterfallRaw(
+        ctx,
+        target,
+        'user-questions/request',
+        [request],
+        () => Promise.reject(leftover),
+      )
+      const claimed = pending.then(undefined, (reason: Thrown) => reason)
+      invocationOf((await iterator.next()).value).resolve({ kind: 'next' })
+      await expect(claimed).resolves.toBe(leftover)
+    }
+    const done = iterator.next()
+    abort.abort()
+    await expect(done).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
+  it('forwards leftover Thrown Host next() rejections after the source ends', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    emitRaw(ctx, 'commands/change', [])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false, value: { event: 'commands/change', args: [] },
+    })
+    abort.abort(new Error('client disconnected between pulls'))
+    expect(getEventListeners(abort.signal, 'abort')).toHaveLength(0)
+    const agent = { ctx: ctx.extend() }
+    const target = scopeTarget(ctx, agent)
+    const request = { questions: [], agent }
+    for (const leftover of leftoverThrown) {
+      const pending = waterfallRaw(
+        ctx,
+        target,
+        'user-questions/request',
+        [request],
+        () => Promise.reject(leftover),
+      )
+      const claimed = pending.then(undefined, (reason: Thrown) => reason)
+      await expect(claimed).resolves.toBe(leftover)
+    }
+    await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects a queued waterfall with leftover Thrown abort reasons', async () => {
+    const { ctx, gateway } = await setup()
+    const agent = { ctx: ctx.extend() }
+    const target = scopeTarget(ctx, agent)
+    const request = { questions: [], agent }
+    for (const leftover of leftoverThrown) {
+      if (leftover === undefined) continue
+      const abort = new AbortController()
+      const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+      const delivery = iterator.next()
+      const pending = waterfallRaw(
+        ctx,
+        target,
+        'user-questions/request',
+        [request],
+        () => Promise.resolve('host fallback'),
+      )
+      const claimed = pending.then(undefined, (reason: Thrown) => reason)
+      abort.abort(leftover)
+      await expect(claimed).resolves.toBe(leftover)
+      await expect(delivery).resolves.toEqual({ done: true, value: undefined })
+    }
+    await ctx.fiber.dispose()
+  })
+
+  it('delegates an unscoped waterfall to Host next() without claiming the queue', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    const iterator = sourceOf(gateway)(abort.signal)[Symbol.asyncIterator]()
+    const agent = { ctx: ctx.extend() }
+    let hostCalls = 0
+    const pending = waterfallRaw(
+      ctx,
+      {},
+      'user-questions/request',
+      [{ questions: [], agent }],
+      () => {
+        hostCalls += 1
+        return Promise.resolve('unscoped host answer')
+      },
+    )
+    await expect(pending).resolves.toBe('unscoped host answer')
+    expect(hostCalls).toBe(1)
+    emitRaw(ctx, 'commands/change', [])
+    await expect(iterator.next()).resolves.toEqual({
+      done: false, value: { event: 'commands/change', args: [] },
+    })
+    const done = iterator.next()
+    abort.abort()
+    await expect(done).resolves.toEqual({ done: true, value: undefined })
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects a scoped waterfall whose subject has no live Context', async () => {
+    const { ctx, gateway } = await setup()
+    const abort = new AbortController()
+    sourceOf(gateway)(abort.signal)
+    for (const subject of [{ ctx: null }, { ctx: 1 }, {}] as const) {
+      expect(() => {
+        waterfallRaw(
+          ctx,
+          scopeTarget(ctx, subject),
+          'user-questions/request',
+          [{ questions: [], agent: subject }],
+          () => Promise.resolve('host answer'),
+        )
+      }).toThrow('forwarded scoped event "user-questions/request" has no live Context')
+    }
+    abort.abort()
     await ctx.fiber.dispose()
   })
 })

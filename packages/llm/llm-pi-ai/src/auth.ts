@@ -20,6 +20,8 @@ import type { CredentialKey, CredentialProvider, CredentialRecord } from '@deeps
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * The record scope every credential this adapter family stores is written
  * under. It is the plugin's registered name, which is what tells a later
@@ -213,19 +215,18 @@ export function authContextFrom(ctx: Context): AuthContext {
       }
       return launchEnvironmentOf(ctx).get(name)?.value
     },
-    async fileExists(path) {
+    fileExists(path) {
       const expanded = path.startsWith('~/') || path === '~'
         ? resolvePath(homedir(), path.slice(1).replace(/^\//, ''))
         : path
-      try {
-        await access(expanded)
-        return true
-      } catch {
-        // Absent, unreadable, or a broken symlink — every one of which means
-        // this ambient credential source cannot be used, which is the only
-        // distinction the caller makes.
-        return false
-      }
+      return access(expanded).then(
+        () => true,
+        (_error: Thrown) => {
+          // Absent, unreadable, or a broken symlink all mean this ambient
+          // credential source cannot be used.
+          return false
+        },
+      )
     },
   }
 }

@@ -35,7 +35,8 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
-    "@deepseek-ai/dsh-keyed-lock": "workspace:^"
+    "@deepseek-ai/dsh-keyed-lock": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   },
   "dependencies": {
     "koffi": "^3.1.0",
@@ -46,6 +47,7 @@
     "@deepseek-ai/dsh-fs": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-keyed-lock": "workspace:^",
-    "@deepseek-ai/dsh-llm": "workspace:^"
+    "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-thrown": "workspace:^"
   }
 }

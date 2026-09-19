@@ -13,7 +13,7 @@
 
 .title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--dsw-font-base-16-font-size);
   line-height: 24px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
@@ -21,21 +21,21 @@
 
 .intro {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .notice {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-state-warn-label);
 }
 
 .savedNotice {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-state-success-primary);
 }
@@ -75,7 +75,7 @@
 }
 
 .rowName {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
@@ -90,7 +90,7 @@
   padding: 1px 6px;
   border: 1px solid var(--dsw-alias-border-l3);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 16px;
   color: var(--dsw-alias-label-secondary);
 }
@@ -135,7 +135,7 @@
   border: none;
   border-radius: 18px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   cursor: pointer;
 }
@@ -177,7 +177,7 @@
   background: transparent;
   color: var(--dsw-alias-state-error-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   cursor: pointer;
 }
@@ -192,7 +192,7 @@
   height: 28px;
   padding: 0 10px;
   border-radius: 14px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 
@@ -236,14 +236,14 @@
 }
 
 .editorTitle {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
 }
 
 .editorRoute {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -258,7 +258,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   font-weight: 500;
   color: var(--dsw-alias-label-secondary);
@@ -275,7 +275,7 @@
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   cursor: pointer;
 }
@@ -287,7 +287,7 @@
 
 .advancedHint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -361,7 +361,7 @@
   margin-left: -4px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   font-weight: 500;
   color: var(--dsw-alias-label-secondary);
@@ -417,7 +417,7 @@
 }
 
 .modelCatalogTitle {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   font-weight: 500;
   color: var(--dsw-alias-label-secondary);
@@ -427,7 +427,7 @@
 .modelEmpty {
   margin: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 
@@ -510,7 +510,7 @@
 
 .modelFieldLabel {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 
@@ -534,7 +534,7 @@
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   cursor: pointer;
 }
@@ -551,7 +551,7 @@
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -594,7 +594,7 @@ select.input {
 
 .error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
 }
@@ -662,7 +662,7 @@ select.input {
 .candidateId {
   flex: 1 1 auto;
   font-family: var(--ds-font-family-code);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   overflow-wrap: anywhere;
 }
 

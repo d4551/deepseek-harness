@@ -75,10 +75,10 @@ describe('JobRegistry seam', () => {
     expect(ctx.jobs.kill(id)).toBe('requested')
     await expect(ctx.jobs.wait(id, 5)).resolves.toMatchObject({ id })
     const detachListener = ctx.jobs.onJobDone(() => {})
-    detachListener()
+    await detachListener()
     const detachChanges = ctx.jobs.onJobsChanged(() => {})
-    detachChanges()
-    detachController()
+    await detachChanges()
+    await detachController()
   })
 
   it('loading a second implementation throws (one jobs service per context — cordis standard)', async () => {

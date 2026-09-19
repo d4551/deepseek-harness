@@ -1,9 +1,8 @@
 /** Shared event metadata and semantic-document projection. */
 
-import { foldSurface } from '@deepseek-ai/dsh-session'
+import { foldSessionQuerySurface } from './surface-fold.ts'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEventRecord, SessionEventSearchDocument, SessionEventSurface } from './types.ts'
-import { SessionQueryError } from './config.ts'
 import { extractSessionEventText } from './extraction.ts'
 
 /**
@@ -54,17 +53,7 @@ export function buildSessionEventSearchDocuments(
 }
 
 function classifySurface(events: readonly SessionEvent[]): Map<number, SessionEventSurface> {
-  let folded: ReturnType<typeof foldSurface>
-  try {
-    folded = foldSurface(events)
-  } catch (error: unknown) {
-    throw new SessionQueryError(
-      /* v8 ignore next -- foldSurface throws Error instances */
-      `invalid session surface: ${error instanceof Error ? error.message : 'unknown error'}`,
-      'SESSION_QUERY_INVALID_SURFACE',
-      { cause: error },
-    )
-  }
+  const folded = foldSessionQuerySurface(events)
   const result = new Map<number, SessionEventSurface>()
   for (const seq of folded.nodes) result.set(seq, 'current')
   for (const replacement of folded.replacements) {

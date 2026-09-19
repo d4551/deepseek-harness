@@ -16,6 +16,8 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Internal type erasure after public generic registration validates the provider kind. */
 interface AnyWebhookRule {
   readonly id: WebhookRuleId
@@ -50,8 +52,25 @@ function snapshotDelivery(delivery: VerifiedWebhookDelivery): VerifiedWebhookDel
     throw new TypeError('webhook delivery receivedAt must be a non-negative safe integer')
   }
   const snapshot = snapshotJsonValue(delivery)
-  if (snapshot === undefined) throw new TypeError('webhook delivery must be lossless JSON')
-  return deepFreeze(snapshot)
+  if (snapshot === undefined || typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) {
+    throw new TypeError('webhook delivery must be lossless JSON')
+  }
+  if (
+    snapshot.kind !== delivery.kind
+    || snapshot.source !== delivery.source
+    || snapshot.deliveryId !== delivery.deliveryId
+    || snapshot.receivedAt !== delivery.receivedAt
+    || !('event' in snapshot)
+  ) {
+    throw new TypeError('webhook delivery must be lossless JSON')
+  }
+  return deepFreeze({
+    kind: delivery.kind,
+    source: delivery.source,
+    deliveryId: delivery.deliveryId,
+    event: snapshot.event,
+    receivedAt: delivery.receivedAt,
+  })
 }
 
 /** Fire-and-forget rule runtime. Session creation is the only built-in action. */
@@ -74,10 +93,16 @@ export class WebhookRuntime extends Service {
     this.selfCtx = ctx
     ctx.effect(() => async () => {
       this.closing = true
-      /* v8 ignore next -- caller-owned registration effects normally dispose first; this covers provider-first unload. */
+      /* v8 ignore start -- caller-owned registration effects normally dispose first; this covers provider-first unload. */
+      const failures: Thrown[] = []
       await Promise.all(
-        [...this.rules.values()].map(rule => this.disposeRegistration(rule)),
+        [...this.rules.values()].map(rule => this.disposeRegistration(rule).then(
+          undefined,
+          (reason: Thrown) => { failures.push(reason) },
+        )),
       )
+      if (failures.length > 0) throw new AggregateError(failures, 'webhook runtime teardown failed')
+      /* v8 ignore stop */
     }, 'webhookRuntime.lifecycle()')
   }
 
@@ -100,7 +125,14 @@ export class WebhookRuntime extends Service {
 
     // The public generic preserves adapter-specific authoring types. The runtime
     // stores one erased callback after validating the shared provider tag.
-    const erased = rule as unknown as AnyWebhookRule
+    // `kind` narrows from `K` to `string` because `K extends string`; only the
+    // delivery-typed `run` needs a seat change, and the dispatch loop only
+    // invokes it with deliveries whose `kind` equals this rule's own tag.
+    const erased: AnyWebhookRule = {
+      id: rule.id,
+      kind: rule.kind,
+      run: rule.run as AnyWebhookRule['run'],
+    }
     let registration!: RuleRegistration
     const disposeEffect = this.ctx.effect(() => {
       /* v8 ignore next -- no await separates the public liveness check from this initializer. */
@@ -126,7 +158,7 @@ export class WebhookRuntime extends Service {
   dispatch<K extends string>(delivery: VerifiedWebhookDelivery<K>): void {
     if (this.closing) throw new Error('webhook runtime is closing')
     const snapshot = snapshotDelivery(delivery)
-    for (const registration of [...this.rules.values()]) {
+    for (const registration of Array.from(this.rules.values())) {
       if (registration.closing || registration.rule.kind !== snapshot.kind) continue
       this.startInvocation(registration, snapshot)
     }
@@ -147,13 +179,13 @@ export class WebhookRuntime extends Service {
           registration.controller.signal,
         )
       }
-    }).catch((error: unknown) => {
+    }).catch((reason: Thrown) => {
       const invocation = `webhook: provider=${JSON.stringify(delivery.kind)} source=${JSON.stringify(delivery.source)} `
         + `delivery=${JSON.stringify(delivery.deliveryId)} rule=${JSON.stringify(registration.rule.id)}`
       if (registration.controller.signal.aborted) {
-        this.selfCtx.logger.debug(`${invocation} stopped after disposal: ${errorChain(error)}`)
+        this.selfCtx.logger.debug(`${invocation} stopped after disposal: ${errorChain(reason)}`)
       } else {
-        this.selfCtx.logger.warn(`${invocation} failed: ${errorChain(error)}`)
+        this.selfCtx.logger.warn(`${invocation} failed: ${errorChain(reason)}`)
       }
     }).finally(() => {
       registration.active.delete(tracked)
@@ -168,7 +200,7 @@ export class WebhookRuntime extends Service {
       this.rules.delete(registration.rule.id)
       registration.controller.abort(new Error(`webhook rule "${registration.rule.id}" was disposed`))
       while (registration.active.size > 0) {
-        await Promise.allSettled([...registration.active])
+        await Promise.allSettled(registration.active)
       }
     })()
     return registration.disposal

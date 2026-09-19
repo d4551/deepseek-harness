@@ -9,15 +9,20 @@
  * loaders register each real stylesheet as a watch dependency.
  */
 import { readFile } from 'node:fs/promises'
-import { existsSync, globSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 import { optionalStringArray } from './modules/src/client/manifest.ts'
 import { PLATFORM_MODULES, PRELOADED_CLIENT_EXTERNALS } from './web/src/platform.ts'
 import { clientBuildEnvironmentDefines } from '../../scripts/client-build-environment.ts'
+import {
+  jsonObject,
+  resolveRepositoryRoot,
+  workspaceManifestAt,
+  type WorkspaceManifest,
+} from '../../scripts/tsdown-workspace-root.ts'
 
 /**
  * Virtual-id wrapper keeping module CSS away from tsdown's own css pipeline
@@ -58,7 +63,7 @@ function styleInjectionModule(
  * Everything else under @deepseek-ai/* is either a module-table entry
  * (external) or a leak the purity gate rejects.
  */
-export const INLINE_SAFE = /^(?:@deepseek-ai\/dsh-(?:file-reference|session|llm|tools|brand|util-crypto|util-workspace-path)(?:\/|$)|@deepseek-ai\/dsh-token-meter\/client$|@deepseek-ai\/dsh-cordis-host-runner\/wire-values$)/
+export const INLINE_SAFE = /^(?:@deepseek-ai\/dsh-(?:file-reference|session|llm|tools|brand|thrown|util-crypto|util-workspace-path)(?:\/|$)|@deepseek-ai\/dsh-token-meter\/client$|@deepseek-ai\/dsh-cordis-host-runner\/wire-values$|@deepseek-ai\/dsh-compaction\/checkpoint$|@deepseek-ai\/dsh-commands\/brand$)/
 
 /**
  * Vendored framework libraries: rescoped into @deepseek-ai, so the gate below
@@ -77,7 +82,7 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
  */
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
-const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+const REPOSITORY_ROOT = resolveRepositoryRoot()
 
 /** Rebase a physical lib-relative source onto a browser URL that mirrors the repository directories. */
 function browserSourcePath(source: string, sourcemapPath: string): string {
@@ -161,6 +166,10 @@ export function staticLinked(id: string, libEntry: readonly string[]): BuildFace
   return clientOnly(libEntry.map(entry => staticLinkedConfig(id, entry)))
 }
 
+function pluginNamed(plugin: object, name: string): boolean {
+  return 'name' in plugin && plugin.name === name
+}
+
 /**
  * Whether a package's tsdown configs put it in the static assembly channel.
  * The roster has no separate list: gates load each package's own
@@ -169,8 +178,14 @@ export function staticLinked(id: string, libEntry: readonly string[]): BuildFace
  * @returns true when at least one config was built by {@link staticLinked}.
  */
 export function isStaticLinkedConfig(configs: readonly UserConfig[]): boolean {
-  return configs.some(config => (config.plugins as readonly { name?: string }[] | undefined ?? [])
-    .some(plugin => plugin.name === STATIC_LINKED_PLUGIN))
+  return configs.some((config) => {
+    const plugins = config.plugins
+    if (!Array.isArray(plugins)) return false
+    return plugins.some((plugin) => {
+      if (typeof plugin !== 'object' || plugin === null) return false
+      return pluginNamed(plugin, STATIC_LINKED_PLUGIN)
+    })
+  })
 }
 
 /**
@@ -322,42 +337,16 @@ function stylesheetAsset(source: string, importer: string): { readonly file: str
   return { file, fileName: file.slice(boundary + SOURCE_MARKER.length).split(sep).join('/') }
 }
 
-/** The manifest fields the build faces read to state their own module edges. */
-interface WorkspaceManifest {
-  readonly name?: string
-  /** Sections a real install materializes on disk next to the built package. */
-  readonly dependencies?: Record<string, string>
-  readonly peerDependencies?: Record<string, string>
-  readonly optionalDependencies?: Record<string, string>
-  readonly dsh?: { readonly client?: { readonly external?: unknown } }
-}
-
 const manifestCache = new Map<string, WorkspaceManifest>()
 const productionExternalCache = new Map<string, readonly RegExp[]>()
 const clientExternalCache = new Map<string, ReadonlySet<string>>()
 
-/**
- * Read one workspace package's manifest. Located by package name rather than by
- * cwd, because tsdown evaluates every package config with the repository root as
- * `process.cwd()` during a workspace build. Callers read it on the first
- * resolveId of a build, not while a config is built, so selecting a build face
- * never touches a manifest.
- * @param id - package name, as spelled at the preset call site.
- * @returns the parsed manifest.
- * @throws {Error} when no workspace package declares that name.
- */
 function workspaceManifest(id: string): WorkspaceManifest {
   const cached = manifestCache.get(id)
   if (cached !== undefined) return cached
-  for (const manifestPath of globSync('packages/*/*/package.json', { cwd: REPOSITORY_ROOT })) {
-    const manifest = JSON.parse(
-      readFileSync(resolvePath(REPOSITORY_ROOT, manifestPath), 'utf8'),
-    ) as WorkspaceManifest
-    if (manifest.name !== id) continue
-    manifestCache.set(id, manifest)
-    return manifest
-  }
-  throw new Error(`tsdown: no packages/*/*/package.json declares the name ${id}`)
+  const manifest = workspaceManifestAt(id, REPOSITORY_ROOT)
+  manifestCache.set(id, manifest)
+  return manifest
 }
 
 /**
@@ -578,26 +567,41 @@ function tscSourceMapPlugin() {
       if (!id.includes(TYPES_MARKER) || !id.endsWith('.js') || !existsSync(`${id}.map`)) return null
       const code = await readFile(id, 'utf8')
       const mapPath = `${id}.map`
-      const map = JSON.parse(await readFile(mapPath, 'utf8')) as {
-        sourceRoot?: unknown
-        sources?: unknown
-        sourcesContent?: unknown
-        [key: string]: unknown
-      }
-      if (!Array.isArray(map.sources) || map.sources.some(source => typeof source !== 'string')) {
+      const record = jsonObject(await readFile(mapPath, 'utf8'), mapPath)
+      const sourcesNode = record.sources
+      if (!Array.isArray(sourcesNode)) {
         throw new Error(`client sourcemap: ${mapPath} has invalid sources`)
       }
-      const sources = map.sources as string[]
-      if (
-        !Array.isArray(map.sourcesContent)
-        || map.sourcesContent.length !== sources.length
-        || map.sourcesContent.some(source => typeof source !== 'string')
-      ) {
-        const sourceRoot = typeof map.sourceRoot === 'string' ? map.sourceRoot : ''
-        map.sourcesContent = await Promise.all(sources.map(async source =>
-          await readFile(resolvePath(dirname(mapPath), sourceRoot, source), 'utf8')))
+      const sources: string[] = []
+      for (const source of sourcesNode) {
+        if (typeof source !== 'string') {
+          throw new Error(`client sourcemap: ${mapPath} has invalid sources`)
+        }
+        sources.push(source)
       }
-      return { code: code.replace(SOURCEMAP_COMMENT, ''), map }
+      const contentNode = record.sourcesContent
+      let sourcesContent: string[] | undefined
+      if (Array.isArray(contentNode) && contentNode.length === sources.length) {
+        const copied: string[] = []
+        let complete = true
+        for (const item of contentNode) {
+          if (typeof item !== 'string') {
+            complete = false
+            break
+          }
+          copied.push(item)
+        }
+        if (complete) sourcesContent = copied
+      }
+      if (sourcesContent === undefined) {
+        const sourceRoot = typeof record.sourceRoot === 'string' ? record.sourceRoot : ''
+        sourcesContent = await Promise.all(sources.map(source =>
+          readFile(resolvePath(dirname(mapPath), sourceRoot, source), 'utf8')))
+      }
+      return {
+        code: code.replace(SOURCEMAP_COMMENT, ''),
+        map: { ...record, sources, sourcesContent },
+      }
     },
   }
 }

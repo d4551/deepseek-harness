@@ -72,14 +72,18 @@ export interface DirectoryBrowserProps {
   t: TranslateNS<typeof DIRECTORY_BROWSER_NS>
 }
 
+/** Host or thrown failure text from a directory operation. */
+interface DirectoryFailure {
+  readonly message?: string
+  readonly rpcError?: { readonly message?: string }
+}
+
 /** Failure text from the injected directory operation. */
-function failureText(error: unknown): string {
-  if (error !== null && typeof error === 'object' && 'rpcError' in error) {
-    const rpcError = error.rpcError
-    if (rpcError !== null && typeof rpcError === 'object' && 'message' in rpcError
-      && typeof rpcError.message === 'string') return rpcError.message
-  }
-  return error instanceof Error ? error.message : String(error)
+function failureText(error: DirectoryFailure): string {
+  const rpcMessage = error.rpcError?.message
+  if (typeof rpcMessage === 'string' && rpcMessage.length > 0) return rpcMessage
+  if (typeof error.message === 'string' && error.message.length > 0) return error.message
+  throw new TypeError('directory operation rejected without a message')
 }
 
 /**
@@ -217,13 +221,11 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
 }) {
   const visible = visibleEntries(entries, selectedPath, showHidden, filterPrefix)
   return (
-    <div className={css.column} role="list">
+    <ul className={css.column}>
       {visible.map((entry) => {
         const selected = entry.path === selectedPath
         return (
-          // The wrapper carries the list semantics; the row keeps its NATIVE
-          // button role so assistive technology exposes an actionable control.
-          <span key={entry.path} role="listitem" className={css.rowSeat}>
+          <li key={entry.path} className={css.rowSeat}>
             <button
               type="button"
               aria-current={selected || undefined}
@@ -246,10 +248,10 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
               <span className={css.rowName}>{entry.name}</span>
               <IconChevronRightOutline14 size={12} className={css.rowChevron} />
             </button>
-          </span>
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }
 
@@ -433,8 +435,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       // Arity is label-independent: only the collapsed chain's depth decides.
       if (displayCrumbs(target, '').length < 2) { landSingle(); return }
       const parentCrumb = target.crumbs.at(-2)
-      /* v8 ignore next -- narrowing: a two-deep display chain implies a parent crumb (root-to-target inclusive). */
-      if (parentCrumb === undefined) { landSingle(); return }
+      if (parentCrumb === undefined) throw new TypeError('two-deep crumb chain missing parent')
       continueScan(parentCrumb.path).then((parentLevel) => {
         if (seq !== requestSeq.current) return
         // Windows resolves a typed path preserving its case; anchor on the
@@ -460,7 +461,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       // (see the contract above), and a keystroke aborts it if the operator
       // moves on first.
       if (options.closeEditor) window.setTimeout(landSingle, PARENT_LEG_WAIT_MS)
-    }, (reason: unknown) => {
+    }, (reason: DirectoryFailure) => {
       if (seq !== requestSeq.current) return
       setLoading(false)
       if (options.announce) setError(failureText(reason))
@@ -480,6 +481,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
   const refocusPick = useRef(false)
   const refocusEditZone = useRef(false)
   const pathInputRef = useRef<HTMLInputElement | null>(null)
+  const editorScopeRef = useRef<HTMLFormElement | null>(null)
   const editZoneRef = useRef<HTMLButtonElement | null>(null)
 
   /**
@@ -502,11 +504,11 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     setChild(null)
     setLoading(true)
     setError(null)
-    scan.then((next) => {
+    scan.then((listing) => {
       if (seq !== requestSeq.current) return
-      setChild(next)
+      setChild(listing)
       setLoading(false)
-    }, (reason: unknown) => {
+    }, (reason: DirectoryFailure) => {
       if (seq !== requestSeq.current) return
       setLoading(false)
       setError(failureText(reason))
@@ -550,10 +552,37 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     if (parent === null) navigate()
   }, [supersede, child, parent, navigate])
 
+  useEffect(() => {
+    if (pathDraft === null) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      refocusEditZone.current = document.activeElement === pathInputRef.current
+      cancelPathEdit()
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => { document.removeEventListener('keydown', onKeyDown, true) }
+  }, [pathDraft, cancelPathEdit])
+
+  useEffect(() => {
+    if (pathDraft === null) return
+    const form = editorScopeRef.current
+    if (form === null) return
+    const onFocusOut = (event: FocusEvent): void => {
+      if (!document.hasFocus()) return
+      const card = form.closest('dialog')
+      if (card === null) throw new TypeError('directory path editor is not inside a dialog')
+      if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return
+      refocusEditZone.current = false
+      cancelPathEdit()
+    }
+    form.addEventListener('focusout', onFocusOut)
+    return () => { form.removeEventListener('focusout', onFocusOut) }
+  }, [pathDraft, cancelPathEdit])
+
   /** A right-column pick advances the view one level: child becomes the level. */
   const advance = useCallback((entry: DirectoryEntry) => {
-    /* v8 ignore next -- narrowing guard: the right column only renders with a child listing. */
-    if (child === null) return
+    if (child === null) throw new TypeError('right column pick without a child listing')
     setParent(child)
     select(entry)
   }, [child, select])
@@ -593,7 +622,6 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     ?? (parent === null ? '' : (displayCrumbs(parent, t('browser.home')).at(-1)?.name ?? parent.path))
 
   const confirmCreate = (): void => {
-    /* v8 ignore next -- reentry fence: the nested dialog only renders with a target and disables while creating. */
     if (targetPath === null || folderDraft === null || creatingFolder) return
     // Trim only rejects an all-whitespace draft; the Host gets the original
     // spelling — the backend accepts any non-blank single segment verbatim,
@@ -618,18 +646,16 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       // occupant of the content's right edge while it shows).
       setError(null)
       scan.then((level) => {
-        /* v8 ignore next -- same fence as navigate/select; the modal blocks superseding input */
         if (seq !== requestSeq.current) return
         setParent(level)
         setLoading(false)
         select({ name, path: createdPath, hidden: false })
-      }, (reason: unknown) => {
-        /* v8 ignore next -- same fence as navigate/select; the modal blocks superseding input */
+      }, (reason: DirectoryFailure) => {
         if (seq !== requestSeq.current) return
         setLoading(false)
         setError(failureText(reason))
       })
-    }, (reason: unknown) => {
+    }, (reason: DirectoryFailure) => {
       if (generation !== openGeneration.current) return
       setCreatingFolder(false)
       setCreateError(failureText(reason))
@@ -698,6 +724,11 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     const row = millerRowRef.current
     if (row !== null && childPath !== undefined) row.scrollLeft = row.scrollWidth
   }, [childPath])
+  const pathEditing = pathDraft !== null
+  useEffect(() => {
+    if (!pathEditing) return
+    pathInputRef.current?.focus()
+  }, [pathEditing])
   // Every editor exit that would drop focus to body re-parks it after
   // commit, so keyboard traversal stays inside the dialog (the Modal has no
   // focus trap): a pick lands on the selection's row — aria-current in the
@@ -716,11 +747,9 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       refocusPick.current = false
       refocusEditZone.current = false
       const rowHost = millerRowRef.current
-      /* v8 ignore next -- narrowing guard: the miller row is mounted whenever a pick just committed. */
-      if (rowHost === null) return
+      if (rowHost === null) throw new TypeError('miller row is not mounted after a pick')
       const row = rowHost.querySelector<HTMLButtonElement>('button[aria-current="true"]')
-      /* v8 ignore next -- narrowing guard: the pick that set the flag just rendered its aria-current row. */
-      if (row === null) return
+      if (row === null) throw new TypeError('pick committed without an aria-current row')
       row.focus()
       return
     }
@@ -730,8 +759,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       // the user parked elsewhere (a surviving row) stays theirs.
       if (document.activeElement !== document.body) return
       const zone = editZoneRef.current
-      /* v8 ignore next -- narrowing guard: crumb mode renders the edit zone whenever the editor just closed. */
-      if (zone === null) return
+      if (zone === null) throw new TypeError('crumb edit zone is not mounted after path cancel')
       zone.focus()
     }
   })
@@ -766,42 +794,10 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
         * dialog) and a further focus move out of the card must still
         * cancel. display:contents keeps header/content/footer as direct
         * flex children of the Modal card. */}
-      <div
+      <form
+        ref={editorScopeRef}
         className={css.editorScope}
-        onKeyDown={(event) => {
-          if (event.key !== 'Escape' || pathDraft === null) return
-          // stopPropagation keeps the card-scope Escape from the Modal's
-          // document listener.
-          event.stopPropagation()
-          // Escape while the input holds focus is about to unmount it; with
-          // focus already parked on a row, that row survives the cancel and
-          // keeps focus naturally. Assignment (not a conditional set) also
-          // retires a stale flag a failed or still-upgrading Enter left.
-          refocusEditZone.current = document.activeElement === pathInputRef.current
-          cancelPathEdit()
-        }}
-        // Focus leaving THIS dialog card while editing cancels like Escape.
-        // Guarded non-cancel paths: window/tab focus loss (document no
-        // longer focused); a focus move that stays inside the card (Tab
-        // onto the filtered rows or the footer toggle); and pointer paths,
-        // where rows and the toggle suppress focus steal on mousedown while
-        // editing so their click lands first. Enter keeps focus in the
-        // input while its navigation is in flight, so a submitted path is
-        // never withdrawn here. Anchored to this card via closest, not any
-        // [role="dialog"], so focus escaping into a sibling overlay cancels.
-        onBlur={(event) => {
-          if (pathDraft === null) return
-          if (!document.hasFocus()) return
-          const card = event.currentTarget.closest('[role="dialog"]')
-          /* v8 ignore next -- narrowing guard: this scope always renders inside the Modal card. */
-          if (card === null) return
-          if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return
-          // The user moved focus out of the card themselves: cancel without
-          // re-parking (a lingering Enter-failure flag must not yank focus
-          // back either).
-          refocusEditZone.current = false
-          cancelPathEdit()
-        }}
+        onSubmit={(event) => { event.preventDefault() }}
       >
         <div className={css.header}>
           <h2 className={css.title}>{t('browser.title')}</h2>
@@ -809,7 +805,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
             {pathDraft === null
               ? (
                 <>
-                  <span className={css.crumbTrail} role="navigation" ref={crumbTrailRef}>
+                  <nav className={css.crumbTrail} ref={crumbTrailRef}>
                     {crumbs.map((crumb, index) => (
                       <span key={crumb.path} className={css.crumbSeat}>
                         {index > 0 && <IconChevronRightOutline14 size={12} className={css.crumbChevron} />}
@@ -823,7 +819,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
                         </button>
                       </span>
                     ))}
-                  </span>
+                  </nav>
                   {/* The empty zone right of the crumbs is the path-edit
                     * affordance: the whole remainder of the bar clicks into
                     * the editor, and the pencil glyph parked at its right
@@ -869,7 +865,6 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
                   className={css.pathInput}
                   value={pathDraft}
                   aria-label={t('browser.editPath')}
-                  autoFocus
                   ref={pathInputRef}
                   disabled={parentInert}
                   onChange={(event) => {
@@ -938,7 +933,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
             )}
           </div>
           {loading && slowScan
-          && <div className={clsx(css.status, css.loadingFloat)} role="status">{t('browser.loading')}</div>}
+          && <output className={clsx(css.status, css.loadingFloat)}>{t('browser.loading')}</output>}
           {/* The backend bounds a level at its complete-result limit; say so
           * whenever a visible pane was cut instead of letting the tail of a
           * huge directory go silently missing. The note describes the panes
@@ -946,7 +941,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
           * the stale view still shows the cut level would shift the columns
           * on every navigation away from it. */}
           {(parent?.truncated === true || child?.truncated === true)
-          && <div className={css.status} role="status">{t('browser.truncated')}</div>}
+          && <output className={css.status}>{t('browser.truncated')}</output>}
           {error !== null && <div className={css.error} role="alert">{error}</div>}
         </div>
         <div className={css.footerBar}>
@@ -984,13 +979,15 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
             variant="primary"
             className={clsx(css.footerAction)}
             disabled={targetPath === null || loading || parentInert || draftPending}
-            /* v8 ignore next -- narrowing guard: Open disables while no target exists. */
-            onClick={() => { if (targetPath !== null) onOpen(targetPath) }}
+            onClick={() => {
+              if (targetPath === null) throw new TypeError('open committed without a directory target')
+              onOpen(targetPath)
+            }}
           >
             {t('browser.open')}
           </Button>
         </div>
-      </div>
+      </form>
       {/* Nested create dialog (figma 813:23278): names one folder inside the target. */}
       <Modal
         open={folderDraft !== null}
@@ -998,6 +995,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
         title={t('browser.newFolder')}
         className={clsx(css.createDialog)}
         headless
+        initialFocus="field"
       >
         <div className={css.createBody}>
           <h3 className={css.createTitle}>{t('browser.newFolder')}</h3>
@@ -1007,7 +1005,6 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
             value={folderDraft ?? ''}
             aria-label={t('browser.folderName')}
             placeholder={t('browser.untitledFolder')}
-            autoFocus
             disabled={creatingFolder}
             onChange={(event) => { setFolderDraft(event.target.value) }}
             {...compositionGuard}

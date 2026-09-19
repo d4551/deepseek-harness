@@ -13,8 +13,8 @@
  */
 
 import type { MessageSource } from '@deepseek-ai/dsh-llm/message'
-import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
-import type { CompactionId } from './brand.ts'
+import { CommandId } from '@deepseek-ai/dsh-commands/brand'
+import { CompactionId } from './brand.ts'
 
 const COMPACT_CHECKPOINT_MARKER = Object.freeze({ kind: 'plugin', plugin: 'compact' } as const)
 
@@ -42,10 +42,30 @@ export function compactCheckpointSource(
 }
 
 /**
+ * Rebuild a compaction checkpoint from persisted message provenance.
+ * @param source - source restored from a surface user message.
+ * @returns the checkpoint source, or undefined when the provenance is not a compact checkpoint.
+ */
+export function readCompactCheckpointSource(
+  source: MessageSource,
+): CompactionCheckpointSource | undefined {
+  if (source.kind !== 'plugin' || source.plugin !== COMPACT_CHECKPOINT_MARKER.plugin) return undefined
+  if (!('compactionId' in source) || typeof source.compactionId !== 'string' || source.compactionId === '') {
+    return undefined
+  }
+  const rawCommandId = 'sourceCommandId' in source ? source.sourceCommandId : undefined
+  if (rawCommandId !== undefined && typeof rawCommandId !== 'string') return undefined
+  return compactCheckpointSource(
+    CompactionId(source.compactionId),
+    rawCommandId === undefined ? undefined : CommandId(rawCommandId),
+  )
+}
+
+/**
  * Test whether a persisted message source identifies a compaction checkpoint.
  * @param source - source restored from a surface user message.
- * @returns whether the source carries the backend-independent checkpoint marker.
+ * @returns whether the source carries a compact plugin marker and a compaction id.
  */
 export function isCompactCheckpointSource(source: MessageSource): boolean {
-  return source.kind === 'plugin' && source.plugin === COMPACT_CHECKPOINT_MARKER.plugin
+  return readCompactCheckpointSource(source) !== undefined
 }

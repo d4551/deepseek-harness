@@ -15,6 +15,8 @@ import { getStaticModules } from './seed.ts'
 import { STATE_LABELS } from './loader-status.ts'
 import './base.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Module transport hook replaced by jsdom tests. */
 export type BootSeams = Pick<ClientModuleCreateOptions, 'loadBundle'>
 
@@ -102,11 +104,10 @@ export class AppWebEntry {
 
   /** Prefetch stage-one bundles and their dynamic requests before concurrent plugin imports. */
   private async prefetchImmediateTier(): Promise<void> {
+    // Prefetch only starts transport early; the Loader import retries and reports this bundle failure.
     await Promise.all(this.manifest.plugins
       .filter(row => row.immediately)
-      .map(row => this.modules.prefetch(row.id).catch((_prefetchError: unknown) => {
-        // Prefetch only starts transport early; the Loader import retries and reports this bundle failure.
-      })))
+      .map(row => this.modules.prefetch(row.id).catch((_prefetchError: Thrown) => undefined)))
   }
 
   /** Mount the Loader, create all graph entries, await quiescence, and audit activation. */

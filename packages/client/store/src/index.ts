@@ -18,9 +18,9 @@ import type {
 // Store contract types are ui-slots authority; re-exported beside the engine
 // so store consumers get one import path.
 export type {
-  ActionsDecl, BakedActions, BoundActions, DefineStore, HandleOf, MaybeSnapshotSelectorHook,
-  ObservableSnapshot, PropsStore, SnapshotSelectorHook, StoreDecl, StoreFactory,
-  StoreHandle, StoreInstance, StoreSpec,
+  ActionsDecl, BakedActions, BoundActions, DefineStore, ErasedStoreHandle, HandleOf,
+  MaybeSnapshotSelectorHook, ObservableSnapshot, PropsStore, SnapshotSelectorHook, StoreDecl,
+  StoreFactory, StoreHandle, StoreInstance, StoreSpec,
 } from './contract.ts'
 
 /** Writable snapshot store (bare data face; React selector hooks are synthesized in ui-renderer). */
@@ -38,7 +38,7 @@ export interface SnapshotStore<T> extends ObservableSnapshot<T> {
 }
 
 /**
- * Notify an observer set without allowing one callback to starve the rest.
+ * Notify an observer set. A throwing listener stops the remaining listeners.
  * @param listeners - current observer callbacks; copied before dispatch.
  * @param label - diagnostic owner prefix.
  * @param args - callback arguments.
@@ -48,12 +48,9 @@ export function notifySubscribers<Args extends readonly unknown[]>(
   label: string,
   ...args: Args
 ): void {
-  for (const listener of [...listeners]) {
-    try {
-      listener(...args)
-    } catch (error) {
-      console.error(`${label} subscriber failed:`, error)
-    }
+  if (label === '') throw new TypeError('subscriber label must be a non-empty string')
+  for (const listener of Array.from(listeners)) {
+    listener(...args)
   }
 }
 
@@ -140,29 +137,27 @@ export function createSnapshotStore<T>(
  * zustand persist middleware: its write path spreads state into an object
  * (`partialize({ ...get() })`), exploding primitive state (a persisted string
  * draft becomes {0:'h',1:'e',...}) — not fixable via merge/deserialize options
- * because the corruption happens before serialization. Storage failures
- * (quota, private mode) only disable persistence, never break the store.
+ * because the corruption happens before serialization. Quota and private-mode
+ * storage failures throw; callers see the same error the host raised.
  */
 function attachPersistence<T>(api: StoreApi<T>, name: string): void {
-  // Non-browser runs (node e2e booting the client tree) have no localStorage:
-  // persistence silently disables — same contract as a storage failure, minus
-  // the per-store console noise a ReferenceError would produce.
   if (typeof localStorage === 'undefined') return
-  try {
-    const raw = localStorage.getItem(name)
-    if (raw !== null) {
-      api.setState(devFreeze(JSON.parse(raw) as T), true)
-    }
-  } catch (error) {
-    console.error(`snapshot store '${name}' rehydration failed:`, error)
+  const raw = localStorage.getItem(name)
+  if (raw !== null) {
+    api.setState(devFreeze(rehydrateStoreState(raw, name) as T), true)
   }
   api.subscribe((state) => {
-    try {
-      localStorage.setItem(name, JSON.stringify(state))
-    } catch (error) {
-      console.error(`snapshot store '${name}' persistence failed:`, error)
-    }
+    localStorage.setItem(name, JSON.stringify(state))
   })
+}
+
+function rehydrateStoreState(raw: string, name: string): string | number | boolean | object {
+  const parsed: unknown = JSON.parse(raw)
+  if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean') {
+    return parsed
+  }
+  if (typeof parsed === 'object' && parsed !== null) return parsed
+  throw new TypeError(`snapshot store '${name}' rehydration is not JSON state`)
 }
 
 /**
@@ -247,12 +242,7 @@ export function defineStore<T, A extends ActionsDecl<T>>(
         store,
         clearPersisted: () => {
           if (persistKey === undefined || typeof localStorage === 'undefined') return
-          try {
-            localStorage.removeItem(persistKey)
-          } catch {
-            // Storage failures (private mode, quota teardown races) only skip
-            // cleanup — the same non-fatal contract as attachPersistence.
-          }
+          localStorage.removeItem(persistKey)
         },
       }
     },

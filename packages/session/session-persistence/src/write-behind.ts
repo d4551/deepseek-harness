@@ -5,6 +5,8 @@
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Dependencies and scheduling policy for one live session's write controller. */
 export interface SessionWriteBehindOptions {
   /** Maximum intentional batching wait after an idle queue receives work. */
@@ -12,7 +14,7 @@ export interface SessionWriteBehindOptions {
   /** Persist one stable ordered prefix; resolves only after backend durability. */
   readonly write: (events: readonly SessionEvent[]) => Promise<void>
   /** Observe a detached background write failure without rejecting the producer. */
-  readonly reportBackgroundFailure: (error: unknown) => void
+  readonly reportBackgroundFailure: (error: Thrown) => void
 }
 
 /**
@@ -67,7 +69,9 @@ export class SessionWriteBehind {
     this.automaticPaused = false
     const barrier = Promise.withResolvers<void>()
     this.barrier = barrier.promise
-    this.drainBarrier(barrier.resolve, barrier.reject).then(undefined, barrier.reject)
+    this.drainBarrier(barrier.resolve, barrier.reject).then(undefined, (error: Thrown) => {
+      barrier.reject(error)
+    })
     return barrier.promise
   }
 
@@ -102,7 +106,7 @@ export class SessionWriteBehind {
   /** Start one detached write whose failure is reported and retained. */
   private startBackground(): void {
     const active = this.startWrite(true)
-    active.then(() => { this.continueAutomatic() }, () => {})
+    active.then(() => { this.continueAutomatic() }, (_error: Thrown) => {})
   }
 
   /** Continue immediately after an over-budget active write, otherwise keep its timer. */
@@ -123,7 +127,7 @@ export class SessionWriteBehind {
         this.automaticPaused = false
       }
       while (this.pending.length > 0) await this.startWrite(false)
-    } catch (error: unknown) {
+    } catch (error) {
       this.barrier = undefined
       reject(error)
       return
@@ -142,7 +146,7 @@ export class SessionWriteBehind {
     this.deadlineExpired = false
     const operation = Promise.resolve().then(() => this.options.write(batch))
     const active = operation
-      .catch((error: unknown) => {
+      .then(undefined, (error: Thrown) => {
         this.pending = batch.concat(this.pending)
         this.cancelTimer()
         this.deadlineExpired = false

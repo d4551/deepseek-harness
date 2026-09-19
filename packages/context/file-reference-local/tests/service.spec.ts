@@ -146,9 +146,7 @@ describe('LocalFileReferenceService', () => {
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     const inject = vi.spyOn(ctx, 'inject')
       .mockReturnValueOnce({ dispose: () => Promise.reject(new Error('error cleanup')) } as never)
-      // Deliberately proves cleanup tolerates JavaScript callers rejecting non-Error values.
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-      .mockReturnValueOnce({ dispose: () => Promise.reject('string cleanup') } as never)
+      .mockReturnValueOnce({ dispose: async () => { throw 'string cleanup' } } as never)
     const first = await stubAgent(ctx, 'cleanup-one')
     const second = await stubAgent(ctx, 'cleanup-two')
     expect(inject).toHaveBeenCalledTimes(2)

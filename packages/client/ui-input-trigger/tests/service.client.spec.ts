@@ -10,18 +10,17 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { InputTriggerController, InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {
-  BeginCommandRequest, ClientSessionContext, CommandClaim, InsertReferenceRequest, PickOutcome,
-  ReferenceInsert, InputTriggerCandidate, InputTriggerPick, InputTriggerSource, SourceRoster, TriggerChar,
+  ArbitrateKey, BeginCommandRequest, ClientSessionContext, CommandClaim, InsertReferenceRequest,
+  PickOutcome, ReferenceInsert, InputTriggerCandidate, InputTriggerPick,
+  InputTriggerSource, SourceRoster, SubmitEnvelope, TokenSpan, TriggerChar, TriggerHit,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
-
-const sid = (k: string): SessionId => k as SessionId
 
 interface PendingFetch {
   resolve: (items: readonly InputTriggerCandidate[]) => void
-  reject: (err: unknown) => void
+  reject: (reason: Error | string) => void
   query: string
   signal: AbortSignal
   session: ClientSessionContext
@@ -30,7 +29,7 @@ interface PendingFetch {
 /** Deferred-candidates source: settle each fetch by hand; warm is a spy. */
 function deferredSource(trigger: TriggerChar, name: string, over: Partial<InputTriggerSource> = {}) {
   const pending: PendingFetch[] = []
-  const warm = vi.fn()
+  const warm = vi.fn<NonNullable<InputTriggerSource['warm']>>()
   const source: InputTriggerSource = {
     trigger,
     name,
@@ -70,12 +69,12 @@ const tick = () => Promise.resolve()
 /** Direct controller bench: real scope tag + live roster array. */
 function controllerBench(sources: InputTriggerSource[] = [], key = 'a') {
   const root = new Context()
-  const scope = createScope(root, sid(key))
+  const scope = createScope(root, SessionId(key))
   const roster: SourceRoster = {
     sources: trigger => sources.filter(s => s.trigger === trigger),
     all: () => sources,
   }
-  const controller = new InputTriggerController({ actx: scope.ctx, sessionId: sid(key), roster })
+  const controller = new InputTriggerController({ actx: scope.ctx, sessionId: SessionId(key), roster })
   return { root, actx: scope.ctx, controller, sources }
 }
 
@@ -86,9 +85,12 @@ async function serviceBench() {
     scopeOf: (c: Context) => scopeOf(c),
   })
   await root.plugin(InputTriggerService).await()
-  const inputTriggers = root.get('inputTriggers') as InputTriggerService
+  const inputTriggers = root.get('inputTriggers')
+  if (inputTriggers === undefined) {
+    throw new Error('ui-input-trigger: inputTriggers service unavailable')
+  }
   const mint = (key: string) => {
-    const scope = createScope(root, sid(key))
+    const scope = createScope(root, SessionId(key))
     return { actx: scope.ctx, fiber: scope.fiber }
   }
   return { root, inputTriggers, mint }
@@ -132,8 +134,8 @@ describe('registerSource', () => {
     const cb = inputTriggers.sessionOf(mint('b').actx)
     const late = deferredSource('/', 'late', { lexicon: () => ['fresh'] })
     inputTriggers.registerSource(late.source)
-    expect(late.warm).toHaveBeenNthCalledWith(1, { sessionId: sid('a') })
-    expect(late.warm).toHaveBeenNthCalledWith(2, { sessionId: sid('b') })
+    expect(late.warm).toHaveBeenNthCalledWith(1, { sessionId: SessionId('a') })
+    expect(late.warm).toHaveBeenNthCalledWith(2, { sessionId: SessionId('b') })
     expect(ca.lexicon.getSnapshot().get('/')).toEqual(['fresh'])
     expect(cb.lexicon.getSnapshot().get('/')).toEqual(['fresh'])
   })
@@ -184,8 +186,8 @@ describe('sessionOf', () => {
     inputTriggers.registerSource(sub.source)
     const a = mint('a')
     inputTriggers.sessionOf(a.actx)
-    expect(cmd.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: sid('a') })
-    expect(sub.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: sid('a') })
+    expect(cmd.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: SessionId('a') })
+    expect(sub.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: SessionId('a') })
     // Re-resolution of the resident controller never re-warms.
     inputTriggers.sessionOf(a.actx)
     expect(cmd.warm).toHaveBeenCalledTimes(1)
@@ -270,7 +272,7 @@ describe('track', () => {
     const cmd = deferredSource('/', 'command')
     const { controller } = controllerBench([cmd.source])
     controller.track('/g', 2, { tier: 'plain' }, 1)
-    expect(cmd.pending[0]!.session).toEqual({ sessionId: sid('a') })
+    expect(cmd.pending[0]!.session).toEqual({ sessionId: SessionId('a') })
   })
 
   it('query refinement supersedes the old generation and aborts its fetch', async () => {
@@ -342,73 +344,52 @@ describe('track', () => {
     expect(controller.menu.getSnapshot().open).toBe(false)
   })
 
-  it('a rejecting source logs and publishes its message on a kept group', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const cmd = deferredSource('/', 'command')
-      const skill = deferredSource('/', 'skill')
-      const { controller } = controllerBench([cmd.source, skill.source])
-      controller.track('/g', 2, { tier: 'plain' }, 1)
-      skill.pending[0]!.reject(new Error('boom'))
-      cmd.pending[0]!.resolve([{ name: 'goal' }])
-      await tick()
-      const state = controller.menu.getSnapshot()
-      expect(state.groups).toEqual([
-        { source: 'command', status: 'ready', items: [{ name: 'goal' }] },
-        { source: 'skill', status: 'failed', items: [], error: 'boom' },
-      ])
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('skill'), expect.any(Error))
-    } finally {
-      errorSpy.mockRestore()
-    }
+  it('a rejecting source publishes its message on a kept group', async () => {
+    const cmd = deferredSource('/', 'command')
+    const skill = deferredSource('/', 'skill')
+    const { controller } = controllerBench([cmd.source, skill.source])
+    controller.track('/g', 2, { tier: 'plain' }, 1)
+    skill.pending[0]!.reject(new Error('boom'))
+    cmd.pending[0]!.resolve([{ name: 'goal' }])
+    await tick()
+    expect(controller.menu.getSnapshot().groups).toEqual([
+      { source: 'command', status: 'ready', items: [{ name: 'goal' }] },
+      { source: 'skill', status: 'failed', items: [], error: 'boom' },
+    ])
   })
 
   it('a non-Error rejection still publishes readable text', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const cmd = deferredSource('/', 'command')
-      const { controller } = controllerBench([cmd.source])
-      controller.track('/g', 2, { tier: 'plain' }, 1)
-      cmd.pending[0]!.reject('offline')
-      await tick()
-      expect(controller.menu.getSnapshot().groups[0]).toEqual(
-        { source: 'command', status: 'failed', items: [], error: 'offline' },
-      )
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const cmd = deferredSource('/', 'command')
+    const { controller } = controllerBench([cmd.source])
+    controller.track('/g', 2, { tier: 'plain' }, 1)
+    cmd.pending[0]!.reject('offline')
+    await tick()
+    expect(controller.menu.getSnapshot().groups[0]).toEqual(
+      { source: 'command', status: 'failed', items: [], error: 'offline' },
+    )
   })
 
   it('a failed group holds the menu open, so an unchanged draft never refetches', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const cmd = deferredSource('/', 'command')
-      const skill = deferredSource('/', 'skill')
-      const { controller } = controllerBench([cmd.source, skill.source])
+    const cmd = deferredSource('/', 'command')
+    const skill = deferredSource('/', 'skill')
+    const { controller } = controllerBench([cmd.source, skill.source])
+    controller.track('/', 1, { tier: 'plain' }, 1)
+    cmd.pending[0]!.reject(new Error('list failed: internal'))
+    skill.pending[0]!.resolve([])
+    await tick()
+    expect(controller.menu.getSnapshot().open).toBe(true)
+    for (let i = 0; i < 20; i++) {
       controller.track('/', 1, { tier: 'plain' }, 1)
-      cmd.pending[0]!.reject(new Error('list failed: internal'))
-      skill.pending[0]!.resolve([])
       await tick()
-      expect(controller.menu.getSnapshot().open).toBe(true)
-      // The composer notifies on every draft/caret event; each one used to
-      // re-seed the auto-closed menu and re-issue every source's request.
-      for (let i = 0; i < 20; i++) {
-        controller.track('/', 1, { tier: 'plain' }, 1)
-        await tick()
-      }
-      expect(cmd.pending).toHaveLength(1)
-      expect(skill.pending).toHaveLength(1)
-      expect(errorSpy).toHaveBeenCalledTimes(1)
-    } finally {
-      errorSpy.mockRestore()
     }
+    expect(cmd.pending).toHaveLength(1)
+    expect(skill.pending).toHaveLength(1)
   })
 })
 
 describe('retrySource', () => {
   /** One failed 'command' group beside a settled 'skill' group. */
   async function failedBench() {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const cmd = deferredSource('/', 'command')
     const skill = deferredSource('/', 'skill')
     const bench = controllerBench([cmd.source, skill.source])
@@ -416,89 +397,65 @@ describe('retrySource', () => {
     cmd.pending[0]!.reject(new Error('list failed: internal'))
     skill.pending[0]!.resolve([{ name: 'review' }])
     await tick()
-    return { ...bench, cmd, skill, errorSpy }
+    return { ...bench, cmd, skill }
   }
 
   it('re-runs only the failed source and settles it into the open menu', async () => {
-    const { controller, cmd, skill, errorSpy } = await failedBench()
-    try {
-      controller.retrySource('command')
-      expect(controller.menu.getSnapshot().groups[0]).toEqual({ source: 'command', status: 'pending', items: [] })
-      expect(cmd.pending).toHaveLength(2)
-      expect(skill.pending).toHaveLength(1)
-      cmd.pending[1]!.resolve([{ name: 'goal' }])
-      await tick()
-      expect(controller.menu.getSnapshot().groups[0]).toEqual({
-        source: 'command', status: 'ready', items: [{ name: 'goal' }],
-      })
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd, skill } = await failedBench()
+    controller.retrySource('command')
+    expect(controller.menu.getSnapshot().groups[0]).toEqual({ source: 'command', status: 'pending', items: [] })
+    expect(cmd.pending).toHaveLength(2)
+    expect(skill.pending).toHaveLength(1)
+    cmd.pending[1]!.resolve([{ name: 'goal' }])
+    await tick()
+    expect(controller.menu.getSnapshot().groups[0]).toEqual({
+      source: 'command', status: 'ready', items: [{ name: 'goal' }],
+    })
   })
 
   it('a retry that fails again returns to failed with the new message', async () => {
-    const { controller, cmd, errorSpy } = await failedBench()
-    try {
-      controller.retrySource('command')
-      cmd.pending[1]!.reject(new Error('still down'))
-      await tick()
-      expect(controller.menu.getSnapshot().groups[0]).toEqual({
-        source: 'command', status: 'failed', items: [], error: 'still down',
-      })
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd } = await failedBench()
+    controller.retrySource('command')
+    cmd.pending[1]!.reject(new Error('still down'))
+    await tick()
+    expect(controller.menu.getSnapshot().groups[0]).toEqual({
+      source: 'command', status: 'failed', items: [], error: 'still down',
+    })
   })
 
   it('closing the menu drops a retry still in flight', async () => {
-    const { controller, cmd, errorSpy } = await failedBench()
-    try {
-      controller.retrySource('command')
-      controller.dismiss()
-      cmd.pending[1]!.resolve([{ name: 'goal' }])
-      await tick()
-      expect(controller.menu.getSnapshot().open).toBe(false)
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd } = await failedBench()
+    controller.retrySource('command')
+    controller.dismiss()
+    cmd.pending[1]!.resolve([{ name: 'goal' }])
+    await tick()
+    expect(controller.menu.getSnapshot().open).toBe(false)
   })
 
   it('ignores a retry of a group that is not failed, an unknown source, and a closed menu', async () => {
-    const { controller, cmd, skill, errorSpy } = await failedBench()
-    try {
-      controller.retrySource('skill')
-      controller.retrySource('ghost')
-      expect(skill.pending).toHaveLength(1)
-      expect(cmd.pending).toHaveLength(1)
-      controller.dismiss()
-      controller.retrySource('command')
-      expect(cmd.pending).toHaveLength(1)
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd, skill } = await failedBench()
+    controller.retrySource('skill')
+    controller.retrySource('ghost')
+    expect(skill.pending).toHaveLength(1)
+    expect(cmd.pending).toHaveLength(1)
+    controller.dismiss()
+    controller.retrySource('command')
+    expect(cmd.pending).toHaveLength(1)
   })
 
   it('ignores a retry once the trigger hit is gone', async () => {
-    const { controller, cmd, errorSpy } = await failedBench()
-    try {
-      controller.track('hello', 5, { tier: 'plain' }, 2)
-      controller.retrySource('command')
-      expect(cmd.pending).toHaveLength(1)
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd } = await failedBench()
+    controller.track('hello', 5, { tier: 'plain' }, 2)
+    controller.retrySource('command')
+    expect(cmd.pending).toHaveLength(1)
   })
 
   it('ignores a retry of a source that unregistered while its group showed the failure', async () => {
-    const { controller, cmd, sources, errorSpy } = await failedBench()
-    try {
-      sources.splice(0, 1)
-      controller.retrySource('command')
-      expect(cmd.pending).toHaveLength(1)
-      expect(controller.menu.getSnapshot().groups[0]?.status).toBe('failed')
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { controller, cmd, sources } = await failedBench()
+    sources.splice(0, 1)
+    controller.retrySource('command')
+    expect(cmd.pending).toHaveLength(1)
+    expect(controller.menu.getSnapshot().groups[0]?.status).toBe('failed')
   })
 })
 
@@ -507,11 +464,11 @@ describe('programmatic source launcher', () => {
     const command = readySource('/', 'command', [{ name: 'goal' }])
     const skill = readySource('/', 'skill', [{ name: 'review' }])
     const { controller } = controllerBench([command.source, skill.source])
-    const hit = {
-      trigger: '/' as const,
+    const hit: TriggerHit = {
+      trigger: '/',
       query: '',
       quoted: false,
-      position: 'leading' as const,
+      position: 'leading',
       span: { start: 2, end: 5, draftRev: 7 },
     }
 
@@ -534,11 +491,11 @@ describe('programmatic source launcher', () => {
     const command = readySource('/', 'command', [{ name: 'goal' }])
     const skill = readySource('/', 'skill', [{ name: 'review' }])
     const { controller } = controllerBench([command.source, skill.source])
-    const hit = {
-      trigger: '/' as const,
+    const hit: TriggerHit = {
+      trigger: '/',
       query: '',
       quoted: false,
-      position: 'leading' as const,
+      position: 'leading',
       span: { start: 0, end: 0, draftRev: 1 },
     }
 
@@ -560,8 +517,8 @@ describe('scope-birth warm', () => {
     const cmd = deferredSource('/', 'command')
     const sub = deferredSource('@', 'subagent')
     controllerBench([cmd.source, sub.source])
-    expect(cmd.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: sid('a') })
-    expect(sub.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: sid('a') })
+    expect(cmd.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: SessionId('a') })
+    expect(sub.warm).toHaveBeenCalledExactlyOnceWith({ sessionId: SessionId('a') })
   })
 
   it('hook-less sources are skipped', () => {
@@ -619,7 +576,7 @@ describe('pick / scoped input events', () => {
     expect(cmd.picks).toHaveLength(1)
     expect(cmd.picks[0]).toMatchObject({
       candidate: { name: 'goal' },
-      session: { sessionId: sid('a') },
+      session: { sessionId: SessionId('a') },
       position: 'leading',
       via: 'menu',
       span: { start: 0, end: 2, draftRev: 3 },
@@ -638,7 +595,7 @@ describe('pick / scoped input events', () => {
 
   it('routes a text outcome through the scoped insert-text event and closes the menu', async () => {
     const { controller, actx } = pickBench(() => ({ text: '/goal ' }))
-    const texts: Array<{ text: string; span: unknown }> = []
+    const texts: Array<{ text: string; span: TokenSpan; continue?: boolean }> = []
     actx.on('slash/input-insert-text', (req) => {
       texts.push(req)
       return true
@@ -681,7 +638,7 @@ describe('pick / scoped input events', () => {
     const { root, controller } = controllerBench([cmd.source])
     const foreign: BeginCommandRequest[] = []
     const rootSeen: BeginCommandRequest[] = []
-    createScope(root, sid('b')).ctx.on('slash/input-begin-command', (req) => {
+    createScope(root, SessionId('b')).ctx.on('slash/input-begin-command', (req) => {
       foreign.push(req)
       return true
     })
@@ -794,24 +751,6 @@ describe('header / drilled descent', () => {
     expect(controller.headers.getSnapshot().size).toBe(0)
   })
 
-  it('drops a source whose header throws and keeps the rest of the menu', async () => {
-    const failing: InputTriggerSource = {
-      trigger: '@',
-      name: 'broken',
-      candidates: () => Promise.resolve([{ name: 'x' }]),
-      header: () => { throw new Error('header boom') },
-      onPick: () => undefined,
-    }
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { controller } = controllerBench([failing])
-    controller.track('@x', 2, { tier: 'plain' }, 1)
-    await tick()
-    expect(controller.headers.getSnapshot().size).toBe(0)
-    expect(controller.menu.getSnapshot().open).toBe(true)
-    expect(spy).toHaveBeenCalled()
-    spy.mockRestore()
-  })
-
   it('tells candidate fetches how the menu was reached', async () => {
     const seen: boolean[] = []
     const source: InputTriggerSource = {
@@ -846,7 +785,7 @@ describe('lexicon', () => {
   }
 
   it('aggregates hook-implementing sources by trigger with the session projection; hookless ones are skipped', () => {
-    const seen: unknown[] = []
+    const seen: ClientSessionContext[] = []
     const skill: InputTriggerSource = {
       trigger: '/',
       name: 'skill',
@@ -866,7 +805,7 @@ describe('lexicon', () => {
     expect([...rolls.keys()]).toEqual(['/', '@'])
     expect(rolls.get('/')).toEqual(['commit-helper', 'review'])
     expect(rolls.get('@')).toEqual(['worker-1'])
-    expect(seen).toEqual([{ sessionId: sid('a') }])
+    expect(seen).toEqual([{ sessionId: SessionId('a') }])
   })
 
   it('an undefined answer (roll not hot) is skipped without seeding the trigger', () => {
@@ -920,7 +859,7 @@ describe('lexicon', () => {
   it('a source registered after scope birth is warmed and folded into the live lexicon', () => {
     const { controller, sources } = controllerBench([])
     expect(controller.lexicon.getSnapshot().size).toBe(0)
-    const warm = vi.fn()
+    const warm = vi.fn<NonNullable<InputTriggerSource['warm']>>()
     const late: InputTriggerSource = {
       trigger: '/',
       name: 'late',
@@ -931,7 +870,7 @@ describe('lexicon', () => {
     }
     sources.push(late)
     controller.sourceAdded(late)
-    expect(warm).toHaveBeenCalledWith({ sessionId: sid('a') })
+    expect(warm).toHaveBeenCalledWith({ sessionId: SessionId('a') })
     expect(controller.lexicon.getSnapshot().get('/')).toEqual(['fresh'])
   })
 
@@ -1011,7 +950,8 @@ describe('arbitrate', () => {
 
   it('IME composition passes every key untouched', async () => {
     const { controller } = await menuBench()
-    for (const key of ['up', 'down', 'enter', 'escape'] as const) {
+    const keys: ArbitrateKey[] = ['up', 'down', 'enter', 'escape']
+    for (const key of keys) {
       expect(controller.arbitrate(key, true)).toBe('pass')
     }
     expect(controller.menu.getSnapshot().open).toBe(true)
@@ -1109,7 +1049,7 @@ describe('adjudicate', () => {
     const { controller } = controllerBench([
       enterSource('/', 'silent'),
       enterSource('/', 'first', (session, line) => {
-        expect(session).toEqual({ sessionId: sid('a') })
+        expect(session).toEqual({ sessionId: SessionId('a') })
         calls.push(`first:${line}`)
         return Promise.resolve(undefined)
       }),
@@ -1128,7 +1068,7 @@ describe('adjudicate', () => {
   })
 
   it('skips sources of another trigger; all-undefined answers undefined', async () => {
-    const atHook = vi.fn(() => Promise.resolve('handled' as const))
+    const atHook = vi.fn<NonNullable<InputTriggerSource['matchEnter']>>(() => Promise.resolve('handled'))
     const { controller } = controllerBench([
       enterSource('@', 'subagent', atHook),
       enterSource('/', 'command', () => Promise.resolve(undefined)),
@@ -1138,7 +1078,7 @@ describe('adjudicate', () => {
   })
 
   it('forwards the caller envelope to every polled matchEnter unchanged', async () => {
-    const envelopes: unknown[] = []
+    const envelopes: SubmitEnvelope[] = []
     const { controller } = controllerBench([
       enterSource('/', 'first', (_session, _line, _signal, envelope) => {
         envelopes.push(envelope)
@@ -1165,7 +1105,7 @@ describe('adjudicate', () => {
   })
 
   it('an aborted attempt signal stops the poll', async () => {
-    const hook = vi.fn(() => Promise.resolve(undefined))
+    const hook = vi.fn<NonNullable<InputTriggerSource['matchEnter']>>(() => Promise.resolve(undefined))
     const { controller } = controllerBench([enterSource('/', 'command', hook)])
     const abort = new AbortController()
     abort.abort(new Error('attempt released'))

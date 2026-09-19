@@ -25,6 +25,17 @@ const TEXT_REF_RE = /(^|\s)([/@])([\w-]+)/g
 const FOLDER_REF_RE = /(^|\s)(@(?:"[^"\n]*\/|[^\s"]+\/))/g
 
 /**
+ * Claim a plain-text reference trigger captured by {@link TEXT_REF_RE}.
+ * @param value - regex capture for the trigger character.
+ * @returns the trigger.
+ * @throws {TypeError} when the capture is not `/` or `@`.
+ */
+export function requireTextRefTrigger(value: string | undefined): '/' | '@' {
+  if (value === '/' || value === '@') return value
+  throw new TypeError(`scanTextRefs: trigger must be "/" or "@", got ${JSON.stringify(value)}`)
+}
+
+/**
  * Scan the draft for plain-text reference tokens against the hot lexicons.
  * Word-boundary discipline: the trigger must sit at the draft
  * start or after whitespace ('x/name' never matches); the name must be an
@@ -42,7 +53,7 @@ export function scanTextRefs(
     TEXT_REF_RE.lastIndex = 0
     let m: RegExpExecArray | null
     while ((m = TEXT_REF_RE.exec(draft)) !== null) {
-      const trigger = m[2] as '/' | '@'
+      const trigger = requireTextRefTrigger(m[2])
       const name = m[3] ?? ''
       if (lexicon.get(trigger)?.includes(name)) {
         const start = m.index + (m[1]?.length ?? 0)

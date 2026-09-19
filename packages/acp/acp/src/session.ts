@@ -19,6 +19,8 @@ import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** The continuable-subagent teardown used without depending on the subagent package. */
 interface ContinuableDrain {
   /** Dispose continuable descendants below exact host-owned parents child-first. */
@@ -234,11 +236,11 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: { sessionUpdate: 'config_option_update', configOptions },
           }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
           })
       })
-      .catch((error: unknown) => {
+      .then(undefined, (error: Thrown) => {
         this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
       })
   }
@@ -276,42 +278,41 @@ export class AcpSession {
     requestSignal?.addEventListener('abort', onRequestAbort, { once: true })
     if (requestSignal?.aborted === true) onRequestAbort()
     try {
-      let admissionFailure: unknown
+      let admissionFailure: Thrown | undefined
       const promptSelection = this.modelControl.snapshot()
-      try {
-        if (this.ctx.agents.get(this.agent.id) !== this.agent) {
-          throw internalError('prompt was not queued: the agent was disposed outside the bridge')
-        }
-        const content = await admitAcpPrompt(
+      if (this.ctx.agents.get(this.agent.id) !== this.agent) {
+        admissionFailure = internalError('prompt was not queued: the agent was disposed outside the bridge')
+      } else {
+        await admitAcpPrompt(
           this.ctx,
           promptSelection,
           params.prompt,
           imageEnabled,
           admissionController.signal,
-        )
-        admissionController.signal.throwIfAborted()
-        if (this.ctx.agents.get(this.agent.id) !== this.agent) {
-          throw internalError('prompt was not queued: the agent was disposed outside the bridge')
-        }
-        const message = createUserMessage({
-          content,
-          source: { kind: 'user' },
+        ).then((content) => {
+          admissionController.signal.throwIfAborted()
+          if (this.ctx.agents.get(this.agent.id) !== this.agent) {
+            throw internalError('prompt was not queued: the agent was disposed outside the bridge')
+          }
+          const message = createUserMessage({
+            content,
+            source: { kind: 'user' },
+          })
+          inflight.messageId = message.id
+          inflight.messageQueued = true
+          if (promptSelection !== undefined) this.pendingSelections.set(message.id, promptSelection)
+          try {
+            this.agent.followup(message)
+          } catch (error) {
+            inflight.messageQueued = false
+            this.pendingSelections.delete(message.id)
+            throw error
+          }
+        }).then(undefined, (error: Thrown) => {
+          admissionFailure = error
         })
-        inflight.messageId = message.id
-        inflight.messageQueued = true
-        if (promptSelection !== undefined) this.pendingSelections.set(message.id, promptSelection)
-        try {
-          this.agent.followup(message)
-        } catch (error: unknown) {
-          inflight.messageQueued = false
-          this.pendingSelections.delete(message.id)
-          throw error
-        }
-      } catch (error: unknown) {
-        admissionFailure = error
-      } finally {
-        inflight.finishAdmission()
       }
+      inflight.finishAdmission()
 
       if (inflight.cancelRequested) {
         return { stopReason: await this.settleAfterQuiescence(inflight) }
@@ -355,16 +356,17 @@ export class AcpSession {
             await this.notify({ sessionId: this.agent.session.id, update })
           }
         })
-        this.outputTail = delivery.catch((error: unknown) => {
-          const failure = error as Error
-          if (inflight !== undefined) inflight.outputError ??= failure
+        this.outputTail = delivery.then(undefined, (error: Thrown) => {
+          if (inflight !== undefined) {
+            inflight.outputError ??= error instanceof Error ? error : new Error(errorChain(error))
+          }
           this.ctx.logger.warn(`acp: assistant output conversion failed: ${errorChain(error)}`)
         })
       } else if (event.type === 'tool/call') {
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({ sessionId: this.agent.session.id, update: toolCallUpdate(event) }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: tool-call update delivery failed: ${errorChain(error)}`)
           })
       } else if (event.type === 'tool/result') {
@@ -374,7 +376,7 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: await toolResultUpdate(this.ctx, event),
           }))
-          .catch((error: unknown) => {
+          .then(undefined, (error: Thrown) => {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
           })
       }
@@ -426,34 +428,30 @@ export class AcpSession {
   close(detail: string): Promise<void> {
     if (this.closing !== undefined) return this.closing
     this.closing = (async () => {
-      const failures: unknown[] = []
+      const failures: Thrown[] = []
       const inflight = this.inflight
       this.cancelPrompt(detail)
       if (inflight === undefined || !inflight.messageQueued) this.agent.cancel({ kind: 'user' })
-      try {
-        await inflight?.admissionDone
-        await this.agent.whenIdle()
-        await this.outputTail
-      } catch (error: unknown) {
+      await (inflight === undefined
+        ? this.agent.whenIdle()
+        : inflight.admissionDone.then(() => this.agent.whenIdle())
+      ).then(() => this.outputTail).then(undefined, (error: Thrown) => {
         failures.push(new Error('ACP session activity drain failed', { cause: error }))
-      }
+      })
       const subagents = this.ctx.get('subagents') as ContinuableDrain | undefined
-      try {
-        await subagents?.drainContinuableDescendants([this.agent])
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`acp: continuable subagent teardown failed: ${errorChain(error)}`)
-        failures.push(new Error('continuable subagent teardown failed', { cause: error }))
+      const descendants = subagents?.drainContinuableDescendants([this.agent])
+      if (descendants !== undefined) {
+        await descendants.then(undefined, (error: Thrown) => {
+          this.ctx.logger.warn(`acp: continuable subagent teardown failed: ${errorChain(error)}`)
+          failures.push(new Error('continuable subagent teardown failed', { cause: error }))
+        })
       }
-      try {
-        await this.ctx.sessions.flush(this.agent.session)
-      } catch (error: unknown) {
+      await this.ctx.sessions.flush(this.agent.session).then(undefined, (error: Thrown) => {
         failures.push(new Error('ACP session persistence flush failed', { cause: error }))
-      }
-      try {
-        await this.disposeAgent()
-      } catch (error: unknown) {
+      })
+      await this.disposeAgent().then(undefined, (error: Thrown) => {
         failures.push(error)
-      }
+      })
       this.pendingSelections.clear()
       if (failures.length === 1) throw failures[0]
       if (failures.length > 1) {
@@ -479,7 +477,7 @@ export class AcpSession {
     if (inflight.messageQueued) {
       await this.agent.whenIdle()
         .then(() => this.outputTail)
-        .catch((error: unknown) => {
+        .then(undefined, (error: Thrown) => {
           throw internalError(`prompt settlement failed: ${errorChain(error)}`)
         })
     }

@@ -87,18 +87,21 @@ describe('ExaSearchProvider availability', () => {
 
 describe('ExaSearchProvider request mapping', () => {
   it('sends query, type, highlights, numResults and bearer auth', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [{ url: 'https://a.test', highlights: ['hi'] }] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [{ url: 'https://a.test', highlights: ['hi'] }] }))
     vi.stubGlobal('fetch', fetchMock)
 
     const provider = new ExaSearchProvider(() => ({ ...options, searchType: 'neural', highlightsPerResult: 3 }))
     await provider.search({ query: 'hello', maxResults: 5 })
 
     expect(fetchMock).toHaveBeenCalledOnce()
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    const [url, init] = first
     expect(url).toBe('https://api.exa.test/search')
     expect(init).toMatchObject({ method: 'POST', redirect: 'error' })
-    expect((init.headers as Record<string, string>)['authorization']).toBe('Bearer exa-key')
-    expect(JSON.parse(init.body as string)).toEqual({
+    expect(init?.headers).toMatchObject({ authorization: 'Bearer exa-key' })
+    expect(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined).toEqual({
       query: 'hello',
       type: 'neural',
       contents: { highlights: { highlightsPerUrl: 3 } },
@@ -107,36 +110,47 @@ describe('ExaSearchProvider request mapping', () => {
   })
 
   it('falls back to the configured numResults when a request omits maxResults', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
     vi.stubGlobal('fetch', fetchMock)
     await new ExaSearchProvider(() => ({ ...options, numResults: 7 })).search({ query: 'q' })
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(init.body as string)).toMatchObject({ numResults: 7 })
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    const init = first[1]
+    expect(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined).toMatchObject({ numResults: 7 })
   })
 
   it('lets a request maxResults win over the configured numResults', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
     vi.stubGlobal('fetch', fetchMock)
     await new ExaSearchProvider(() => ({ ...options, numResults: 7 })).search({ query: 'q', maxResults: 2 })
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(init.body as string)).toMatchObject({ numResults: 2 })
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    const init = first[1]
+    expect(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined).toMatchObject({ numResults: 2 })
   })
 
   it('omits numResults when neither maxResults nor a configured default is set', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
     vi.stubGlobal('fetch', fetchMock)
     await new ExaSearchProvider(() => options).search({ query: 'q' })
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(init.body as string)).not.toHaveProperty('numResults')
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    const init = first[1]
+    expect(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined).not.toHaveProperty('numResults')
   })
 
   it('forwards the abort signal', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
     vi.stubGlobal('fetch', fetchMock)
     const controller = new AbortController()
     await new ExaSearchProvider(() => options).search({ query: 'q' }, controller.signal)
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(init.signal).toBe(controller.signal)
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    expect(first[1]?.signal).toBe(controller.signal)
   })
 })
 
@@ -183,6 +197,14 @@ describe('ExaSearchProvider error handling', () => {
       .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
   })
 
+  it('maps a highlight that is not a string to WEB_PROVIDER_ERROR, not a raw TypeError', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      results: [{ url: 'https://a.test', highlights: [1] }],
+    }, { status: 200 })))
+    await expect(new ExaSearchProvider(() => options).search({ query: 'q' }))
+      .rejects.toThrow(expect.objectContaining({ code: 'WEB_PROVIDER_ERROR' }))
+  })
+
   it('surfaces an abort during success-body parse as WEB_ABORTED, not provider error', async () => {
     const body = { json: () => Promise.reject(new DOMException('aborted', 'AbortError')), ok: true, status: 200 }
     vi.stubGlobal('fetch', vi.fn(async () => body as unknown as Response))
@@ -215,14 +237,17 @@ describe('web-search-exa plugin registration', () => {
   })
 
   it('threads searchType, highlightsPerResult and numResults config into the request', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
     vi.stubGlobal('fetch', fetchMock)
     const ctx = new Context()
     await ctx.plugin(WebRuntime, { searchProvider: EXA_PROVIDER_ID })
     const fiber = await ctx.plugin(exaPlugin, { apiKey: 'exa-key', searchType: 'keyword', highlightsPerResult: 2, numResults: 9 })
     await ctx.web.search({ query: 'q' })
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(JSON.parse(init.body as string)).toMatchObject({ type: 'keyword', contents: { highlights: { highlightsPerUrl: 2 } }, numResults: 9 })
+    const first = fetchMock.mock.calls[0]
+    expect(first).toBeDefined()
+    if (first === undefined) throw new Error('fetch was not called')
+    const init = first[1]
+    expect(typeof init?.body === 'string' ? JSON.parse(init.body) : undefined).toMatchObject({ type: 'keyword', contents: { highlights: { highlightsPerUrl: 2 } }, numResults: 9 })
     await fiber.dispose()
   })
 
@@ -230,14 +255,16 @@ describe('web-search-exa plugin registration', () => {
     const prev = process.env.EXA_API_KEY
     process.env.EXA_API_KEY = 'env-key'
     try {
-      const fetchMock = vi.fn(async () => jsonResponse({ results: [] }))
+      const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }))
       vi.stubGlobal('fetch', fetchMock)
       const ctx = new Context()
       await ctx.plugin(WebRuntime, { searchProvider: EXA_PROVIDER_ID })
       const fiber = await ctx.plugin(exaPlugin, {})
       await ctx.web.search({ query: 'q' })
-      const [url] = fetchMock.mock.calls[0] as unknown as [string]
-      expect(url).toBe('https://api.exa.ai/search')
+      const first = fetchMock.mock.calls[0]
+      expect(first).toBeDefined()
+      if (first === undefined) throw new Error('fetch was not called')
+      expect(first[0]).toBe('https://api.exa.ai/search')
       await fiber.dispose()
     } finally {
       if (prev === undefined) delete process.env.EXA_API_KEY

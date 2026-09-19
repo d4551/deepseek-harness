@@ -29,8 +29,8 @@ describe('chat flow font-size axis', () => {
     const css = read('ReasoningRow.module.css')
     for (const selector of ['.summary', '.thinkBody']) {
       expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px))',
+        'font-size: var(--dsh-content-font-size-secondary)',
+        'line-height: calc(20px + var(--dsh-content-font-delta-secondary))',
       ]))
     }
   })
@@ -39,12 +39,12 @@ describe('chat flow font-size axis', () => {
     // Both rows put RowSummary in the summary slot, so the tier is asserted on
     // that sheet; the context row's producer name is its own and sits beside it.
     expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
-      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'font-size: var(--dsh-content-font-size-secondary)',
+      'line-height: calc(24px + var(--dsh-content-font-delta))',
     ]))
     expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.source')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
-      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'font-size: var(--dsh-content-font-size-secondary)',
+      'line-height: calc(24px + var(--dsh-content-font-delta))',
     ]))
   })
 
@@ -52,19 +52,19 @@ describe('chat flow font-size axis', () => {
     const actions = read('MessageIconActions.module.css')
     for (const selector of ['.timeStart', '.timeEnd']) {
       expect(declarationsFrom(actions, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size, 14px)',
+        'font-size: var(--dsh-content-font-size)',
       ]))
     }
     // The buttons beside that clock are GlyphButton's `message` surface, whose
     // box and glyph edge ride the same delta.
     const glyph = readPrimitive('GlyphButton.module.css')
     expect(declarationsFrom(glyph, '.message')).toEqual(expect.arrayContaining([
-      'width: calc(28px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(28px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(28px + var(--dsh-content-font-delta))',
+      'height: calc(28px + var(--dsh-content-font-delta))',
     ]))
     expect(declarationsFrom(glyph, '.message svg')).toEqual(expect.arrayContaining([
-      'width: calc(16px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(16px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(16px + var(--dsh-content-font-delta))',
+      'height: calc(16px + var(--dsh-content-font-delta))',
     ]))
   })
 
@@ -72,25 +72,25 @@ describe('chat flow font-size axis', () => {
     const css = read('MessageItem.module.css')
     for (const selector of ['.compactionTitle', '.compactionBody']) {
       expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+        'font-size: var(--dsh-content-font-size-secondary)',
+        'line-height: calc(24px + var(--dsh-content-font-delta))',
       ]))
     }
     // The marker's summary slot is RowSummary, on the same tier.
     expect(declarationsFrom(readPrimitive('RowSummary.module.css'), '.summary')).toEqual(expect.arrayContaining([
-      'font-size: var(--dsh-content-font-size-secondary, 13px)',
-      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+      'font-size: var(--dsh-content-font-size-secondary)',
+      'line-height: calc(24px + var(--dsh-content-font-delta))',
     ]))
     expect(declarationsFrom(css, '.compactionLeading svg')).toEqual(expect.arrayContaining([
-      'width: calc(14px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(14px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(14px + var(--dsh-content-font-delta))',
+      'height: calc(14px + var(--dsh-content-font-delta))',
     ]))
   })
 
   it('expanded bodies indent by 22px + delta so content stays under the shifted title start', () => {
     // The DisclosureRow title starts at leading (16 + delta) + gap 6; a fixed
     // 22px indent would misalign at every non-default size.
-    const indent = 'calc(22px + var(--dsh-content-font-delta, 0px))'
+    const indent = 'calc(22px + var(--dsh-content-font-delta))'
     expect(declarationsFrom(read('ReasoningRow.module.css'), '.thinkBody'))
       .toEqual(expect.arrayContaining([`padding: 4px 0 4px ${indent}`]))
     expect(declarationsFrom(read('MessageItem.module.css'), '.compactionBody'))
@@ -101,11 +101,9 @@ describe('chat flow font-size axis', () => {
       .toEqual(expect.arrayContaining([`margin: 4px 0 0 ${indent}`]))
   })
 
-  it('the interrupted-turn tag stays fixed like the dense token variants', () => {
-    // 11px would fall to an illegible 9px at the 12px floor; the tag is
-    // exempt from the axis the same way small/code tokens are.
+  it('the interrupted-turn tag uses the dense xxxs-11 token, not the content-font axis', () => {
     expect(declarationsFrom(read('AssistantMarkdown.module.css'), '.stopped')).toEqual(expect.arrayContaining([
-      'font-size: 11px',
+      'font-size: var(--dsw-font-xxxs-11-font-size)',
       'line-height: 18px',
     ]))
   })

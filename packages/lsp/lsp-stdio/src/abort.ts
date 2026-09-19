@@ -5,6 +5,8 @@
 
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Build an abort Error carrying the signal's reason and preserving timeout classification.
  * @param signal - the aborted signal whose reason to surface.
@@ -13,7 +15,7 @@ import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 export function abortError(signal: AbortSignal): Error {
   const timeout = timeoutOf(signal)
   if (timeout !== undefined) return timeout
-  const reason: unknown = signal.reason
+  const reason: Thrown = signal.reason
   if (reason instanceof Error) return reason
   return new Error('LSP query aborted')
 }
@@ -41,7 +43,7 @@ export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T>
   signal.addEventListener('abort', onAbort, { once: true })
   const normalized = Promise.allSettled([work]).then(([outcome]) => {
     if (outcome.status === 'fulfilled') return outcome.value
-    const failure: unknown = outcome.reason
+    const failure: Thrown = outcome.reason
     throw failure instanceof Error ? failure : new Error(String(failure))
   })
   return Promise.race([normalized, canceled.promise])

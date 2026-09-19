@@ -122,7 +122,9 @@ describe('change-scope', () => {
     expect(pushed.paths.committed).toEqual(['feature.txt'])
   })
 
-  it.skipIf(process.platform === 'win32')('preserves trailing spaces in the worktree path', () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] change-scope.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('preserves trailing spaces in the worktree path', () => {
     const { root } = fixture('worktree ')
     const report = jsonReport(root, 'HEAD')
 
@@ -170,7 +172,9 @@ describe('change-scope', () => {
     expect(repositoryState(root)).toEqual(before)
   })
 
-  it.skipIf(process.platform === 'win32')('does not execute a configured filesystem monitor', () => {
+  const SKIP_ON_WIN32_2 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_2) console.info('[skip] change-scope.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_2)('does not execute a configured filesystem monitor', () => {
     const { container, root } = fixture()
     const monitor = join(container, 'fsmonitor.sh')
     const sideEffect = `${monitor}.ran`
@@ -183,7 +187,9 @@ describe('change-scope', () => {
     expect(existsSync(sideEffect)).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')('rejects distinct non-UTF-8 Git paths', () => {
+  const SKIP_ON_WIN32_3 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_3) console.info('[skip] change-scope.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_3)('rejects distinct non-UTF-8 Git paths', () => {
     const { root } = fixture()
     const blobSha = git(root, ['hash-object', '-w', '--stdin'], 'content')
     const entry = Buffer.from(`100644 ${blobSha}\t`, 'ascii')

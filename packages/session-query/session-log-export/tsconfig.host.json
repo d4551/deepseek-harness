@@ -11,13 +11,32 @@
     "src/invariant.ts"
   ],
   "references": [
-    { "path": "../../../vendor/cordis" },
-    { "path": "../../../vendor/schemastery" },
-    { "path": "../../attachment/attachment" },
-    { "path": "../../core/session" },
-    { "path": "../../interaction/commands" },
-    { "path": "../../runtime-diagnostics/invariants" },
-    { "path": "../../session/session-persistence" },
-    { "path": "../session-query" }
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../interaction/commands"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../session-query"
+    },
+    {
+      "path": "../../util/thrown"
+    }
   ]
 }

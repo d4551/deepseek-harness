@@ -13,6 +13,26 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import { NS, type WorkspaceRootsKey } from './locales.ts'
 import css from './WorkspaceRootsAction.module.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Business actions injected by the browser plugin. */
 export interface WorkspaceRootsInjected {
   /**
@@ -144,32 +164,32 @@ export function WorkspaceRootsAction({
     })
   }, [loadOrigin, open, origin])
 
-  const submit = useCallback((next: readonly string[], after: () => void): void => {
+  const submit = useCallback((paths: readonly string[], onSettled: () => void): void => {
     setSaving(true)
     setError(null)
     setFieldError(false)
     setRetry(null)
-    setRoots(sessionId, next).then((result) => {
+    setRoots(sessionId, paths).then((result) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
       if (result.ok) {
-        after()
+        onSettled()
         return
       }
       setError(failureText(result.error))
       setFieldError(false)
-      setRetry(() => () => { submit(next, after) })
-    }, (reason: unknown) => {
+      setRetry(() => () => { submit(paths, onSettled) })
+    }, (reason: Thrown) => {
       if (!aliveRef.current || sessionRef.current !== sessionId) return
       setSaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(thrownMessage(reason))
       setFieldError(false)
-      setRetry(() => () => { submit(next, after) })
+      setRetry(() => () => { submit(paths, onSettled) })
     })
   }, [sessionId, setRoots])
 
   if (roots === undefined) {
-    return <span className={css.skeleton} role="status" aria-label={t('trigger.loading')} />
+    return <output className={css.skeleton} aria-label={t('trigger.loading')} />
   }
 
   const additional = roots.additional
@@ -199,9 +219,9 @@ export function WorkspaceRootsAction({
     pickDirectory().then((chosen) => {
       if (!aliveRef.current || sessionRef.current !== sessionId || chosen === null) return
       setDraft(chosen)
-    }, (reason: unknown) => {
+    }, (reason: Thrown) => {
       if (aliveRef.current && sessionRef.current === sessionId) {
-        setError(reason instanceof Error ? reason.message : String(reason))
+        setError(thrownMessage(reason))
         setFieldError(false)
       }
     })
@@ -222,9 +242,9 @@ export function WorkspaceRootsAction({
         <span className={css.count}>{count}</span>
       </button>
       {open && (
-        <div
+        <dialog
           className={css.panel}
-          role="dialog"
+          open
           aria-labelledby={titleId}
           onKeyDown={(event) => {
             if (event.key !== 'Escape') return
@@ -322,7 +342,7 @@ export function WorkspaceRootsAction({
               </button>
             </div>
           </form>
-        </div>
+        </dialog>
       )}
     </div>
   )

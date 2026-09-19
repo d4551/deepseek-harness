@@ -16,6 +16,7 @@ import SubagentRuntime, {
   type SubagentResult,
   type SubagentRun,
   type SubagentRunEndInfo,
+  type SubagentRunInfo,
   type SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
@@ -183,7 +184,7 @@ describe('SubagentRuntime', () => {
     await expect(subagents.start('strong', baseRequest({ maxDepth: -1 })))
       .rejects.toThrow('non-negative safe integer')
     await expect(subagents.start('strong', baseRequest({ outputSchema: { type: 'string' } as never })))
-      .rejects.toThrow()
+      .rejects.toThrow('unsupported JSON schema')
     expect(provider.startCount).toBe(0)
     expect(() => { assertSubagentMaxDepth(undefined) }).not.toThrow()
   })
@@ -241,7 +242,7 @@ describe('SubagentRuntime', () => {
       inheritsParentContext: false,
       start: async () => { throw new Error('setup rolled back') },
     })
-    const lifecycle = vi.fn()
+    const lifecycle = vi.fn<(info: SubagentRunInfo | SubagentRunEndInfo) => void>()
     ctx.on('subagent/start', lifecycle)
     ctx.on('subagent/end', lifecycle)
     await expect(subagents.start('failed', baseRequest())).rejects.toThrow('setup rolled back')
@@ -255,7 +256,7 @@ describe('SubagentRuntime', () => {
       stopReason: 'completed',
     })
     subagents.registerProvider(completed)
-    const ended = vi.fn()
+    const ended = vi.fn<(info: SubagentRunEndInfo) => void>()
     ctx.on('subagent/end', ended)
     const run = await subagents.start('completed', baseRequest())
     await run.result
@@ -299,19 +300,18 @@ describe('SubagentRuntime', () => {
     ctx.logger.warn = ((message: unknown) => { warnings.push(String(message)) }) as typeof ctx.logger.warn
     const heard: string[] = []
     ctx.on('subagent/provider-removed', () => { throw new Error('sync boom') })
-    // Runtime listeners may return thenables even though the declaration's observable result is void.
-    // oxlint-disable-next-line typescript/no-misused-promises -- exercises rejected-listener containment
     ctx.on('subagent/provider-removed', async () => { throw new Error('async boom') })
     ctx.on('subagent/provider-removed', () => { throw { toString: () => { throw new Error('coercion') } } })
     ctx.on('subagent/provider-removed', (name) => { heard.push(name) })
     const dispose = subagents.registerProvider(new StubProvider('contained'))
 
     dispose()
-    await Promise.resolve()
-    expect(heard).toEqual(['contained'])
-    expect(warnings.some(message => message.includes('sync boom'))).toBe(true)
-    expect(warnings.some(message => message.includes('async boom'))).toBe(true)
-    expect(warnings.some(message => message.includes('<unrenderable thrown value>'))).toBe(true)
+    await vi.waitFor(() => {
+      expect(heard).toEqual(['contained'])
+      expect(warnings.some(message => message.includes('sync boom'))).toBe(true)
+      expect(warnings.some(message => message.includes('async boom'))).toBe(true)
+      expect(warnings.some(message => message.includes('[unrenderable thrown value]'))).toBe(true)
+    })
   })
 
   it('SubagentError participates in the harness error taxonomy', () => {

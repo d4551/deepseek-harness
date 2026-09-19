@@ -140,6 +140,9 @@
     },
     {
       "path": "../../util/crypto"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

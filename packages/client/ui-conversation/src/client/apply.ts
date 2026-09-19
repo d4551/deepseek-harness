@@ -4,6 +4,8 @@ import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import { createSnapshotStore, type BoundActions } from '@deepseek-ai/dsh-client-store'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the Workspace UI capability merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/capability'
 // Type-only service and declaration merges used by this assembly.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -17,7 +19,7 @@ import type {
 } from './contract/slots.ts'
 import type { InputNotice } from './contract/input.ts'
 import { createConversationStore } from './stores.ts'
-import { ConversationController, UnsupportedImageMediaTypeError } from './service.ts'
+import { ConversationController } from './service.ts'
 import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './contract/composer-blocks.ts'
@@ -31,7 +33,9 @@ import { ConversationSession, ConversationSessionHeader } from './skeleton/Conve
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
-import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
+import {
+  CONVERSATION_SETTINGS_NAMESPACE, decodeConversationSettings, type ConversationSettings,
+} from '../submission-settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -65,10 +69,14 @@ const ABSENT_MENU_LAUNCHER = {
   subscribe: () => () => {},
 }
 
-interface WorkspaceNavigation {
-  connectWorkspace(
-    workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
-  ): Promise<SessionId>
+function requireListSlotId(id: string | undefined, slot: string): string {
+  if (id === undefined) throw new Error(`${slot} list entry is missing options.id`)
+  return id
+}
+
+/** Log a failed composer stop without a catch-callback binding. */
+function reportStopFailure(error: object | string | number | boolean | bigint | symbol | null | undefined): void {
+  console.error('[conversation] stop failed:', error)
 }
 
 /** Resolve the session-scoped Conversation action face, failing loud. */
@@ -83,8 +91,8 @@ function scopedConversation(sessions: ISessions, id: SessionId): IConversation {
 }
 
 /** Resolve package-internal attachment operations from the public service. */
-function concreteConversation(ctx: Context): ConversationController {
-  const conversation = ctx.get('conversation') as ConversationController | undefined
+function concreteConversation(ctx: Context): IConversation {
+  const conversation = ctx.get('conversation')
   if (conversation === undefined) throw new Error('ui-conversation: conversation service unavailable')
   return conversation
 }
@@ -96,14 +104,17 @@ function concreteConversation(ctx: Context): ConversationController {
 export function apply(ctx: Context): void {
   const sessions = ctx.sessions
   const slots = ctx.slots
-  const workspaceNavigation = ctx.get('uiWorkspace') as unknown as WorkspaceNavigation
+  const workspaceNavigation = ctx.uiWorkspace
   const uiConversation = new UiConversation(ctx, sessions)
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
   const t = ctx.locale.bind(NS)
   const conversationStore = createConversationStore()
   const submissionPolicy = new ComposerSubmissionPolicy(
-    ctx.settingsScope.bind<ConversationSettings>({ namespace: CONVERSATION_SETTINGS_NAMESPACE }),
+    ctx.settingsScope.bind<ConversationSettings>({
+      namespace: CONVERSATION_SETTINGS_NAMESPACE,
+      decode: decodeConversationSettings,
+    }),
   )
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
@@ -112,7 +123,7 @@ export function apply(ctx: Context): void {
     order: 20,
     locale: NS,
     inject: (): EnterBehaviorRowInjected => ({
-      hooks: { busyEnter: submissionPolicy.busyEnter },
+      hooks: { busyEnter: submissionPolicy.busyEnter, writeError: submissionPolicy.writeError },
       setBusyEnter: (behavior) => { submissionPolicy.setBusyEnter(behavior) },
     }),
   }, EnterBehaviorRow))
@@ -120,11 +131,10 @@ export function apply(ctx: Context): void {
   const viewTabs = (): ViewTab[] => {
     const tabs: ViewTab[] = []
     for (const entry of slots.entries('conversation.view')) {
-      /* v8 ignore next -- list registration validates id at load. */
-      if (entry.options.id === undefined) continue
+      const id = requireListSlotId(entry.options.id, 'conversation.view')
       tabs.push({
-        id: entry.options.id,
-        label: resolveSlotLabel(entry.options.label) ?? entry.options.id,
+        id,
+        label: resolveSlotLabel(entry.options.label) ?? id,
       })
     }
     return tabs
@@ -272,16 +282,12 @@ export function apply(ctx: Context): void {
       return {
         keyboard: shell,
         addImages: (files) => {
-          try {
-            const images = conversation.createDraftImages(files)
-            if (!shell.addImages(images.map(image => image.id))) {
-              conversation.releaseDraftImages(images)
-            }
-            return null
-          } catch (error: unknown) {
-            if (error instanceof UnsupportedImageMediaTypeError) return t('image.unsupportedType')
-            return error instanceof Error ? error.message : String(error)
+          if (!conversation.acceptsImageFiles(files)) return t('image.unsupportedType')
+          const images = conversation.createDraftImages(files)
+          if (!shell.addImages(images.map(image => image.id))) {
+            conversation.releaseDraftImages(images)
           }
+          return null
         },
         removeImage: (id) => {
           conversation.releaseDraftImage(id)
@@ -304,9 +310,10 @@ export function apply(ctx: Context): void {
             })
           },
         stop: () => {
-          scopedConversation(sessions, sessionId).cancel().catch(() => {
-            // Stop failure is published through Session promptError.
-          })
+          scopedConversation(sessions, sessionId).cancel().then(
+            () => undefined,
+            reportStopFailure,
+          )
         },
         command: async (line) => {
           const session = sessions.binding(sessionId)?.session

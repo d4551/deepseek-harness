@@ -18,12 +18,44 @@ import { MENU_CLOSED, menuReduce, seedGroups } from '../core/menu.ts'
 import type { MenuEvent, MenuState, TriggerHit } from '../core/contract.ts'
 import type {
   ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerSource, PickAction,
-  SubmitEnvelope, TriggerChar, TriggerGuard,
+  SubmitEnvelope, SyncHookFault, TriggerChar, TriggerGuard,
 } from '../types.ts'
 
-/** The message a failed candidate load publishes into its menu group. */
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+type SyncHookName = 'header' | 'lexicon' | 'warm' | 'subscribeLexicon'
+
+/**
+ * Record one synchronous hook fault without taking down the rest of the pipeline.
+ * @param source - registered source name.
+ * @param hook - the hook that returned {@link SyncHookFault}.
+ * @param fault - the hook's failure answer.
+ */
+function reportSyncHookFault(source: string, hook: SyncHookName, fault: SyncHookFault): void {
+  console.error(`[ui-input-trigger] source "${source}" ${hook} failed:`, fault.message)
+}
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected candidate load.
+ * @param reason - the Thrown the source rejected with.
+ * @returns the message published into the failed menu group.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** Roster access the controller borrows from the root service (registration order preserved). */
@@ -82,6 +114,7 @@ export class InputTriggerController {
   /** Whether the open menu was reached by a drill pick; cleared with the menu. */
   private drilled = false
   private fetch: AbortController | null = null
+  private candidateFlight: Promise<void> | null = null
   private disposed = false
   /** Per-source lexicon unsubscribers (sources without the hook never enter). */
   private readonly lexiconOffs = new Map<InputTriggerSource, () => void>()
@@ -92,8 +125,7 @@ export class InputTriggerController {
     // no capability steps to react to.
     const projection = this.project()
     for (const src of deps.roster.all()) {
-      src.warm?.(projection)
-      this.watchLexicon(src, projection)
+      this.admitSource(src, projection)
     }
     this.refreshLexicon()
   }
@@ -364,9 +396,7 @@ export class InputTriggerController {
    * @param source - the newly registered source.
    */
   sourceAdded(source: InputTriggerSource): void {
-    const projection = this.project()
-    source.warm?.(projection)
-    this.watchLexicon(source, projection)
+    this.admitSource(source, this.project())
     this.refreshLexicon()
   }
 
@@ -409,23 +439,30 @@ export class InputTriggerController {
     return actx.bail(actx, 'slash/input-insert-reference', { reference: outcome.insert, span }) === true
   }
 
+  /**
+   * Warm one source and subscribe its lexicon channel. A `{ hookFailed: true,
+   * message }` answer is recorded; remaining sources and controllers continue.
+   */
+  private admitSource(source: InputTriggerSource, projection: ClientSessionContext): void {
+    const warmed = source.warm?.(projection)
+    if (warmed !== undefined) {
+      reportSyncHookFault(source.name, 'warm', warmed)
+    }
+    this.watchLexicon(source, projection)
+  }
+
   /** Re-poll every lexicon-bearing source and publish the aggregated rolls (see the store doc). */
   private refreshLexicon(): void {
     const projection = this.project()
     const rolls = new Map<TriggerChar, readonly string[]>()
     for (const src of this.deps.roster.all()) {
       if (src.lexicon === undefined) continue
-      let names: readonly string[] | undefined
-      try {
-        names = src.lexicon(projection)
-      } catch (error) {
-        // A faulty source drops silently with a console record (the
-        // candidate-fetch failure policy); the refresh runs inside
-        // notification callbacks, where a throw would starve other consumers.
-        console.error(`[ui-input-trigger] source "${src.name}" lexicon failed:`, error)
+      const names = src.lexicon(projection)
+      if (names === undefined) continue
+      if ('hookFailed' in names) {
+        reportSyncHookFault(src.name, 'lexicon', names)
         continue
       }
-      if (names === undefined) continue
       const prev = rolls.get(src.trigger)
       rolls.set(src.trigger, prev === undefined ? names : [...prev, ...names])
     }
@@ -435,7 +472,7 @@ export class InputTriggerController {
   /** Wire one source's lexicon invalidation channel into refresh (hookless or roll-less sources never notify). */
   private watchLexicon(source: InputTriggerSource, projection: ClientSessionContext): void {
     if (source.lexicon === undefined || source.subscribeLexicon === undefined) return
-    this.lexiconOffs.set(source, source.subscribeLexicon(projection, () => {
+    const subscribed = source.subscribeLexicon(projection, () => {
       this.refreshLexicon()
       const hit = this.hit
       if (hit === null || !this.menu.getSnapshot().open || hit.trigger !== source.trigger) return
@@ -445,7 +482,12 @@ export class InputTriggerController {
         if (this.disposed || this.hit !== hit || !this.menu.getSnapshot().open) return
         this.fetchCandidates(hit, this.deps.roster.sources(hit.trigger))
       })
-    }))
+    })
+    if (typeof subscribed !== 'function') {
+      reportSyncHookFault(source.name, 'subscribeLexicon', subscribed)
+      return
+    }
+    this.lexiconOffs.set(source, subscribed)
   }
 
   /** Launch the candidate fetch for one hit generation, superseding the previous one. */
@@ -464,25 +506,25 @@ export class InputTriggerController {
     generation: number,
     signal: AbortSignal,
   ): void {
-    source
-      .candidates(this.project(), {
-        query: hit.query,
-        quoted: hit.quoted,
-        position: hit.position,
-        drilled: this.drilled,
-        signal,
-      })
-      .then(
-        (items) => {
-          if (signal.aborted) return
-          this.reduce({ type: 'source-settled', generation, source: source.name, items })
-        },
-        (error: unknown) => {
-          if (signal.aborted) return
-          console.error(`[ui-input-trigger] source "${source.name}" candidates failed:`, error)
-          this.reduce({ type: 'source-failed', generation, source: source.name, error: errorText(error) })
-        },
-      )
+    const started = source.candidates(this.project(), {
+      query: hit.query,
+      quoted: hit.quoted,
+      position: hit.position,
+      drilled: this.drilled,
+      signal,
+    }).then(
+      (items) => {
+        if (this.candidateFlight === started) this.candidateFlight = null
+        if (signal.aborted) return
+        this.reduce({ type: 'source-settled', generation, source: source.name, items })
+      },
+      (reason: Thrown) => {
+        if (this.candidateFlight === started) this.candidateFlight = null
+        if (signal.aborted) return
+        this.reduce({ type: 'source-failed', generation, source: source.name, error: thrownMessage(reason) })
+      },
+    )
+    this.candidateFlight = started
   }
 
   private stopFetch(): void {
@@ -532,17 +574,13 @@ export class InputTriggerController {
     const crumbs = new Map<string, readonly InputTriggerCrumb[]>()
     for (const src of roster) {
       if (src.header === undefined) continue
-      let published: readonly InputTriggerCrumb[] | undefined
-      try {
-        published = src.header(projection, { query: hit.query, quoted: hit.quoted, drilled: this.drilled })
-      } catch (error) {
-        // A faulty source drops silently with a console record (the
-        // candidate-fetch failure policy); a header is decoration and must
-        // not take down the menu that carries the candidates.
-        console.error(`[ui-input-trigger] source "${src.name}" header failed:`, error)
+      const published = src.header(projection, { query: hit.query, quoted: hit.quoted, drilled: this.drilled })
+      if (published === undefined) continue
+      if ('hookFailed' in published) {
+        reportSyncHookFault(src.name, 'header', published)
         continue
       }
-      if (published === undefined || published.length === 0) continue
+      if (published.length === 0) continue
       crumbs.set(src.name, published)
     }
     this.setHeaders(crumbs)

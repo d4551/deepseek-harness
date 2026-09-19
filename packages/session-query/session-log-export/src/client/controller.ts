@@ -3,6 +3,8 @@
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Download phases presented by the shared modal. */
 export type SessionLogDownloadStatus = 'downloading' | 'success' | 'error'
 
@@ -109,25 +111,33 @@ export class SessionLogDownloadController {
     await Promise.allSettled(active.map(operation => operation.done))
   }
 
-  private async run(sessionId: SessionId, signal: AbortSignal): Promise<void> {
+  private run(sessionId: SessionId, signal: AbortSignal): Promise<void> {
     this.publish(sessionId, { open: true, status: 'downloading', error: null })
-    try {
-      const url = new URL('/api/session.export', hostBase())
-      url.searchParams.set('sessionId', sessionId)
-      url.searchParams.set('includeDescendants', 'true')
-      const response = await this.fetcher(url, { method: 'HEAD', signal })
-      if (!response.ok) {
-        const detail = await response.text().catch(() => '')
-        throw new Error(`Export failed: HTTP ${response.status}${detail === '' ? '' : ` ${detail}`}`)
-      }
-      this.save(url.toString(), sessionLogZipFilename(sessionId))
-      const open = this.store.getSnapshot().bySession[String(sessionId)]?.open ?? true
-      this.publish(sessionId, { open, status: 'success', error: null })
-    } catch (error: unknown) {
+    const url = new URL('/api/session.export', hostBase())
+    url.searchParams.set('sessionId', sessionId)
+    url.searchParams.set('includeDescendants', 'true')
+    return this.fetcher(url, { method: 'HEAD', signal }).then(
+      (response) => {
+        if (response.ok) {
+          this.save(url.toString(), sessionLogZipFilename(sessionId))
+          const open = this.store.getSnapshot().bySession[String(sessionId)]?.open ?? true
+          this.publish(sessionId, { open, status: 'success', error: null })
+          return
+        }
+        return response.text().then(
+          (detail) => {
+            throw new Error(`Export failed: HTTP ${response.status}${detail === '' ? '' : ` ${detail}`}`)
+          },
+          (_error: Thrown) => {
+            throw new Error(`Export failed: HTTP ${response.status}`)
+          },
+        )
+      },
+    ).then(undefined, (error: Thrown) => {
       if (signal.aborted) return
       const open = this.store.getSnapshot().bySession[String(sessionId)]?.open ?? true
       this.publish(sessionId, { open, status: 'error', error: messageOf(error) })
-    }
+    })
   }
 
   private publish(sessionId: SessionId, entry: SessionLogDownloadEntry): void {

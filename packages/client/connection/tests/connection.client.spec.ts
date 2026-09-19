@@ -1,11 +1,27 @@
-/** Connection generation readiness, loss, retry, and sink isolation. */
+/** Connection generation readiness, loss, retry, and sink throws. */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { ConnectionGenerationSource, ConnectionState } from '../src/client/connection.ts'
-import { ConnectionController } from '../src/client/connection.ts'
+import type { ConnectionGenerationSource, ConnectionHostInfo, ConnectionState } from '../src/client/connection.ts'
+import { ConnectionController, waitForReady } from '../src/client/connection.ts'
 import { FakeGenerationSource } from './fake-generation.client.ts'
 
 const FAST = { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 }
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function observeLoop(loop: Promise<void>): Promise<Thrown> {
+  return loop.then(
+    () => {
+      throw new Error('connection loop settled')
+    },
+    (reason: Thrown) => reason,
+  )
+}
+
+function requireAggregateError(reason: Thrown): AggregateError {
+  if (reason instanceof AggregateError) return reason
+  throw new Error(`expected AggregateError, received ${String(reason)}`)
+}
 
 describe('connection lifecycle', () => {
   it('announces connected with the Host facts from generation readiness', async () => {
@@ -42,25 +58,79 @@ describe('connection lifecycle', () => {
     expect(source.activeCount).toBe(0)
   })
 
-  it('isolates a connected sink exception from the generation', async () => {
+  it('lets a connected sink throw abort the generation and fail the loop', async () => {
     const source = new FakeGenerationSource()
     let connected = 0
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const controller = new ConnectionController(source.source, {
       onConnected: () => {
         connected++
         throw new Error('business layer bug')
       },
     }, FAST)
-    controller.start()
-    try {
-      await vi.waitFor(() => { expect(connected).toBe(1) })
-      expect(source.activeCount).toBe(1)
-      expect(errorSpy).toHaveBeenCalledWith('[connection] connection sink threw:', expect.any(Error))
-    } finally {
-      await controller.stop()
-      errorSpy.mockRestore()
-    }
+    const loop = controller.start()
+    const observed = observeLoop(loop)
+    await vi.waitFor(() => { expect(connected).toBe(1) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    expect(controller.start()).toBe(loop)
+    await new Promise(resolve => setTimeout(resolve, 40))
+    expect(source.activeCount).toBe(0)
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
+    await expect(controller.stop()).rejects.toThrow('connection loop failed')
+  })
+
+  it('lets a connected state sink throw abort the generation and fail the loop', async () => {
+    const source = new FakeGenerationSource()
+    const states: ConnectionState[] = []
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        states.push(state)
+        throw new Error('state sink bug')
+      },
+    }, FAST)
+    const loop = controller.start()
+    const observed = observeLoop(loop)
+    await vi.waitFor(() => { expect(states).toEqual(['connected']) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
+    await expect(controller.stop()).rejects.toThrow('connection loop failed')
+  })
+
+  it('lets a connected state sink abort then throw without a second abort', async () => {
+    const source = new FakeGenerationSource()
+    const states: ConnectionState[] = []
+    let stopping: Promise<void> | undefined
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        states.push(state)
+        stopping = controller.stop()
+        throw new Error('state sink bug after stop')
+      },
+    }, FAST)
+    const loop = controller.start()
+    const observed = observeLoop(loop)
+    await vi.waitFor(() => { expect(states).toEqual(['connected']) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
+    await expect(stopping).rejects.toThrow('connection loop failed')
+  })
+
+  it('skips backoff when stop lands on the reconnecting sink', async () => {
+    const source = new FakeGenerationSource()
+    source.holdReady = true
+    let stopping: Promise<void> | undefined
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        if (state === 'reconnecting') stopping = controller.stop()
+      },
+    }, FAST)
+    const loop = controller.start()
+    await vi.waitFor(() => { expect(source.activeCount).toBe(1) })
+    source.end()
+    await vi.waitFor(() => { expect(stopping).toBeDefined() })
+    await stopping
+    await loop
+    warnSpy.mockRestore()
   })
 
   it('holds onConnected until the incremental source reports ready', async () => {
@@ -104,7 +174,7 @@ describe('connection lifecycle', () => {
     const owner: { controller?: ConnectionController } = {}
     let stopping: Promise<void> | undefined
     let sourceCalls = 0
-    const connected = vi.fn()
+    const connected = vi.fn<(host: ConnectionHostInfo) => void>()
     const source: ConnectionGenerationSource = (signal, ready) => new Promise<void>((resolve) => {
       sourceCalls++
       ready({ home: '/h' })
@@ -146,8 +216,7 @@ describe('connection lifecycle', () => {
     { label: 'ends normally', fail: () => Promise.resolve() },
     {
       label: 'rejects with a non-Error reason',
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test
-      fail: () => Promise.reject('fixture offline'),
+      fail: async () => { throw 'fixture offline' },
     },
   ])('retries when the generation source $label before reporting ready', async ({ fail }) => {
     let sourceCalls = 0
@@ -286,5 +355,18 @@ describe('connection lifecycle', () => {
     } finally {
       await controller.stop()
     }
+  })
+})
+
+describe('waitForReady', () => {
+  it('rejects when the signal is already aborted', async () => {
+    const ready = new Promise<string>(() => undefined)
+    await expect(waitForReady(ready, 500, AbortSignal.abort('already down')))
+      .rejects.toThrow('connection generation aborted')
+  })
+
+  it('resolves when readiness arrives before the deadline', async () => {
+    await expect(waitForReady(Promise.resolve('/h'), 500, new AbortController().signal))
+      .resolves.toBe('/h')
   })
 })

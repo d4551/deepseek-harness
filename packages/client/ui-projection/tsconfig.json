@@ -31,6 +31,9 @@
     },
     {
       "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

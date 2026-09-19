@@ -27,7 +27,6 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // The `imageLimits` projection key merge (intake pre-check) arrives with the
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
 // api-remotes import already places it in every client program.
-import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { ComposerContentEditable } from './editor/ComposerContentEditable.tsx'
 import { DecoratorPortals } from './editor/DecoratorPortals.tsx'
@@ -36,6 +35,14 @@ import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
 import { ContextMeter } from './ContextMeter.tsx'
 import { PermissionSelect } from './PermissionSelect.tsx'
 import css from './InputBar.module.css'
+
+type ComposerHintStyle = CSSProperties & {
+  '--dsh-composer-hint': string
+}
+
+function composerHintStyle(hint: string): ComposerHintStyle {
+  return { '--dsh-composer-hint': JSON.stringify(hint) }
+}
 
 export type InputBarProps = ComposerBarProps
 
@@ -133,6 +140,20 @@ export function InputBar({
     && input.queue.some(row => row.placement === 'queued')
 
   useEffect(() => {
+    if (!workspaceTrigger || onRequestWorkspace === undefined) return
+    const card = cardRef.current
+    if (card === null) return
+    const pick = (): void => { onRequestWorkspace() }
+    const swallow = (event: PointerEvent): void => { event.stopPropagation() }
+    card.addEventListener('click', pick)
+    card.addEventListener('pointerdown', swallow)
+    return () => {
+      card.removeEventListener('click', pick)
+      card.removeEventListener('pointerdown', swallow)
+    }
+  }, [workspaceTrigger, onRequestWorkspace])
+
+  useEffect(() => {
     if (input === undefined || inputActions === undefined) return
     if (attachments.length !== input.imageIds.length) {
       inputActions.pruneImages(attachments.map(attachment => attachment.id))
@@ -222,7 +243,7 @@ export function InputBar({
         // Format precedes limits: a batch with
         // a non-image must announce the format problem, not a count or size
         // it could never pass anyway — addImages rejects it authoritatively.
-        if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
+        if (files.some(file => !imageLimits.mediaTypes.some(type => type === file.type))) {
           return addImages(files)
         }
         if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
@@ -318,9 +339,11 @@ export function InputBar({
       stop?.()
       return
     }
-    if (inputActions === undefined) return // absent machine: the button is disabled
-    /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
-    if (!empty && !disabled && !machineBusy) inputActions.submit()
+    if (inputActions === undefined) return
+    if (empty || disabled || machineBusy) {
+      throw new Error('primary submit invoked while the send control is disabled')
+    }
+    inputActions.submit()
   }
 
   // The Access seat: the projection-fed permission chip (renders nothing
@@ -343,11 +366,16 @@ export function InputBar({
     if (rawHint === null) return null
     // Claim tokens have the `/name ` format (trailing space); trim to the bare name.
     const commandName = input?.claim?.token.slice(1).trim() ?? ''
-    const hintKey = `hint.${commandName === 'goal' && hasGoal ? 'goal.active' : commandName}`
-    // Dynamic lookup by claimed command name: unknown commands miss the
-    // dictionary and keep the machine's own hint, so the call is wide.
-    const translated = (t as Translate)(hintKey)
-    return translated !== hintKey ? translated : rawHint
+    if (commandName === 'goal') {
+      const key = hasGoal ? 'hint.goal.active' : 'hint.goal'
+      const translated = t(key)
+      return translated !== key ? translated : rawHint
+    }
+    if (commandName === 'plan') {
+      const translated = t('hint.plan')
+      return translated !== 'hint.plan' ? translated : rawHint
+    }
+    return rawHint
   })()
 
   const placeholderText = placeholder ?? (parentOffline
@@ -373,9 +401,9 @@ export function InputBar({
         />
       )}
       {notice?.level === 'info' && (
-        <div className={css.notice} role="status">
+        <output className={css.notice}>
           {notice.text}
-        </div>
+        </output>
       )}
       {/* Trigger clicks land on the card, not the editor: the toolbar row's
           disabled controls swallow clicks otherwise (the CSS state disarms
@@ -386,8 +414,6 @@ export function InputBar({
         ref={cardRef}
         className={clsx(css.card, workspaceTrigger && css.cardWorkspaceTrigger)}
         data-composer-card
-        onClick={workspaceTrigger ? onRequestWorkspace : undefined}
-        onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
       >
         {overlay !== undefined && <div className={css.overlayAnchor}>{overlay}</div>}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
@@ -422,7 +448,7 @@ export function InputBar({
               aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
               tabIndex={workspaceTrigger ? 0 : undefined}
               onKeyDown={workspaceTrigger ? onWorkspaceKeyDown : undefined}
-              style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
+              style={hint === null ? undefined : composerHintStyle(hint)}
             />
             {empty && !claimActive && (
               <div aria-hidden className={css.placeholder} data-composer-placeholder>

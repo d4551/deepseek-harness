@@ -21,7 +21,10 @@ import type {
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { CordisErrorDetails } from '@deepseek-ai/dsh-cordis-host-runner/types'
 import { errorDetails } from '@deepseek-ai/dsh-cordis-host-runner/wire-values'
-import type { CordisObservable, DynamicCordisPackageRunner } from './runtime.ts'
+import type { CordisObservable, DynamicCordisLoadResult, DynamicCordisPackageRunner } from './runtime.ts'
+
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 /** One Plugin's in-flight approval or activation. */
 export type CordisRunActivity =
@@ -157,8 +160,8 @@ export class CordisRunOrchestrator {
         mode: request.mode,
         requestId: request.requestId,
         hasClientHalf: true,
-      }).catch((error: unknown) => {
-        console.error(`[cordis-client-runner] automatic activation ${request.requestId} failed:`, error)
+      }).then(undefined, (reason: Thrown) => {
+        console.error(`[cordis-client-runner] automatic activation ${request.requestId} failed:`, reason)
       })
       return
     }
@@ -356,7 +359,12 @@ export class CordisRunOrchestrator {
       agentId: plan.agentId,
       name: source.name,
       code: source.code,
-    }).catch((error: unknown) => ({ ok: false, cause: 'evaluate', ...errorDetails(error), error }) as const)
+    }).then(undefined, (reason: Thrown): DynamicCordisLoadResult => ({
+      ok: false,
+      cause: 'evaluate',
+      ...errorDetails(reason),
+      error: reason,
+    }))
     if (!loaded.ok) {
       await this.finishClientFailure(
         plan,

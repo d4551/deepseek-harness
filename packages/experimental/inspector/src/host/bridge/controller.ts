@@ -10,6 +10,8 @@ import { installFetchObserver, NETWORK_TOPICS, type FetchObserver } from '../ins
 import { HostInspectorSource } from './transport.ts'
 import { InspectorWorkerLifecycle } from './lifecycle.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 8 * 1024 * 1024
 const DEFAULT_MAX_RESPONSE_BODY_BYTES = 32 * 1024 * 1024
 const DEFAULT_MAX_BODY_CHUNK_BYTES = 48 * 1024
@@ -221,11 +223,14 @@ export async function startInspector(options: InspectorOptions = {}): Promise<In
     throw error
   }
 
-  const ready = await lifecycle.waitForReady(spec.startupTimeoutMs).catch(async (error: unknown) => {
-    source.close()
-    await lifecycle.terminate()
-    throw error
-  })
+  const ready = await lifecycle.waitForReady(spec.startupTimeoutMs).then(
+    undefined,
+    async (error: Thrown) => {
+      source.close()
+      await lifecycle.terminate()
+      throw error
+    },
+  )
   const authority = `${ready.host}:${String(ready.port)}`
   const endpoint: InspectorEndpoint = {
     httpUrl: `http://${authority}/`,
@@ -268,7 +273,7 @@ export async function startInspector(options: InspectorOptions = {}): Promise<In
     } catch (closeError) {
       console.error('dsh inspector: Host source cleanup after Worker failure failed', closeError)
     }
-    fetchObserver?.stop().catch((stopError: unknown) => {
+    fetchObserver?.stop().then(undefined, (stopError: Thrown) => {
       console.error('dsh inspector: fetch cleanup after Worker failure failed', stopError)
     })
     console.error('dsh inspector: Worker stopped unexpectedly', error)
@@ -324,21 +329,19 @@ async function closeInspector(
   timeoutMs: number,
 ): Promise<void> {
   const failures: unknown[] = []
-  try {
-    await fetchObserver?.stop()
-  } catch (error) {
-    failures.push(error)
+  if (fetchObserver !== undefined) {
+    await fetchObserver.stop().then(undefined, (error: Thrown) => {
+      failures.push(error)
+    })
   }
   try {
     source.close()
   } catch (error) {
     failures.push(error)
   }
-  try {
-    await lifecycle.stop(timeoutMs)
-  } catch (error) {
+  await lifecycle.stop(timeoutMs).then(undefined, (error: Thrown) => {
     failures.push(error)
-  }
+  })
   if (failures.length > 0) throw new AggregateError(failures, 'inspector: shutdown failed')
 }
 

@@ -32,6 +32,8 @@ import { z } from 'zod'
 import { CredentialsController } from './credentials.ts'
 import type { AgentPresetDirectoryOpenValue, SettingsDocumentOpenValue } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 export { CredentialsController } from './credentials.ts'
 export type { AgentPresetDirectoryOpenValue, CredentialError, CredentialErrorDetailsMap, SettingsDocumentOpenValue, SettingsError, SettingsErrorDetailsMap } from './types.ts'
 
@@ -202,24 +204,25 @@ export class SettingsController extends TypertRemoteService {
   async openSettingsDocument(signal: AbortSignal): Promise<SettingsDocumentOpenValue> {
     const settings = this.provider()
     if (isAborted(signal)) throw cancelled('settings document open was aborted')
-    let path: string | undefined
-    try {
-      path = await settings.prepareDocument()
-    } catch (error: unknown) {
-      if (isAborted(signal)) throw cancelled('settings document preparation was aborted')
-      throw internal(`settings document preparation failed: ${messageOf(error)}`)
-    }
-    if (path === undefined) {
-      throw internal('settings provider has no local document to open')
-    }
-    if (isAborted(signal)) throw cancelled('settings document open was aborted')
-    try {
-      await this.openTextFile(path, signal)
-      return { opened: true }
-    } catch (error: unknown) {
-      if (isAborted(signal)) throw cancelled('settings document open was aborted')
-      throw internal(`path open failed: ${messageOf(error)}`)
-    }
+    return await settings.prepareDocument().then(
+      (path) => {
+        if (path === undefined) {
+          throw internal('settings provider has no local document to open')
+        }
+        if (isAborted(signal)) throw cancelled('settings document open was aborted')
+        return this.openTextFile(path, signal).then(
+          (): SettingsDocumentOpenValue => ({ opened: true }),
+          (error: Thrown) => {
+            if (isAborted(signal)) throw cancelled('settings document open was aborted')
+            throw internal(`path open failed: ${messageOf(error)}`)
+          },
+        )
+      },
+      (error: Thrown) => {
+        if (isAborted(signal)) throw cancelled('settings document preparation was aborted')
+        throw internal(`settings document preparation failed: ${messageOf(error)}`)
+      },
+    )
   }
 
   /**
@@ -247,24 +250,28 @@ export class SettingsController extends TypertRemoteService {
         details: { agentPreset, available: [] },
       })
     }
-    let directory: string
-    try {
-      const preset = await presets.resolve(agentPreset)
-      if (preset.trust !== 'user') {
-        throw new PresetNotWritableError(preset.id, 'it ships with the deployment')
-      }
-      directory = dirname(preset.path)
-    } catch (error: unknown) {
-      throw presetFailure(agentPreset, error)
-    }
-    if (!this.canOpenPath()) return { opened: false, path: directory }
-    try {
-      await this.openPath(directory, signal)
-      return { opened: true }
-    } catch (error: unknown) {
-      if (signal.aborted) throw cancelled('path open was aborted')
-      throw internal(`path open failed: ${messageOf(error)}`)
-    }
+    return await presets.resolve(agentPreset).then(
+      (preset) => {
+        if (preset.trust !== 'user') {
+          throw presetFailure(
+            agentPreset,
+            new PresetNotWritableError(preset.id, 'it ships with the deployment'),
+          )
+        }
+        const directory = dirname(preset.path)
+        if (!this.canOpenPath()) return { opened: false, path: directory }
+        return this.openPath(directory, signal).then(
+          (): AgentPresetDirectoryOpenValue => ({ opened: true }),
+          (error: Thrown) => {
+            if (signal.aborted) throw cancelled('path open was aborted')
+            throw internal(`path open failed: ${messageOf(error)}`)
+          },
+        )
+      },
+      (error: Thrown) => {
+        throw presetFailure(agentPreset, error)
+      },
+    )
   }
 
   private async write(
@@ -287,27 +294,32 @@ export class SettingsController extends TypertRemoteService {
       // A malformed name can address no registration, so it fails exactly as an
       // unregistered one does.
       branded = settingsNamespace(parsed.data.ns)
-    } catch (error: unknown) {
+    } catch (error) {
       throw rejected(ns, error)
     }
-    try {
-      if (mode === 'update') await settings.update(branded, input, expectedRevision)
-      else if (mode === 'replace') await settings.replace(branded, input, expectedRevision)
-      else await settings.mutate(branded, input as SettingsPathOp[], expectedRevision)
-    } catch (error: unknown) {
-      throw rejected(ns, error)
-    }
-    const descriptor = settings.describe({ redactSecrets: true }).find(candidate => candidate.ns === branded)
-    if (descriptor === undefined) {
-      // The write committed but the namespace vanished before this read: only a
-      // concurrent registrant disposal can produce it.
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: `settings namespace "${ns}" was disposed after the ${mode}`,
-        details: {},
-      })
-    }
-    return namespaceView(descriptor)
+    const operation = mode === 'update'
+      ? settings.update(branded, input, expectedRevision)
+      : mode === 'replace'
+        ? settings.replace(branded, input, expectedRevision)
+        : settings.mutate(branded, input as SettingsPathOp[], expectedRevision)
+    return await operation.then(
+      () => {
+        const descriptor = settings.describe({ redactSecrets: true }).find(candidate => candidate.ns === branded)
+        if (descriptor === undefined) {
+          // The write committed but the namespace vanished before this read: only a
+          // concurrent registrant disposal can produce it.
+          throw new TypertRemoteFailure({
+            code: 'internal',
+            message: `settings namespace "${ns}" was disposed after the ${mode}`,
+            details: {},
+          })
+        }
+        return namespaceView(descriptor)
+      },
+      (error: Thrown) => {
+        throw rejected(ns, error)
+      },
+    )
   }
 
   /** Resolve the optional provider or report how to supply it. */
@@ -325,7 +337,21 @@ export class SettingsController extends TypertRemoteService {
 }
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (error instanceof Error) return error.message
+  switch (typeof error) {
+    case 'string': return error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (error === null) return 'null'
+      return Object.prototype.toString.call(error)
+  }
 }
 
 function internal(message: string): TypertRemoteFailure {
@@ -359,7 +385,7 @@ function presetFailure(agentPreset: string, error: unknown): TypertRemoteFailure
     })
   }
   if (error instanceof TypertRemoteFailure) return error
-  return internal(`agent preset "${agentPreset}": ${String(error)}`)
+  return internal(`agent preset "${agentPreset}": ${messageOf(error)}`)
 }
 
 /**
@@ -380,7 +406,7 @@ function rejected(ns: string, error: unknown): TypertRemoteFailure {
   }
   return new TypertRemoteFailure({
     code: 'settings-rejected',
-    message: error instanceof Error ? error.message : String(error),
+    message: messageOf(error),
     details: { ns },
   })
 }

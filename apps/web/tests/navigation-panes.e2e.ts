@@ -153,7 +153,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'navigation e2e cleanup failed')
   })
 
-  it.skipIf(MODE !== 'record')('records the two-turn seed live through the composer', async () => {
+  const SKIP_UNLESS_RECORD_MODE = MODE !== 'record'
+  if (SKIP_UNLESS_RECORD_MODE) console.info('[skip] navigation-panes.e2e.ts: replay mode; this record-only capture runs in record mode')
+  it.skipIf(SKIP_UNLESS_RECORD_MODE)('records the two-turn seed live through the composer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-record'))
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
@@ -175,7 +177,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     expect(calls.map(e => e.data.name).sort()).toEqual(['bash', 'read', 'read'])
   }, 400_000)
 
-  it.skipIf(MODE === 'record')('finds an unopened seeded session by message content and opens it', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('finds an unopened seeded session by message content and opens it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-search'))
     // The API baselines can settle before React commits their projection. The
     // seeded Ungrouped bucket row is the final user-visible barrier before
@@ -216,7 +220,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => page.locator('[role="treeitem"]').count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(1)
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('renders the trajectory ledger and opens its local record inspector', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('renders the trajectory ledger and opens its local record inspector', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-trajectory'))
     await ensureSeedOpen(page)
     await page.getByRole('tab', { name: 'Trajectory' }).click()
@@ -281,7 +287,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await details.getByRole('button', { name: 'Close details' }).click()
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('downloads through the Session Header and /export with one dialog', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('downloads through the Session Header and /export with one dialog', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-export'))
     await ensureSeedOpen(page)
     const exportButton = page.getByRole('button', { name: 'Session log' })
@@ -365,7 +373,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     }
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('focuses the ledger by dragging an overview interval', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('focuses the ledger by dragging an overview interval', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-timeline'))
     await ensureSeedOpen(page)
     await page.getByRole('tab', { name: 'Trajectory' }).click()
@@ -385,7 +395,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => page.locator('tr[data-timeline-focus]').count(), { timeout: 10_000 }).toBe(0)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('bash and file-path rows leave the default details column closed', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('bash and file-path rows leave the default details column closed', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-details'))
     await ensureSeedOpen(page)
     const bashRow = page.locator('[data-sample="bash"]').first()
@@ -414,7 +426,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('renders the bash row as a terminal card in the real browser', async () => {
+  const SKIP_IN_RECORD_MODE_6 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_6) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_6)('renders the bash row as a terminal card in the real browser', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-terminal'))
     await ensureSeedOpen(page)
     // The card is expand-gated behind the whole-row toggle (the unified
@@ -500,7 +514,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('NAVIGATION_OK')
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the recorded fixture inventory exact', async () => {
+  const SKIP_IN_RECORD_MODE_7 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_7) console.info('[skip] navigation-panes.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_7)('keeps the recorded fixture inventory exact', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.jsonl', 'search-results.expected.md', 'trajectory.expected.md',
       'terminal-card.expected.md',

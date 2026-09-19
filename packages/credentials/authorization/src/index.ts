@@ -40,6 +40,8 @@ export type {
   AuthorizationPromptOption, AuthorizationSettlement, AuthorizationStatus,
 } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     authorization: AuthorizationService
@@ -215,7 +217,7 @@ export class AuthorizationService extends Service {
       }
     }.bind(this), 'authorization.registerFlow()')
     return () => {
-      Promise.resolve(dispose()).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      Promise.resolve(dispose()).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }
   }
 
@@ -333,7 +335,7 @@ export class AuthorizationService extends Service {
       try {
         const returned = listener(key, settlement)
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
+          Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: Thrown) => {
             this.warnSettledListenerFailure(key, error)
           })
         }
@@ -398,25 +400,35 @@ export class AuthorizationService extends Service {
             this.ctx.logger.warn(error)
           }
         },
-        prompt: prompt => interaction.prompt(prompt).catch((error: unknown) => {
+        prompt: prompt => interaction.prompt(prompt).catch((error: Thrown) => {
           if (error instanceof AuthorizationDeclinedError) observed.declined = true
           throw error
         }),
       })
-      try {
-        if (await Promise.race([running.then(() => 'ran' as const), withdrawn]) === 'withdrawn') {
-          // Nothing awaits the orphan any more, so its eventual failure has to be
-          // marked handled or it would take down the process.
-          running.catch(() => { this.ctx.logger.debug('authorization: withdrawn flow failed after the fact') })
-          return { status: 'cancelled' }
-        }
-      } catch (error) {
-        // A withdrawn attempt and a declined prompt are outcomes, not
-        // failures: the human said no, or closed the page. Anything else is
-        // the flow failing and belongs to the caller, cause chain intact.
-        if (signal.aborted || observed.declined) return { status: 'cancelled' }
+      const drained = Promise.allSettled([running]).then(([settled]) => {
+        if (settled.status === 'fulfilled') return 'ran' as const
+        const error: Thrown = settled.reason
         throw error
+      })
+      const raced = await Promise.race([drained, withdrawn]).then(
+        undefined,
+        (error: Thrown) => {
+          // A withdrawn attempt and a declined prompt are outcomes, not
+          // failures: the human said no, or closed the page. Anything else is
+          // the flow failing and belongs to the caller, cause chain intact.
+          if (signal.aborted || observed.declined) return 'cancelled' as const
+          throw error
+        },
+      )
+      if (raced === 'withdrawn') {
+        // Nothing awaits the orphan any more, so its eventual failure has to be
+        // marked handled or it would take down the process.
+        drained.then(undefined, (_error: Thrown) => {
+          this.ctx.logger.debug('authorization: withdrawn flow failed after the fact')
+        })
+        return { status: 'cancelled' }
       }
+      if (raced === 'cancelled') return { status: 'cancelled' }
     } finally {
       unwatch()
     }

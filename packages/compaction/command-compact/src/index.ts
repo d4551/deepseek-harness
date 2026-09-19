@@ -10,6 +10,13 @@ import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands
 export const name = 'command-compact'
 export const inject = ['commands', 'compaction']
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/** Keep a drain or observer promise from rejecting when the handler already settled. */
+function ignoreThrown(_error: Thrown): undefined {
+  return undefined
+}
+
 const USAGE = 'Usage: /compact (no arguments)'
 
 /** Fail loudly if a locally closed union gains an unhandled member. */
@@ -62,19 +69,21 @@ async function executeCompact(
   if (invocation.rawInput.trim().length > 0) {
     return { kind: 'error', text: USAGE }
   }
-  try {
-    const result = await ctx.compaction.compactNow(invocation.agent, invocation.signal, invocation.commandId)
-    if (result === null) return { kind: 'success', text: 'No compactable history yet.' }
-    return {
-      kind: 'success',
-      text: `Compacted ${result.shadowedSeqs.length} history items (~${result.shadowedTokenCount} tokens).`,
-      sourceEventSeq: result.summarySeq,
-    }
-  } catch (error: unknown) {
-    if (invocation.signal.aborted) return { kind: 'error', text: 'Compaction cancelled.' }
-    if (error instanceof ManualCompactionError) return expectedFailure(error)
-    throw error
-  }
+  return await ctx.compaction.compactNow(invocation.agent, invocation.signal, invocation.commandId).then(
+    (result) => {
+      if (result === null) return { kind: 'success', text: 'No compactable history yet.' }
+      return {
+        kind: 'success',
+        text: `Compacted ${result.shadowedSeqs.length} history items (~${result.shadowedTokenCount} tokens).`,
+        sourceEventSeq: result.summarySeq,
+      }
+    },
+    (error: Thrown) => {
+      if (invocation.signal.aborted) return { kind: 'error', text: 'Compaction cancelled.' }
+      if (error instanceof ManualCompactionError) return expectedFailure(error)
+      throw error
+    },
+  )
 }
 
 /**
@@ -89,14 +98,21 @@ export function apply(ctx: Context): void {
     const retire = (): void => { active.delete(operation) }
     // Both branches retire without rethrowing, so the derived observer promise
     // cannot become an unhandled mirror of an expected handler rejection.
-    operation.then(retire, retire)
+    operation.then(retire, (error: Thrown) => {
+      retire()
+      ignoreThrown(error)
+    })
     return operation
   }
 
   ctx.effect(function* () {
     // Yield drain before registration: composite teardown is LIFO, so no new
     // invocation can enter while already-started handler promises quiesce.
-    yield async () => { await Promise.allSettled(active) }
+    yield async () => {
+      await Promise.all([...active].map(operation => (
+        operation.then(() => undefined, ignoreThrown)
+      )))
+    }
     yield ctx.commands.register({
       name: 'compact',
       description: 'Compact older conversation history',

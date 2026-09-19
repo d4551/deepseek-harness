@@ -27,8 +27,11 @@ export function ComposerContentEditable({ editor, editable, ...rest }: ComposerC
   const ref = useRef<HTMLDivElement | null>(null)
   useLayoutEffect(() => {
     const el = ref.current
-    if (editor === null || el === null) return
+    if (el === null) return
+    el.setAttribute('role', 'textbox')
+    if (editor === null) return
     editor.setRootElement(el)
+    el.setAttribute('role', 'textbox')
     return () => { editor.setRootElement(null) }
   }, [editor])
   useLayoutEffect(() => {
@@ -40,8 +43,6 @@ export function ComposerContentEditable({ editor, editable, ...rest }: ComposerC
       // Lexical's setRootElement never touches contenteditable; the binding
       // renders it, and setEditable above keeps the editor's own gate in step.
       contentEditable={editor !== null && editable}
-      suppressContentEditableWarning
-      role="textbox"
       aria-multiline="true"
       data-composer-input
       {...rest}

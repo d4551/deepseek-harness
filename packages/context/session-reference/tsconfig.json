@@ -46,6 +46,9 @@
     },
     {
       "path": "../../session/session-title"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

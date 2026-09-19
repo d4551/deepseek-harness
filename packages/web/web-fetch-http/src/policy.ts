@@ -28,7 +28,7 @@ export function parseFetchUrl(input: string): URL {
   let url: URL
   try {
     url = new URL(input)
-  } catch (error: unknown) {
+  } catch (error) {
     throw new WebError(`invalid URL: ${input}`, 'WEB_INVALID_URL', { cause: error })
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
@@ -114,7 +114,7 @@ export function decoderForCharset(charset: string | undefined): TextDecoder {
   if (charset === undefined) return new TextDecoder('utf-8')
   try {
     return new TextDecoder(charset)
-  } catch (error: unknown) {
+  } catch (error) {
     throw new WebError(`unsupported charset "${charset}"`, 'WEB_UNSUPPORTED_CONTENT_TYPE', { cause: error })
   }
 }

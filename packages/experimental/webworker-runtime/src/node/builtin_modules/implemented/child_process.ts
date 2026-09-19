@@ -29,6 +29,26 @@ import { DSH_ROOT } from '../../../storage/paths.ts'
 
 const MODULE = 'node:child_process'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Per-stream disposition, as Node's `stdio` array spells it. */
 type StdioSetting = 'pipe' | 'ignore' | 'inherit'
 
@@ -312,8 +332,8 @@ export function spawn(
         if (entry.signal === 'SIGKILL') entry.process.destroy()
         else entry.process.interrupt()
       }
-    })().catch((error: unknown) => {
-      failSpawn(error instanceof Error ? error : new Error(String(error)))
+    })().catch((error: Thrown) => {
+      failSpawn(error instanceof Error ? error : new Error(thrownMessage(error)))
     })
   })
 

@@ -112,19 +112,15 @@ describe('LocaleRuntime', () => {
     expect(seen).toHaveLength(2)
   })
 
-  it('isolates a throwing subscriber: the rest still see the new revision', () => {
+  it('lets a throwing subscriber starve later listeners after the revision moves', () => {
     const { svc } = make()
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const seen: number[] = []
-      svc.subscribe(() => { throw new Error('boom') })
-      svc.subscribe(() => { seen.push(svc.getSnapshot().revision) })
-      svc.setLocale('en')
-      expect(seen).toEqual([1])
-      expect(spy).toHaveBeenCalledOnce()
-    } finally {
-      spy.mockRestore()
-    }
+    const seen: number[] = []
+    const failure = new Error('boom')
+    svc.subscribe(() => { throw failure })
+    svc.subscribe(() => { seen.push(svc.getSnapshot().revision) })
+    expect(() => { svc.setLocale('en') }).toThrow(failure)
+    expect(svc.getSnapshot().revision).toBe(1)
+    expect(seen).toEqual([])
   })
 
   it('register disposer republishes (mounted outlets drop the dead dictionary)', () => {

@@ -9,7 +9,9 @@ const configPath = fileURLToPath(new URL('../cordis.yml', import.meta.url))
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const hasKey = Boolean(process.env.DEEPSEEK_API_KEY)
 
-describe.skipIf(!hasKey)('headless-agent with real model', () => {
+const SKIP_WITHOUT_PROVIDER_API_KEY = !hasKey
+if (SKIP_WITHOUT_PROVIDER_API_KEY) console.info('[skip] real-model.e2e.ts: provider API key is unset; live provider e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_PROVIDER_API_KEY)('headless-agent with real model', () => {
   it('modifies a temporary workspace and verifies the file outside the agent', async () => {
     let verified = ''
     const { stdout } = await runLoaderSmoke({

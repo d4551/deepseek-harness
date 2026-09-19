@@ -31,7 +31,9 @@ function pwshAvailable(): boolean {
   }
 }
 
-describe.skipIf(!isWin32 || !pwshAvailable())('AclSandbox write restriction', () => {
+const SKIP_WITHOUT_WIN32_PWSH = !isWin32 || !pwshAvailable()
+if (SKIP_WITHOUT_WIN32_PWSH) console.info('[skip] probe.spec.ts: non-Windows host or no usable pwsh; Win32 ACL runner stays off')
+describe.skipIf(SKIP_WITHOUT_WIN32_PWSH)('AclSandbox write restriction', () => {
   let scratchRoot!: string
   let writableDir!: string
   let isolatedTemp!: string

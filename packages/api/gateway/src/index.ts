@@ -110,6 +110,8 @@ interface PendingRemoteEvent {
 
 type ConnectionRpcResult = Awaited<ReturnType<ConnectionRpcHandler>>
 type ConnectionRpcError = Extract<ConnectionRpcResult, { readonly ok: false }>['error']
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 const NEVER_ABORTED_SIGNAL = new AbortController().signal
 const DEFAULT_WEBSOCKET_HEARTBEAT_INTERVAL_MS = 30_000
 
@@ -248,11 +250,11 @@ export class TypertGatewayService extends Service implements TypertGateway {
     }
     const lifetime = new AbortController()
     const stream = source(lifetime.signal)
-    const done = this.consumeRemoteEvents(stream, lifetime.signal).catch((error: unknown) => {
+    const done = this.consumeRemoteEvents(stream, lifetime.signal).then(undefined, (reason: Thrown) => {
       if (this.remoteEvents?.lifetime !== lifetime || lifetime.signal.aborted) return
-      this.closeRemoteEvents(error)
+      this.closeRemoteEvents(reason)
       this.remoteEvents = undefined
-      lifetime.abort(error)
+      lifetime.abort(reason)
     })
     const registration: RegisteredRemoteEventSource = { lifetime, done, host: { home: host.home } }
     this.remoteEvents = registration

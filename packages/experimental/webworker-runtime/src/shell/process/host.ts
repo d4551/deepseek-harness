@@ -21,6 +21,45 @@ import type { FilesystemOperation, FromProcessFrame, ShellStartFrame } from './p
 import { runShellProcess } from './child.ts'
 import type { ProcessScope } from './child.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected host-side promise.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the Error text, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+/**
+ * Filesystem reply failure from a Promise reject arm.
+ * @param error - the Thrown serveFilesystemCall rejected with.
+ * @returns the Node `code` when it is a string, and human text for the child.
+ */
+function filesystemReplyFailure(error: Thrown): { code?: string; message: string } {
+  const message = error instanceof Error ? error.message : thrownMessage(error)
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const { code } = error
+    if (typeof code === 'string') return { code, message }
+  }
+  return { message }
+}
+
 /** What the caller must supply to start one process. */
 export interface ProcessStartOptions {
   /** Command source for `bash -c`, or undefined when `argv` names a program. */
@@ -119,12 +158,8 @@ function startWorkerProcess(options: ProcessStartOptions): RunningProcess {
     }
     serveFilesystemCall(fs, frame.op, frame.args).then(
       (value) => { worker.postMessage({ t: 'fs-reply', id: frame.id, value }) },
-      (error: unknown) => {
-        const failure = {
-          code: (error as { code?: string }).code,
-          message: error instanceof Error ? error.message : String(error),
-        }
-        worker.postMessage({ t: 'fs-reply', id: frame.id, failure })
+      (error: Thrown) => {
+        worker.postMessage({ t: 'fs-reply', id: frame.id, failure: filesystemReplyFailure(error) })
       },
     )
   })
@@ -167,8 +202,8 @@ function startInlineProcess(options: ProcessStartOptions): RunningProcess {
     : runShellCommand(options.script, runOptions)
   run.then(
     (outcome) => { options.onExit(outcome.exitCode) },
-    (error: unknown) => {
-      options.onOutput('stderr', `bash: ${String(error)}\n`)
+    (error: Thrown) => {
+      options.onOutput('stderr', `bash: ${thrownMessage(error)}\n`)
       options.onExit(1)
     },
   )

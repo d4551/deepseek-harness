@@ -97,7 +97,9 @@ describe('web e2e: feedback-gated release under the shipped default mode', () =>
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('releases the session records through the feedback and pins the disclosure', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] feedback-release.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('releases the session records through the feedback and pins the disclosure', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-release'))
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
     expect(uploads).toEqual([])
@@ -126,7 +128,9 @@ describe('web e2e: feedback-gated release under the shipped default mode', () =>
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('releases only the records since the last handoff on a second feedback', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] feedback-release.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('releases only the records since the last handoff on a second feedback', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-release-suffix'))
     const input = page.locator('[data-composer-input]').first()
     await input.fill('/feedback the second remark')
@@ -138,7 +142,9 @@ describe('web e2e: feedback-gated release under the shipped default mode', () =>
     expect(uploads[1]).not.toContain(PROMPT)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] feedback-release.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['ack.expected.md', 'ack-expanded.expected.md'])
   })
 })

@@ -10,8 +10,10 @@ import type {
   ClientModuleSystemOptions,
 } from './manifest.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Default bundle-load hook: same-origin external classic script. */
-const defaultLoadBundle = (url: string): Promise<void> => new Promise((resolve, reject) => {
+const defaultLoadBundle = (url: string): Promise<void> => new Promise((resolve, reject: (reason: Thrown) => void) => {
   const el = document.createElement('script')
   el.async = true
   el.src = url
@@ -156,15 +158,28 @@ export class ClientModuleSystem implements ClientModuleLoader {
     if (visited.has(row.id)) return
     visited.add(row.id)
     const next = [...open, row.id]
+    let firstFailure: Thrown | undefined
+    const pending: Promise<void>[] = []
+    const recordFailure = (reason: Thrown): void => {
+      firstFailure ??= reason
+    }
     for (const request of row.external) {
       const id = stripClientSuffix(request)
       if (this.seed.has(request) || this.loadCache.has(id)) continue
       const dependency = this.graphRows.get(id)
-      if (dependency !== undefined) await this.arriveGraphRow(dependency, next, visited)
+      if (dependency !== undefined) {
+        pending.push(this.arriveGraphRow(dependency, next, visited).then(undefined, recordFailure))
+      }
     }
     for (const packageName of row.inject) {
       const dependency = this.graphRows.get(packageName)
-      if (dependency !== undefined) await this.arriveGraphRow(dependency, [], visited)
+      if (dependency !== undefined) {
+        pending.push(this.arriveGraphRow(dependency, [], visited).then(undefined, recordFailure))
+      }
+    }
+    if (pending.length > 0) {
+      await Promise.all(pending)
+      if (firstFailure !== undefined) throw firstFailure
     }
     await this.arrive(row)
   }

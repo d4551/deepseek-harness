@@ -85,7 +85,9 @@ describe('SandboxPolicyService', () => {
     })
   })
 
-  it.skipIf(process.platform === 'win32')('resolves a symlink-sensitive session cwd with POSIX component semantics', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] policy.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('resolves a symlink-sensitive session cwd with POSIX component semantics', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-policy-cwd-'))
     try {
       const lexical = join(root, 'lexical')

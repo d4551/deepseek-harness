@@ -15,6 +15,8 @@ import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'
 import type { FsSandboxController } from './sandbox.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Validated `edit` arguments after defaulting. */
 interface EditInput {
   filePath: string
@@ -118,25 +120,29 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
       // Single-slot decision: the policy plugin returns { version: vObserved } or
       // throws FS_NOT_OBSERVED; the bare default is undefined (unconditional edit).
       // No stat — the bare default never manufactures a version basis. The intent
-      // slot itself can throw FS_NOT_OBSERVED for an unread target, so it sits
-      // inside the try: both that refusal and the provider's guarded-mutation
-      // failure get the model-facing remedy below.
-      let outcome
-      try {
-        const intent = await ctx.waterfall('fs/edit-intent', target, exec, () => undefined)
-        outcome = await ctx.fs.editText(
-          target,
-          { oldString: input.oldString, newString: input.newString, replaceAll: input.replaceAll },
-          intent,
-          exec.signal,
-          sandboxPolicy,
-        )
-      } catch (error: unknown) {
+      // slot itself can throw FS_NOT_OBSERVED for an unread target, so both that
+      // refusal and the provider's guarded-mutation failure take the same
+      // model-facing remedy.
+      const remediate = (error: Thrown): never => {
         // A sandbox denial becomes the shared [sandbox: …] marker (the model
         // recognizes it from bash); stale/not-observed failures gain their
         // model-facing remedy; anything else passes through.
         throw remediateFsError(sandbox.mapError(error, sandboxPolicy))
       }
+      const edit = { oldString: input.oldString, newString: input.newString, replaceAll: input.replaceAll }
+      const intentFlight = ctx.waterfall('fs/edit-intent', target, exec, () => undefined)
+      const outcome = intentFlight === undefined
+        ? await ctx.fs.editText(target, edit, undefined, exec.signal, sandboxPolicy).then(
+          undefined,
+          (error: Thrown) => remediate(error),
+        )
+        : await intentFlight.then(
+          intent => ctx.fs.editText(target, edit, intent, exec.signal, sandboxPolicy).then(
+            undefined,
+            (error: Thrown) => remediate(error),
+          ),
+          (error: Thrown) => remediate(error),
+        )
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
       return {
         path: target.displayPath,

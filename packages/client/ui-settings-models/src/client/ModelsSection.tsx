@@ -19,8 +19,9 @@ import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-sl
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
+import { deriveKeyRef, protocolChoices, providerUsable, thrownMessage } from './store.ts'
 import type { ModelsSettingsStore, ModelsWire, ProviderRow } from './store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
 import type { en } from './locales.ts'
@@ -98,6 +99,10 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
   )
 }
 
+function transportRefusal(reason: Thrown): string {
+  return thrownMessage(reason)
+}
+
 /**
  * Remove one user-added provider and its page-managed credential. Credential
  * removal comes first so a second-step failure leaves the provider row visible
@@ -107,31 +112,33 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
  * @param api - settings and credential wire faces.
  * @param controller - the page store to refresh.
  * @param target - the provider's settings address and optional managed credential.
- * @returns the failure message, or undefined once the write and reload landed.
+ * @returns the write-failure message, or undefined once the write landed.
  */
-export async function removeProviderProfile(
+export function removeProviderProfile(
   api: Pick<ModelsWire, 'settings' | 'credentials'>,
   controller: ModelsSettingsStore,
   target: { settingsNs: string; settingsPath: readonly string[]; credentialRef?: string },
 ): Promise<string | undefined> {
-  try {
-    if (target.credentialRef !== undefined) {
-      const credential = await api.credentials.unset(target.credentialRef)
-      if (!credential.ok) return credential.error.message
-    }
-    const response = await api.settings.mutate(
+  const credentialStep: Promise<string | undefined> = target.credentialRef === undefined
+    ? Promise.resolve(undefined)
+    : api.credentials.unset(target.credentialRef).then(
+      credential => credential.ok ? undefined : credential.error.message,
+      transportRefusal,
+    )
+  return credentialStep.then((credentialFailure) => {
+    if (credentialFailure !== undefined) return credentialFailure
+    return api.settings.mutate(
       target.settingsNs,
       [{ op: 'unset', path: [...target.settingsPath] }],
       undefined,
+    ).then(
+      response => response.ok ? undefined : response.error.message,
+      transportRefusal,
     )
-    if (!response.ok) return response.error.message
-  } catch (error) {
-    // The transport rejected rather than answering; the caller must be able
-    // to retry the idempotent operation instead of the row silently staying.
-    return messageOf(error)
-  }
-  await controller.load()
-  return undefined
+  }).then((failure) => {
+    if (failure !== undefined) return failure
+    return controller.load().then(() => undefined)
+  })
 }
 
 /**
@@ -180,6 +187,13 @@ function targetOf(row: ProviderRow): EditorTarget {
   }
 }
 
+function customProviderRevision(namespace: { revision: number } | undefined): number {
+  if (namespace === undefined) {
+    throw new TypeError('custom provider card requires the llm-pi-ai namespace')
+  }
+  return namespace.revision
+}
+
 /** Stable visible and accessible identity for one provider target. */
 export function providerTargetLabel(target: ProviderIdentity): string {
   return target.provider === target.displayName
@@ -218,10 +232,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [declaring, setDeclaring] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
-  const reportLoadFailure = useCallback((reason: unknown): void => {
+  const reportLoadFailure = useCallback((reason: Thrown): void => {
     controller.store.update((snapshot) => {
       snapshot.status = 'error'
-      snapshot.error = messageOf(reason)
+      snapshot.error = thrownMessage(reason)
     })
   }, [controller])
 
@@ -262,25 +276,30 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   }
 
   const confirmDelete = (): void => {
-    /* v8 ignore next -- the action only renders with a target and is disabled while a deletion is pending */
-    if (deleteTarget === undefined || deleting) return
+    if (deleteTarget === undefined) throw new TypeError('delete confirmation requires a target')
+    if (deleting) throw new TypeError('provider deletion already in flight')
+    const target = deleteTarget
     setDeleting(true)
     setDeleteFailure(undefined)
-    removeProviderProfile(api, controller, deleteTarget)
-      .then((failure) => {
+    removeProviderProfile(api, controller, target).then(
+      (failure) => {
+        setDeleting(false)
         if (failure !== undefined) {
           setDeleteFailure(failure)
           return
         }
         setDeleteTarget(undefined)
-      })
-      .finally(() => { setDeleting(false) })
-      .then(undefined, (reason: unknown) => { setDeleteFailure(messageOf(reason)) })
+      },
+      (reason: Thrown) => {
+        setDeleting(false)
+        setDeleteFailure(thrownMessage(reason))
+      },
+    )
   }
 
   if (state.status === 'error') {
-    /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
-    const errorText = state.error ?? ''
+    if (state.error === null) throw new TypeError('models error status requires a message')
+    const errorText = state.error
     return (
       <div className={styles['section']}>
         <p className={styles['error']}>{`${t('loadFailed')}: ${errorText}`}</p>
@@ -329,16 +348,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
       {savedIdentity === undefined
         ? null
         : (
-          <p className={styles['savedNotice']} role="status" aria-live="polite">
+          <output className={styles['savedNotice']} aria-live="polite">
             {providerCopy(t('savedProvider'), savedIdentity)}
-          </p>
+          </output>
         )}
       <ul className={styles['rows']}>
         {configured.map((row) => {
           const target = targetOf(row)
           const namespace = state.namespaces.get(target.settingsNs)
-          /* v8 ignore next -- the join marks a row configured only when its namespace resolved */
-          if (namespace === undefined) return null
+          if (namespace === undefined) {
+            throw new TypeError(`configured provider ${row.entry.provider} has no settings namespace`)
+          }
           if (needsSetup(row, anyUsable) && !dismissedSetup.has(row.entry.provider)) {
             // First-run posture: the provider exists but has no key — the
             // setup card IS its presence on the page, until the user closes it.
@@ -379,21 +399,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     : null}
                   {credentialConfigured
                     ? (
-                      <span
-                        className={`${styles['credentialDot']} ${styles['credentialDotConfigured']}`}
-                        role="img"
-                        aria-label={t('credentialConfigured')}
-                        title={t('credentialConfigured')}
-                      />
+                      <span title={t('credentialConfigured')}>
+                        <span className={`${styles['credentialDot']} ${styles['credentialDotConfigured']}`} aria-hidden="true" />
+                        <span className="dsw-visually-hidden">{t('credentialConfigured')}</span>
+                      </span>
                     )
                     : credentialMissing
                       ? (
-                        <span
-                          className={`${styles['credentialDot']} ${styles['credentialDotMissing']}`}
-                          role="img"
-                          aria-label={t('credentialMissing')}
-                          title={t('credentialMissing')}
-                        />
+                        <span title={t('credentialMissing')}>
+                          <span className={`${styles['credentialDot']} ${styles['credentialDotMissing']}`} aria-hidden="true" />
+                          <span className="dsw-visually-hidden">{t('credentialMissing')}</span>
+                        </span>
                       )
                       : null}
                 </span>
@@ -465,8 +481,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                   aria-label={t('provider')}
                   onChange={(event) => {
                     const row = addable.find(candidate => candidate.entry.provider === event.target.value)
-                    /* v8 ignore next -- the select only lists addable rows */
-                    if (row === undefined) return
+                    if (row === undefined) {
+                      throw new TypeError(`addable select listed missing provider ${event.target.value}`)
+                    }
                     setEditing(targetOf(row))
                   }}
                 >
@@ -503,8 +520,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                 <CustomProviderCard
                   taken={state.rows.map(row => row.entry.provider)}
                   protocols={protocols}
-                  /* v8 ignore next -- the card only opens from a button disabled without this namespace */
-                  revision={state.namespaces.get('llm-pi-ai')?.revision ?? 0}
+                  revision={customProviderRevision(state.namespaces.get('llm-pi-ai'))}
                   api={api}
                   t={t}
                   readOnly={!state.writable}
@@ -527,8 +543,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                   disabled={addable.length === 0 || !state.writable}
                   onClick={() => {
                     const first = addable[0]
-                    /* v8 ignore next -- the button is disabled while nothing is addable */
-                    if (first === undefined) return
+                    if (first === undefined) {
+                      throw new TypeError('add button activated with no addable providers')
+                    }
                     setSavedTarget(undefined)
                     setDeclaring(false)
                     setAdding(true)
@@ -570,9 +587,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             deleteTarget,
           )}
         className={styles['deleteDialog']}
+        initialFocus={deleting ? 'dialog' : 'footer'}
         footer={(
           <>
-            <Button variant="outline" autoFocus disabled={deleting} onClick={closeDelete}>
+            <Button variant="outline" disabled={deleting} onClick={closeDelete}>
               {t('cancel')}
             </Button>
             <Button

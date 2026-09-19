@@ -1,8 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition, RequestPromptInspector,
+  ConversationMatch, ConversationNodeContext, ConversationNodeDefinition,
+  ConversationPromptSnapshotReader, RequestPromptInspector,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { ChatNode } from '../contract/chat-nodes.ts'
 import { chatNode } from './common.ts'
 
 declare module '../contract/chat-nodes.ts' {
@@ -17,6 +17,34 @@ interface RequestPromptState extends ReturnType<RequestPromptInspector> {
   readonly showsPrompt: boolean
   readonly turn?: number
   readonly step?: number
+}
+
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function previousRequestPrompt(
+  value: unknown,
+  readPrompt: ConversationPromptSnapshotReader,
+): RequestPromptState | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new TypeError('request-prompt predecessor State is not an object')
+  const prompt = readPrompt(Reflect.get(value, 'prompt'))
+  const anchorSeq: unknown = Reflect.get(value, 'anchorSeq')
+  const showsPrompt: unknown = Reflect.get(value, 'showsPrompt')
+  if (typeof anchorSeq !== 'number' || !Number.isSafeInteger(anchorSeq)
+    || typeof showsPrompt !== 'boolean') {
+    throw new TypeError('request-prompt predecessor State is malformed')
+  }
+  const turn: unknown = Reflect.get(value, 'turn')
+  const step: unknown = Reflect.get(value, 'step')
+  return {
+    prompt,
+    anchorSeq,
+    showsPrompt,
+    ...typeof turn === 'number' && Number.isSafeInteger(turn) && turn >= 0 ? { turn } : {},
+    ...typeof step === 'number' && Number.isSafeInteger(step) && step >= 0 ? { step } : {},
+  }
 }
 
 /** Place a request's system field at the start of its visible message series. */
@@ -41,19 +69,24 @@ function stableRequestPromptAnchor(
   previous: Readonly<RequestPromptState> | undefined,
   isInitial: boolean,
 ): number {
-  const current = context.current.get('chat') as ChatNode | null | undefined
-  return current?.kind === 'system-prompt'
-    ? current.anchorSeq
-    : requestPromptAnchor(match, previous, isInitial)
+  const current = context.current.get('chat')
+  if (current !== undefined && current !== null && current.kind === 'system-prompt') {
+    const anchorSeq: unknown = Reflect.get(current, 'anchorSeq')
+    if (typeof anchorSeq === 'number' && Number.isSafeInteger(anchorSeq)) return anchorSeq
+  }
+  return requestPromptAnchor(match, previous, isInitial)
 }
 
 /**
  * Request-header prompt Definition for the Chat target.
- * @param inspect - the shared prompt interpretation, supplied by the
- * uiConversation service (a client bundle cannot value-import it).
+ * @param inspect - request-header prompt interpretation.
+ * @param readPrompt - claim a stored prompt snapshot.
  * @returns the Chat request-prompt Definition.
  */
-export function requestPromptDefinition(inspect: RequestPromptInspector): ConversationNodeDefinition<RequestPromptState> {
+export function requestPromptDefinition(
+  inspect: RequestPromptInspector,
+  readPrompt: ConversationPromptSnapshotReader,
+): ConversationNodeDefinition<RequestPromptState> {
   return {
     kind: 'request-prompt',
     target: 'chat',
@@ -64,7 +97,7 @@ export function requestPromptDefinition(inspect: RequestPromptInspector): Conver
       if (match.event.type !== 'request/header') {
         throw new Error('request-prompt start requires request/header')
       }
-      const previous = reader.previous<RequestPromptState>('request-prompt')?.state
+      const previous = previousRequestPrompt(reader.previous('request-prompt')?.state, readPrompt)
       const location = match.location.kind === 'step'
         ? { turn: match.location.turn.turn, step: match.location.step.step }
         : {}
@@ -102,5 +135,6 @@ export function requestPromptDefinition(inspect: RequestPromptInspector): Conver
 export function registerRequestPromptConversationNode(ctx: Context): void {
   ctx.uiConversation.events.register(requestPromptDefinition(
     (previous, event) => ctx.uiConversation.inspectRequestPrompt(previous, event),
+    value => ctx.uiConversation.requireConversationPromptSnapshot(value),
   ))
 }

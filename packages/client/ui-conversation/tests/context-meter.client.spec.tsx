@@ -57,9 +57,9 @@ describe('ContextMeter', () => {
       contextBreakdown: BREAKDOWN,
     })
     const trigger = view.getByRole('button', { name: '上下文已用 25%' })
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.queryByRole('dialog')).toBeNull()
     fireEvent.click(trigger)
-    const panel = view.container.querySelector('[role="dialog"]')!
+    const panel = view.getByRole('dialog')
     expect(panel.textContent).toContain('~32K / 128K')
     expect(panel.textContent).toContain('25%')
     expect(panel.textContent).toContain('上下文已用')
@@ -70,7 +70,7 @@ describe('ContextMeter', () => {
     expect(panel.getElementsByClassName(segmentClass)).toHaveLength(3)
     // Clicking the trigger again toggles the panel shut.
     fireEvent.click(trigger)
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.container.querySelector('dialog')).toBeNull()
   })
 
   it('lets each locale own the headline word order around the reading', () => {
@@ -82,11 +82,11 @@ describe('ContextMeter', () => {
     fireEvent.click(zhView.getByRole('button', { name: '上下文已用 25%' }))
     // The reading follows the label in Chinese and leads it in English; both
     // headers read as one sentence rather than a concatenated fragment.
-    expect(zhView.container.querySelector('[role="dialog"]')!.textContent)
+    expect(zhView.container.querySelector('dialog')!.textContent)
       .toMatch(/^上下文已用25%/)
     const enView = meter(values, tEn)
     fireEvent.click(enView.getByRole('button', { name: '25% of context used' }))
-    expect(enView.container.querySelector('[role="dialog"]')!.textContent)
+    expect(enView.container.querySelector('dialog')!.textContent)
       .toMatch(/^25%of context used/)
   })
 
@@ -96,7 +96,7 @@ describe('ContextMeter', () => {
       contextBreakdown: BREAKDOWN,
     })
     fireEvent.click(view.getByRole('button', { name: '上下文已用 0%' }))
-    const panel = view.container.querySelector('[role="dialog"]')!
+    const panel = view.container.querySelector('dialog')!
     // `.segment` carries a min-width, so a zero-width part would still paint a
     // filled sliver over an empty context.
     expect(panel.getElementsByClassName(segmentClass)).toHaveLength(0)
@@ -112,13 +112,13 @@ describe('ContextMeter', () => {
     })
     const trigger = view.getByRole('button', { name: '上下文已用 2%' })
     fireEvent.click(trigger)
-    expect(view.container.querySelector('[role="dialog"]')!.textContent).toContain('~3K / 128K')
+    expect(view.container.querySelector('dialog')!.textContent).toContain('~3K / 128K')
   })
 
   it('omits the composition rows while the contextBreakdown projection is absent', () => {
     const view = meter({ contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } })
     fireEvent.click(view.getByRole('button', { name: '上下文已用 25%' }))
-    const panel = view.container.querySelector('[role="dialog"]')!
+    const panel = view.container.querySelector('dialog')!
     expect(panel.textContent).toContain('~32K / 128K')
     expect(panel.textContent).not.toContain('系统提示词')
     expect(panel.textContent).not.toContain('对话消息')
@@ -133,7 +133,7 @@ describe('ContextMeter', () => {
     }
     const view = render(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
     fireEvent.click(view.getByRole('button', { name: '上下文已用 25%' }))
-    expect(view.container.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(view.container.querySelector('dialog')).not.toBeNull()
 
     values = { contextPressure: { pressureTokens: 32_000 }, contextBreakdown: BREAKDOWN }
     view.rerender(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
@@ -145,7 +145,7 @@ describe('ContextMeter', () => {
     }
     view.rerender(<ContextMeter useProjection={(key: string) => values[key]} t={t} />)
     expect(view.getByRole('button', { name: '上下文已用 25%' }).getAttribute('aria-expanded')).toBe('false')
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.container.querySelector('dialog')).toBeNull()
   })
 
   it('closes on outside pointerdown and Escape — but not inside clicks', () => {
@@ -156,18 +156,18 @@ describe('ContextMeter', () => {
     const trigger = view.getByRole('button', { name: '上下文已用 25%' })
     const openPanel = () => {
       fireEvent.click(trigger)
-      return view.container.querySelector('[role="dialog"]')!
+      return view.container.querySelector('dialog')!
     }
     // A pointerdown inside the panel keeps it open; outside closes it.
     const again = openPanel()
     fireEvent.pointerDown(again)
-    expect(view.container.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(view.container.querySelector('dialog')).not.toBeNull()
     fireEvent.pointerDown(document.body)
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.container.querySelector('dialog')).toBeNull()
     // Escape.
     openPanel()
     fireEvent.keyDown(document, { key: 'Escape' })
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
+    expect(view.container.querySelector('dialog')).toBeNull()
   })
 })
 

@@ -5,6 +5,8 @@ import { inspectorId } from '../../shared/identity.ts'
 import type { InspectorSourceDescriptor } from '../../shared/bridge/messages/observation.ts'
 import { bridgeCapabilities } from '../cdp/index.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const CLIENT_SOURCE_STORAGE_KEY = 'dsh.experimental-inspector.client-source-id.v0'
 const CLIENT_SOURCE_LOCK_PREFIX = 'dsh.experimental-inspector.client-source:'
 
@@ -114,7 +116,7 @@ function tryClaimSourceId(
       }
       resolve(release)
       await held
-    }).catch(reject)
+    }).then(undefined, (error: Thrown) => { reject(error) })
   })
 }
 

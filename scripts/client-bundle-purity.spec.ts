@@ -105,6 +105,7 @@ describe('client bundle purity gate', () => {
   it('lets inline-safe wire layers inline', () => {
     expect(resolveId('@deepseek-ai/dsh-session/surface')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-brand')).toBeNull()
+    expect(resolveId('@deepseek-ai/dsh-thrown')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-token-meter/client')).toBeNull()
     expect(() => resolveId('@deepseek-ai/dsh-token-meter')).toThrow(/purity/)
     expect(() => resolveId('@deepseek-ai/dsh-token-meter/client/internal')).toThrow(/purity/)
@@ -119,6 +120,19 @@ describe('client bundle purity gate', () => {
     expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/types')).toThrow(/purity/)
     expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/wire-values/x')).toThrow(/purity/)
     expect(() => resolveId('@deepseek-ai/dsh-cordis-host-runner/wire-valuesX')).toThrow(/purity/)
+  })
+
+  it('admits the cordis-free compaction checkpoint and command brand leaves without their Host roots', () => {
+    expect(resolveId('@deepseek-ai/dsh-compaction/checkpoint')).toBeNull()
+    expect(resolveId('@deepseek-ai/dsh-commands/brand')).toBeNull()
+    expect(() => resolveId('@deepseek-ai/dsh-compaction')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-compaction/types')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-compaction/checkpoint/x')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-compaction/checkpointX')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-commands')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-commands/types')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-commands/brand/x')).toThrow(/purity/)
+    expect(() => resolveId('@deepseek-ai/dsh-commands/brandX')).toThrow(/purity/)
   })
 
   it('lets exact generated Remote contributions inline without admitting their package implementation', () => {
@@ -261,7 +275,7 @@ describe('client bundle CSS Modules watch graph', () => {
     ))
     const virtualId = plugin.resolveId?.('./QueueDock.module.css', importer)
     if (virtualId === null || virtualId === undefined) throw new Error('CSS Modules import was not resolved')
-    const addWatchFile = vi.fn()
+    const addWatchFile = vi.fn<(id: string) => void>()
 
     await plugin.load?.call({ addWatchFile }, virtualId)
 

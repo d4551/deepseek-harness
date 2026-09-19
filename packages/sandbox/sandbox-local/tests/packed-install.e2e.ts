@@ -51,7 +51,9 @@ let verdict: {
   confineOutcome?: string
 } = { launcher: '', launcherExists: false, enforcing: false }
 
-describe.skipIf(!packable)('sandbox-local: packed-tarball distribution (publish-path rehearsal)', () => {
+const SKIP_WHEN_NOT_PACKABLE = !packable
+if (SKIP_WHEN_NOT_PACKABLE) console.info('[skip] packed-install.e2e.ts: packed-tarball preconditions are unmet; distribution rehearsal stays off')
+describe.skipIf(SKIP_WHEN_NOT_PACKABLE)('sandbox-local: packed-tarball distribution (publish-path rehearsal)', () => {
   beforeAll(async () => {
     const packDest = mkdtempSync(join(tmpdir(), 'dsh-pack-'))
     consumerDir = mkdtempSync(join(tmpdir(), 'dsh-packed-consumer-'))

@@ -162,7 +162,7 @@ declare module '@deepseek-ai/cordis' {
      * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
      * @mode emit
      */
-    'agent/created'(this: Scoped<Agent>, payload: { agent: Agent }): void
+    'agent/created'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>
     /**
      * An agent left the registry; AgentLoop emits this after driver quiescence
      * and scoped-registration unwind, but before session detachment. Custom
@@ -171,7 +171,7 @@ declare module '@deepseek-ai/cordis' {
      * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
      * @mode emit
      */
-    'agent/disposed'(this: Scoped<Agent>, payload: { agent: Agent }): void
+    'agent/disposed'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>
     /**
      * Agent status changed (`idle` ⇄ `running`). A waking delivery enters
      * `running` synchronously after reserving cancellation; `idle` means no

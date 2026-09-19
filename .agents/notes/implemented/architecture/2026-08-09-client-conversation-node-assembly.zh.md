@@ -98,7 +98,7 @@ Definition 可以读取完整 `matches` 辅助构造 State 或 fallback Node，�
 
 `reader.previous(kind)` 查找满足 `candidate.startSeq < current.startSeq` 且 State 已初始化的最近 Context。它不会返回同 seq、未来 Context 或尚无 State 的 pending Context。
 
-返回值包含前序 Context 的 key、kind、id、start seq、只读 State 和 Matches。消费者自行解释 State；提供方只负责把自己的 State 维护正确，不需要注册特化 query 方法。
+返回值包含前序 Context 的 key、kind、id、start seq、未类型化的 State 和 Matches。消费者在调用处认领 State；提供方只负责把自己的 State 维护正确，不需要注册特化 query 方法。
 
 Reader 每次查询都记录 `{ key, revision, windowGap }` 依赖。命中前序 Context 时，其 revision 变化会 replay 消费者；未命中且仍有 older 历史时，window gap 会等待后续 prepend。
 
@@ -164,7 +164,7 @@ ID 不复用，完成的 Context 继续存在于当前窗口，既提供稳定�
 
 Location 有 `session`、`turn`、`step` 和 `unresolved` 四种形状。Turn/Step 各自带 `open`、`closed` 或 `unknown` 状态，以及已加载的 start/end Event。
 
-每个 Turn 和 Step 还持有 reference-stable 的 Location data store。Definition 更新只替换自己拥有的 key；同一个 store identity 可以随 append 或 prepend 获得新值，使 Context、View Builder 和 React renderer 共享已经确定的层级业务事实，而不复制或遍历全局 Node 数组。
+每个 Turn 和 Step 还持有 reference-stable 的 Location data store，其 `get(key)` 返回 unknown。Definition 更新只替换自己拥有的 key；消费者认领自己能证明的 payload。同一个 store identity 可以随 append 或 prepend 获得新值，使 Context、View Builder 和 React renderer 共享已经确定的层级业务事实，而不复制或遍历全局 Node 数组。
 
 `unresolved` 表示当前历史窗口缺少足够前序边界，不等于 session-level。older prepend 补入边界后，索引修正 Match Location，并只 replay 拥有这些 seq 的 Context。
 
@@ -290,7 +290,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 
 Inbox 展示了“每条 Event 都是一个 start-only 瞬间态 Context”，不是所有业务都需要 start/update 配对。它通过 Reader 与前一个同 kind Context 形成连续 fold，而非给整个 Inbox 人工制造生命周期 ID。
 
-Request Prompt 展示了如何在不共享 target State 的前提下共用纯解释逻辑：Chat 与 Trajectory 各自在自己的 Definition 中调用 `inspectRequestPrompt()`。该函数规范化完整 header，并判定面向模型的 system/tool 差异；随后每个 target 自行选择产物。Chat 会物化每条带非空 system 字段的 header，包括为显式声明的序列或表层替换后的请求重复未变 header 的 `series` 快照；Trajectory 则保留完整请求事实及其变化分类。普通的仅追加后续 Turn 不会再次写入未变 header。一个 Step 中的首条 header 遵循提供方信封，而不是 header Event 位置：step one 使用所属 Turn start，后续 step 使用各自的 Step start，把 system 字段放到该请求的 user-role 消息之前；同一 Step 的后续 header 保留在开启新序列的表层改写之后。部分窗口未包含前序 header 时，非 `initial` header 会保留在自身 Event，直到 prepend 补入该前序 header。每条 header 都是完整快照，因此已加载窗口中的首条 `resume`、`change` 或 `series` header 无需凭空构造与未加载历史的比较，也能渲染其 system 字段。
+Request Prompt 展示了如何在不共享 target State 的前提下共用纯解释逻辑：Chat 与 Trajectory 各自在自己的 Definition 中调用 `uiConversation.inspectRequestPrompt()` 与 `uiConversation.requireConversationPromptSnapshot()`。该函数规范化完整 header，并判定面向模型的 system/tool 差异；随后每个 target 自行选择产物。Chat 会物化每条带非空 system 字段的 header，包括为显式声明的序列或表层替换后的请求重复未变 header 的 `series` 快照；Trajectory 则保留完整请求事实及其变化分类。普通的仅追加后续 Turn 不会再次写入未变 header。一个 Step 中的首条 header 遵循提供方信封，而不是 header Event 位置：step one 使用所属 Turn start，后续 step 使用各自的 Step start，把 system 字段放到该请求的 user-role 消息之前；同一 Step 的后续 header 保留在开启新序列的表层改写之后。部分窗口未包含前序 header 时，非 `initial` header 会保留在自身 Event，直到 prepend 补入该前序 header。每条 header 都是完整快照，因此已加载窗口中的首条 `resume`、`change` 或 `series` header 无需凭空构造与未加载历史的比较，也能渲染其 system 字段。
 
 Retry、Assistant 和 Turn Tail 展示了同一 Event 被多个 Definition 独立认领。每个 Definition 只更新自己的 State，最终分别生成原子 Chat Node。
 

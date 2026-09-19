@@ -47,7 +47,9 @@ async function sandboxedBash(workspace: string, mode: 'read-only' | 'workspace-w
   return ctx.shell as SandboxBashExecutor
 }
 
-describe.skipIf(!seatbeltUsable)('bash-sandbox: real Seatbelt confinement through ctx.shell', () => {
+const SKIP_WITHOUT_SEATBELT = !seatbeltUsable
+if (SKIP_WITHOUT_SEATBELT) console.info('[skip] seatbelt.e2e.ts: Seatbelt (sandbox-exec) is unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_SEATBELT)('bash-sandbox: real Seatbelt confinement through ctx.shell', () => {
   it('read-only denies a write — the file must NOT exist, and EPERM text classifies as a denial', async () => {
     const workdir = await tempDir(homedir())
     const bash = await sandboxedBash(workdir, 'read-only')

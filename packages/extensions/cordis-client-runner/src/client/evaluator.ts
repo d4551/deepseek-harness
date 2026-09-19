@@ -3,7 +3,7 @@
  * async function whose parameters ARE the symbol surface. Shadowing parameters
  * (setTimeout/fetch/require/…) turn the ambient browser globals into teaching
  * redirects without touching the page. The host syntax-prechecked the source at
- * define time; SyntaxError handling here is the engine-divergence fallback and
+ * define time; parse-failure handling here is the engine-divergence fallback and
  * reaches the model through the load report.
  */
 
@@ -116,13 +116,25 @@ function errorText(arg: unknown): string {
   if (arg instanceof Error) return arg.message
   if (typeof arg === 'string') return arg
   if (arg === undefined) return 'undefined'
-  try {
-    return JSON.stringify(arg)
-  } catch {
-    // A circular or otherwise non-serializable console argument: the mirror
-    // carries the message, and nothing else here can fail.
-    return '[unserializable console argument]'
-  }
+  const seen = new WeakSet<object>()
+  let cyclic = false
+  let text = '[unserializable console argument]'
+  new Promise((resolve: (value: string) => void) => {
+    const serialized = JSON.stringify(arg, (_key, value: unknown) => {
+      if (typeof value === 'bigint') return `${value}n`
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          cyclic = true
+          return
+        }
+        seen.add(value)
+      }
+      return value
+    })
+    if (!cyclic) text = serialized || text
+    resolve(text)
+  }).then(() => undefined, () => undefined)
+  return text
 }
 
 /** Tagged write-through console; error lines additionally copy into the load report. */
@@ -172,17 +184,20 @@ export async function evaluateClientHalf(
   const traps = closureTraps()
   const parameters = ['React', 'console', 'styles', 'host', 'harness', ...Object.keys(traps), 'process', 'Buffer']
   let closure: (...args: unknown[]) => Promise<unknown>
+  const source = `export default (${parameters.join(', ')}) => (async () => {\n${clientCode}\n})()`
+  const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`
   try {
-    // The wrapper mirrors the host precheck exactly, so line offsets match.
-    // Evaluating a definition's browser half IS this package's product: the
-    // source arrived from a host process that accepted and prechecked it.
-    // oxlint-disable-next-line typescript/no-implied-eval -- see above
-    const factory = new Function(...parameters, `return (async () => {\n${clientCode}\n})()`)
-    closure = factory as (...args: unknown[]) => Promise<unknown>
+    const module: unknown = await import(/* @vite-ignore */ moduleUrl)
+    if (typeof module !== 'object' || module === null || !('default' in module) || typeof module.default !== 'function') {
+      throw new Error('client half module did not export a function')
+    }
+    const exported = module.default
+    closure = (...args: unknown[]): Promise<unknown> => Promise.resolve(Reflect.apply(exported, undefined, args))
   } catch (error) {
-    if (!(error instanceof SyntaxError)) throw error
-    // Engine-divergence fallback: the host precheck already carried the
-    // line/caret teaching; browsers give only the message.
+    // Node still throws SyntaxError for an unparseable data:text/javascript
+    // module. Chrome, Firefox, and Safari reject the same URL as TypeError
+    // (typically "Failed to fetch dynamically imported module").
+    if (!(error instanceof SyntaxError) && !(error instanceof TypeError)) throw error
     throw new Error(
       `client half failed to parse in this browser: ${error.message}\n`
       + 'The browser half is plain JavaScript (no JSX, no TypeScript); build elements with React.createElement.',

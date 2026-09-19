@@ -117,7 +117,11 @@ export class CommandDirectory {
   }
 
   private async pull(sessionId: SessionId, entry: Entry, epoch: number, key: symbol): Promise<void> {
-    const [result] = await Promise.allSettled([Promise.try(() => this.fetchCommands(sessionId))])
+    const [result] = await Promise.allSettled([
+      new Promise<readonly CommandDescriptor[]>((resolve) => {
+        resolve(this.fetchCommands(sessionId))
+      }),
+    ])
     if (epoch === entry.epoch) {
       entry.commands = result.status === 'fulfilled' ? result.value : []
       entry.state = result.status === 'fulfilled' ? 'ready' : 'failed'

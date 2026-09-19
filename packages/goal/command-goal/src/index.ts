@@ -175,7 +175,7 @@ function executeGoalCommand(ctx: Context, invocation: CommandInvocation): Comman
       /* v8 ignore next 2 -- GoalCommand is closed and every member is handled above */
       default: return assertNever(command, 'goal command')
     }
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof GoalError) {
       return {
         kind: 'error',

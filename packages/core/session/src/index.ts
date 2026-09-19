@@ -8,30 +8,31 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
-import { deepFreeze } from '@deepseek-ai/dsh-llm'
+import { deepFreeze, errorChain } from '@deepseek-ai/dsh-llm'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
+import { SESSION_FORMAT_VERSION, SessionId, assertSessionEventObject } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
-import { snapshotJsonValue } from './json.ts'
+import { snapshotJsonObject, snapshotJsonValue } from './json.ts'
+import type { JsonValue } from './json.ts'
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
 import { SessionRequestBudgets } from './request-budget.ts'
 
-export { SESSION_FORMAT_VERSION, SessionId } from './types.ts'
+export { SESSION_FORMAT_VERSION, SessionId, assertSessionEventObject } from './types.ts'
 export type { AgentCancelCause, CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, RequestHeaderReason, RestoredSessionOptions, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceEvent, SurfaceEventType, SurfaceIntent, SurfaceOp, TurnEndCancelCause, TurnEndReason, TurnEndReasonMap } from './types.ts'
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
 export type { AssistantMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
-export { hasPlainArrayPrototype, hasPlainObjectPrototype, isJsonValue, snapshotJsonValue } from './json.ts'
+export { hasPlainArrayPrototype, hasPlainObjectPrototype, isJsonValue, snapshotJsonObject, snapshotJsonValue } from './json.ts'
 export type { JsonValue } from './json.ts'
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export { decodeStorageRecord, packChunkRuns } from './chunk-rows.ts'
 export type { ChunkRow, StorageRecord } from './chunk-rows.ts'
-export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
+export type { SessionSurface, SurfaceContractReject, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
@@ -100,44 +101,70 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('session header is not a plain JSON record')
   }
-  const record = input as Record<string, unknown>
-  if (record.version !== SESSION_FORMAT_VERSION) {
-    throw new Error(`session header version must be ${SESSION_FORMAT_VERSION}, got ${String(record.version)}`)
+  if (!('version' in input) || input.version !== SESSION_FORMAT_VERSION) {
+    throw new Error(`session header version must be ${SESSION_FORMAT_VERSION}`)
   }
-  if (record.id !== id) {
-    throw new Error(`session header id "${String(record.id)}" does not match session id "${id}"`)
+  if (!('id' in input) || input.id !== id) {
+    throw new Error('session header id does not match session id')
   }
-  if (typeof record.createdAt !== 'number'
-    || !Number.isSafeInteger(record.createdAt)
-    || record.createdAt < 0) {
+  if (!('createdAt' in input)
+    || typeof input.createdAt !== 'number'
+    || !Number.isSafeInteger(input.createdAt)
+    || input.createdAt < 0) {
     throw new Error('session header createdAt must be a non-negative safe integer')
   }
-  if (record.cwd !== undefined) {
-    if (typeof record.cwd !== 'string') throw new Error('session header cwd must be a string')
-    if (!isAbsolute(record.cwd)) {
-      throw new Error(`session header cwd must be an absolute path, got "${record.cwd}"`)
+  const cwd = 'cwd' in input && input.cwd !== undefined
+    ? input.cwd
+    : undefined
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string') throw new Error('session header cwd must be a string')
+    if (!isAbsolute(cwd)) {
+      throw new Error(`session header cwd must be an absolute path, got "${cwd}"`)
     }
   }
-  if (record.parentSession !== undefined && typeof record.parentSession !== 'string') {
+  const parentSession = 'parentSession' in input && input.parentSession !== undefined
+    ? input.parentSession
+    : undefined
+  if (parentSession !== undefined && typeof parentSession !== 'string') {
     throw new Error('session header parentSession must be a string')
   }
-  if (record.seedLength !== undefined
-    && (typeof record.seedLength !== 'number' || !Number.isSafeInteger(record.seedLength) || record.seedLength < 0)) {
+  const seedLength = 'seedLength' in input && input.seedLength !== undefined
+    ? input.seedLength
+    : undefined
+  if (seedLength !== undefined
+    && (typeof seedLength !== 'number' || !Number.isSafeInteger(seedLength) || seedLength < 0)) {
     throw new Error('session header seedLength must be a non-negative safe integer')
   }
-  if (record.origin !== undefined && record.origin !== 'subagent') {
+  const origin = 'origin' in input && input.origin !== undefined
+    ? input.origin
+    : undefined
+  if (origin !== undefined && origin !== 'subagent') {
     throw new Error('session header origin must be "subagent"')
   }
-  if (record.delegationDepth !== undefined
-    && (typeof record.delegationDepth !== 'number' || !Number.isSafeInteger(record.delegationDepth) || record.delegationDepth < 0)) {
+  const delegationDepth = 'delegationDepth' in input && input.delegationDepth !== undefined
+    ? input.delegationDepth
+    : undefined
+  if (delegationDepth !== undefined
+    && (typeof delegationDepth !== 'number' || !Number.isSafeInteger(delegationDepth) || delegationDepth < 0)) {
     throw new Error('session header delegationDepth must be a non-negative safe integer')
   }
-  if (record.agentPreset !== undefined && typeof record.agentPreset !== 'string') {
+  const agentPreset = 'agentPreset' in input && input.agentPreset !== undefined
+    ? input.agentPreset
+    : undefined
+  if (agentPreset !== undefined && typeof agentPreset !== 'string') {
     throw new Error('session header agentPreset must be a string')
   }
-  // Every field above is checked, so the narrowing states what the checks
-  // proved rather than standing in for them.
-  return deepFreeze(record as SessionHeader)
+  return deepFreeze({
+    version: SESSION_FORMAT_VERSION,
+    id,
+    createdAt: input.createdAt,
+    ...cwd === undefined ? {} : { cwd },
+    ...parentSession === undefined ? {} : { parentSession: SessionId(parentSession) },
+    ...seedLength === undefined ? {} : { seedLength },
+    ...origin === undefined ? {} : { origin },
+    ...delegationDepth === undefined ? {} : { delegationDepth },
+    ...agentPreset === undefined ? {} : { agentPreset },
+  })
 }
 
 /** Validate and freeze one exclusively owned persistence header in place. */
@@ -170,10 +197,7 @@ function snapshotSessionHeader(id: SessionId, source?: SessionHeader): SessionHe
  * @returns the same event object with a validated, deeply frozen message.
  */
 export function adoptSessionEvent<T extends SessionEvent>(event: T): T {
-  assertMessageEventShape(
-    event,
-    `session event at seq ${event.seq}`,
-  )
+  assertMessageEventShape(event, `session event at seq ${event.seq}`)
   switch (event.type) {
     case 'user/message':
       deepFreeze(event.data)
@@ -198,29 +222,69 @@ export function snapshotSessionEvent<T extends SessionEvent>(event: T): T {
   return adoptSessionEvent(structuredClone(event))
 }
 
-/** Deep-freeze one acyclic JSON tree without consuming the JavaScript call stack. */
-function freezeRestoredObject<T extends object>(value: T): T {
-  const pending: object[] = [value]
-  while (pending.length > 0) {
-    // The non-empty check proves an object remains to visit.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const current = pending.pop()!
-    Object.freeze(current)
-    for (const key in current) {
-      const child = (current as Record<string, unknown>)[key]
-      if (child !== null && typeof child === 'object') pending.push(child)
-    }
+type JsonObject = { [key: string]: JsonValue }
+
+/** Confirm a constructed append payload is a session event before it enters the log. */
+function assertPublishedSessionEvent(
+  value: object,
+  expectedType: string,
+  expectedSeq: number,
+): asserts value is SessionEvent {
+  assertSessionEventObject(value)
+  if (value.type !== expectedType) {
+    throw new Error(`session event "${expectedType}" published a different type`)
   }
-  return value
+  if (value.seq !== expectedSeq) {
+    throw new Error(`session event "${expectedType}" published an unexpected seq`)
+  }
 }
 
-/** Validate the fixed event envelope after one-pass JSON materialization. */
-function assertSessionEventEnvelope(value: Record<string, unknown>, index: number): asserts value is SessionEvent {
-  const event = value
-  if (event['type'] === 'request/header-delta') {
+/** Narrow a published event to the append call's type argument. */
+function isSessionEventOfType<T extends SessionEventType>(
+  event: SessionEvent,
+  type: T,
+): event is SessionEvent<T> {
+  return event.type === type
+}
+
+/** Whether a seed type is the removed request/header-delta codec. */
+function isLegacyRequestHeaderDelta(type: string): boolean {
+  return type === 'request/header-delta'
+}
+
+/** Detach the JSON object a session event serializes to. */
+function sessionJsonRecord(event: SessionEvent, subject: string): JsonObject {
+  const record = snapshotJsonObject(event)
+  if (record === undefined) {
+    throw new Error(`${subject} is not losslessly JSON-serializable`)
+  }
+  return record
+}
+
+/** Validate one seed event after a single JSON snapshot. */
+function assertSeedSessionEvent(event: SessionEvent, index: number): JsonObject {
+  const record = sessionJsonRecord(event, `seed event at index ${index}`)
+  assertSessionEventEnvelopeRecord(record, index)
+  assertCurrentLlmShapeRecord(record, index)
+  const type = record.type
+  const seq = record.seq
+  if (typeof type !== 'string' || typeof seq !== 'number') {
+    throw new Error(`seed event at index ${index} has an invalid event envelope`)
+  }
+  assertSupportedRequestHeader(type, record.data, `seed event at index ${index}`)
+  if (seq !== index) {
+    throw new Error(`seed event at index ${index} has seq ${seq} (expected ${index}); seed must be contiguous from 0`)
+  }
+  return record
+}
+
+/** Validate the fixed event envelope on a detached JSON record. */
+function assertSessionEventEnvelopeRecord(record: JsonObject, index: number): void {
+  const type = record.type
+  if (typeof type === 'string' && isLegacyRequestHeaderDelta(type)) {
     throw new Error(`seed event at index ${index} uses unsupported legacy request/header-delta format`)
   }
-  for (const key in event) {
+  for (const key in record) {
     switch (key) {
       case 'type':
       case 'seq':
@@ -233,143 +297,150 @@ function assertSessionEventEnvelope(value: Record<string, unknown>, index: numbe
         throw new Error(`seed event at index ${index} has an invalid event envelope`)
     }
   }
-  const type = event['type']
-  const seq = event['seq']
-  const time = event['time']
+  const seq = record.seq
+  const time = record.time
   if (typeof type !== 'string'
     || typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0
     || typeof time !== 'number' || !Number.isSafeInteger(time)
-    || event['data'] === undefined) {
+    || !Object.hasOwn(record, 'data')) {
     throw new Error(`seed event at index ${index} has an invalid event envelope`)
-  }
-  switch (type) {
-    case 'request/header':
-    case 'user/message':
-    case 'assistant/message':
-    case 'tool/result':
-      assertCurrentLlmShape(event, index)
-      break
   }
 }
 
-/** Reject obsolete request headers and malformed messages at the seed/load boundary. */
-function assertCurrentLlmShape(event: Record<string, unknown>, index: number): void {
-  const data = event['data']
-  const record = typeof data === 'object' && data !== null
-    ? data as Record<string, unknown>
-    : undefined
-  if (event['type'] === 'request/header') {
-    const header = record?.['header']
-    const headerRecord = typeof header === 'object' && header !== null && !Array.isArray(header)
-      ? header as Record<string, unknown>
+/** Reject obsolete request headers and malformed messages on a detached JSON record. */
+function assertCurrentLlmShapeRecord(record: JsonObject, index: number): void {
+  const type = record.type
+  if (type === 'request/header') {
+    const data = record.data
+    const header = typeof data === 'object' && data !== null && !Array.isArray(data) && 'header' in data
+      ? data.header
       : undefined
-    const config = headerRecord?.['config']
-    if (!hasProviderModel(config)) throw new Error(`seed request/header at index ${index} lacks provider/model`)
-    const configRecord = config as Record<string, unknown>
-    const reasoningEffort = configRecord['reasoningEffort']
+    if (typeof header !== 'object' || header === null || Array.isArray(header)) {
+      throw new Error(`seed request/header at index ${index} lacks provider/model`)
+    }
+    const config = 'config' in header ? header.config : undefined
+    if (typeof config !== 'object' || config === null || Array.isArray(config) || !hasProviderModel(config)) {
+      throw new Error(`seed request/header at index ${index} lacks provider/model`)
+    }
+    const reasoningEffort = 'reasoningEffort' in config ? config.reasoningEffort : undefined
     if (reasoningEffort !== undefined
       && (typeof reasoningEffort !== 'string' || reasoningEffort.length === 0)) {
       throw new Error(`seed request/header at index ${index} has an invalid reasoningEffort`)
     }
-    assertAdapterDefaults(headerRecord?.['adapterDefaults'], configRecord, index)
+    const adapterDefaults = 'adapterDefaults' in header ? header.adapterDefaults : undefined
+    assertAdapterDefaults(adapterDefaults, config, index)
   }
-  const type = event['type']
-  if (type !== 'user/message' && type !== 'assistant/message'
-    && type !== 'tool/result') return
-  assertMessageEventShape(event, `seed ${type} at index ${index}`)
+  if (type === 'user/message' || type === 'assistant/message' || type === 'tool/result') {
+    assertMessageEventShapeRecord(record, `seed ${type} at index ${index}`)
+  }
 }
 
 const allowedAdapterKeys = new Set(['reasoningEffort', 'maxTokens'])
 
 /** Validate adapter-default markers imported from a durable request header. */
 function assertAdapterDefaults(
-  value: unknown,
-  config: Record<string, unknown>,
+  value: JsonValue | undefined,
+  config: object,
   index: number,
 ): void {
   if (value === undefined) return
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
   }
-  const defaults = value as Record<string, unknown>
-  if (Object.keys(defaults).some(key => !allowedAdapterKeys.has(key))
-    || Object.values(defaults).some(marker => marker !== true)
-    || defaults['reasoningEffort'] === true && config['reasoningEffort'] === undefined
-    || defaults['maxTokens'] === true && config['maxTokens'] === undefined) {
+  const keys = Object.keys(value)
+  if (keys.some(key => !allowedAdapterKeys.has(key))
+    || Object.values(value).some(marker => marker !== true)
+    || 'reasoningEffort' in value && value.reasoningEffort === true && !Object.hasOwn(config, 'reasoningEffort')
+    || 'maxTokens' in value && value.maxTokens === true && !Object.hasOwn(config, 'maxTokens')) {
     throw new Error(`seed request/header at index ${index} has invalid adapterDefaults`)
   }
 }
 
 /** Validate only the event-specific invariants needed to safely replay a message. */
-function assertMessageEventShape(event: Record<string, unknown>, subject: string): void {
-  const type = event['type']
-  if (type !== 'user/message' && type !== 'assistant/message'
-    && type !== 'tool/result') return
-  const data = event['data']
-  const record = typeof data === 'object' && data !== null
-    ? data as Record<string, unknown>
+function assertMessageEventShape(event: SessionEvent, subject: string): void {
+  assertMessageEventShapeRecord(sessionJsonRecord(event, subject), subject)
+}
+
+function assertMessageEventShapeRecord(record: JsonObject, subject: string): void {
+  const type = record.type
+  if (typeof type !== 'string') {
+    throw new Error(`${subject} has an invalid event type`)
+  }
+  if (type !== 'user/message' && type !== 'assistant/message' && type !== 'tool/result') return
+
+  const data = record.data
+  const message = type === 'user/message'
+    ? data
+    : typeof data === 'object' && data !== null && !Array.isArray(data) && 'message' in data
+      ? data.message
+      : undefined
+  const id = typeof message === 'object' && message !== null && !Array.isArray(message) && 'id' in message
+    ? message.id
     : undefined
-  const message = type === 'user/message' ? record : record?.['message']
-  if (typeof message !== 'object' || message === null
-    || typeof (message as Record<string, unknown>)['id'] !== 'string'
-    || (message as Record<string, unknown>)['id'] === '') {
+  if (typeof message !== 'object' || message === null || Array.isArray(message) || typeof id !== 'string' || id === '') {
     throw new Error(`${subject} lacks an identified message`)
   }
-  const messageRecord = message as Record<string, unknown>
+
   const expectedRole = type === 'assistant/message' ? 'assistant' : 'user'
-  if (messageRecord['role'] !== expectedRole) {
+  const role = 'role' in message ? message.role : undefined
+  if (role !== expectedRole) {
     throw new Error(`${subject} message must have role "${expectedRole}"`)
   }
-  const source = messageRecord['source']
-  if (typeof source !== 'object' || source === null
-    || typeof (source as Record<string, unknown>)['kind'] !== 'string'
-    || (source as Record<string, unknown>)['kind'] === '') {
+
+  const source = 'source' in message ? message.source : undefined
+  const kind = typeof source === 'object' && source !== null && !Array.isArray(source) && 'kind' in source
+    ? source.kind
+    : undefined
+  if (typeof source !== 'object' || source === null || Array.isArray(source) || typeof kind !== 'string' || kind === '') {
     throw new Error(`${subject} message has invalid source`)
   }
-  if (!Array.isArray(messageRecord['content'])) {
+
+  const content = 'content' in message ? message.content : undefined
+  if (!Array.isArray(content)) {
     throw new Error(`${subject} message has invalid content`)
   }
-  const sourceRecord = source as Record<string, unknown>
+
   if (type === 'assistant/message') {
-    if (sourceRecord['kind'] !== 'model' || !hasProviderModel(sourceRecord)) {
+    if (kind !== 'model' || !hasProviderModel(source)) {
       throw new Error(`${subject} message must have model source`)
     }
     return
   }
   if (type !== 'tool/result') return
-  if (sourceRecord['kind'] !== 'tool'
-    || typeof sourceRecord['callId'] !== 'string'
-    || sourceRecord['callId'] === '') {
+
+  const callId = 'callId' in source ? source.callId : undefined
+  if (kind !== 'tool' || typeof callId !== 'string' || callId === '') {
     throw new Error(`${subject} message must have tool source`)
   }
-  const content = messageRecord['content'] as unknown[]
+
   const block = content[0]
-  if (content.length !== 1 || typeof block !== 'object' || block === null
-    || (block as Record<string, unknown>)['type'] !== 'tool-result'
-    || !Array.isArray((block as Record<string, unknown>)['content'])) {
+  if (content.length !== 1
+    || typeof block !== 'object' || block === null || Array.isArray(block)
+    || !('type' in block) || block.type !== 'tool-result'
+    || !('content' in block) || !Array.isArray(block.content)) {
     throw new Error(`${subject} message must contain one tool-result block`)
   }
-  if ((block as Record<string, unknown>)['toolCallId'] !== sourceRecord['callId']) {
+  const toolCallId = 'toolCallId' in block ? block.toolCallId : undefined
+  if (toolCallId !== callId) {
     throw new Error(`${subject} message has mismatched tool call ids`)
   }
 }
 
-/** Whether an unknown value carries the current provider/model pair. */
-function hasProviderModel(value: unknown): boolean {
-  if (typeof value !== 'object' || value === null) return false
-  const pair = value as Record<string, unknown>
-  return typeof pair['provider'] === 'string' && pair['provider'].length > 0
-    && typeof pair['model'] === 'string' && pair['model'].length > 0
+/** Whether a JSON value carries the current provider/model pair. */
+function hasProviderModel(value: object | undefined): boolean {
+  if (value === undefined || Array.isArray(value)) return false
+  return 'provider' in value && typeof value.provider === 'string' && value.provider.length > 0
+    && 'model' in value && typeof value.model === 'string' && value.model.length > 0
 }
 
 /** Reject request-header vocabulary removed with the legacy delta codec. */
-function assertSupportedRequestHeader(type: string, data: unknown, location: string): void {
+function assertSupportedRequestHeader(type: string, data: JsonValue | undefined, location: string): void {
   if (type === 'request/header-delta') {
     throw new Error(`${location} uses unsupported legacy request/header-delta format`)
   }
   if (type === 'request/header'
     && data !== null && typeof data === 'object' && !Array.isArray(data)
-    && (data as Record<string, unknown>)['reason'] === 'fallback') {
+    && 'reason' in data && data.reason === 'fallback') {
     throw new Error(`${location} uses unsupported legacy request/header reason "fallback"`)
   }
 }
@@ -378,7 +449,54 @@ type SessionCallback = (...args: unknown[]) => unknown
 
 /** Resolve one listener snapshot, including Cordis's internal dispatch checks. */
 function collectSessionCallbacks(ctx: Context, args: unknown[]): SessionCallback[] {
-  return [...ctx.events.dispatch('emit', args)] as SessionCallback[]
+  const callbacks: SessionCallback[] = []
+  for (const callback of ctx.events.dispatch('emit', args)) {
+    if (typeof callback !== 'function') {
+      throw new Error('session dispatch produced a non-function listener')
+    }
+    callbacks.push(callback)
+  }
+  return callbacks
+}
+
+/** Values a contained listener may reject or throw. */
+type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Render a contained listener failure with the Error name plus the errorChain body. */
+function renderContainedFailure(reason: ListenerFailure): string {
+  const chain = errorChain(reason)
+  if (reason instanceof Error && chain !== reason.name) return `${reason.name}: ${chain}`
+  return chain
+}
+
+/** Run one emit listener and report a synchronous throw separately from a returned-thenable rejection. */
+function observeListenerInvocation(
+  invoke: () => unknown,
+  onThrow: (reason: ListenerFailure) => void,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  let finishedSynchronously = false
+  function report(reason: ListenerFailure): void {
+    if (finishedSynchronously) onReject(reason)
+    else onThrow(reason)
+  }
+  new Promise((resolve: (value: unknown) => void) => {
+    resolve(invoke())
+    finishedSynchronously = true
+  }).then(ignoreFulfilledListener, report)
+}
+
+/** Drop a fulfilled containment promise so only the rejection path is observed. */
+function ignoreFulfilledListener(): undefined {
+  return undefined
+}
+
+/** Watch a value already returned from a listener. A throw at the call site still escapes. */
+function observeReturnedThenable(
+  returned: unknown,
+  onReject: (reason: ListenerFailure) => void,
+): void {
+  Promise.resolve(returned).then(ignoreFulfilledListener, onReject)
 }
 
 /** Invoke one resolved observe-only listener snapshot with per-listener containment. */
@@ -390,14 +508,15 @@ function invokeContainedSessionObservers(
   callbacks: SessionCallback[],
 ): void {
   for (const callback of callbacks) {
-    try {
-      const returned: unknown = callback(...args)
-      Promise.resolve(returned).catch((error: unknown) => {
-        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${String(error)}`)
-      })
-    } catch (error: unknown) {
-      ctx.logger.warn(`session "${id}": ${name} listener threw: ${String(error)}`)
-    }
+    observeListenerInvocation(
+      () => callback(...args),
+      (reason) => {
+        ctx.logger.warn(`session "${id}": ${name} listener threw: ${renderContainedFailure(reason)}`)
+      },
+      (reason) => {
+        ctx.logger.warn(`session "${id}": ${name} listener rejected: ${renderContainedFailure(reason)}`)
+      },
+    )
   }
 }
 
@@ -517,26 +636,21 @@ export class Session {
       // a bad seed would surface only later as a backend rejection or a silent
       // divergence between the live log and disk.
       for (const [index, source] of seed.entries()) {
-        // The seed is a persistence/replay boundary: validate and detach the
-        // complete event in one lossless-JSON pass.
-        const snapshot = mode === 'restore' ? source : snapshotJsonValue(source)
-        if (snapshot === undefined) {
-          throw new Error(`seed event at index ${index} is not losslessly JSON-serializable`)
+        const record = assertSeedSessionEvent(source, index)
+        const type = record.type
+        const seq = record.seq
+        if (typeof type !== 'string' || typeof seq !== 'number') {
+          throw new Error(`seed event at index ${index} has an invalid event envelope`)
         }
-        assertSessionEventEnvelope(snapshot, index)
-        assertSupportedRequestHeader(snapshot.type, snapshot.data, `seed event at index ${index}`)
-        if (snapshot.seq !== index) {
-          throw new Error(`seed event at index ${index} has seq ${snapshot.seq} (expected ${index}); seed must be contiguous from 0`)
+        if (mode === 'restore') {
+          this.surfaceManager.validateNext(source)
+          this.log.push(deepFreeze(source))
+        } else {
+          const accepted = deepFreeze(record)
+          assertPublishedSessionEvent(accepted, type, seq)
+          this.surfaceManager.validateNext(accepted)
+          this.log.push(accepted)
         }
-        // A seed is accepted incrementally through the same transition as a
-        // live append and a full-log fold. The candidate is planned before it
-        // enters `log`, so a failure cannot partially mutate the surface.
-        try {
-          this.surfaceManager.validateNext(snapshot)
-        } catch (error: unknown) {
-          throw new Error(`invalid seed event at index ${index}: ${error instanceof Error ? error.message : 'invalid surface metadata'}`)
-        }
-        this.log.push(mode === 'restore' ? freezeRestoredObject(snapshot) : deepFreeze(snapshot))
       }
     }
     this.firstLiveSeq = this.log.length
@@ -614,12 +728,12 @@ export class Session {
       ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
       ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
     }
-    const dataSnapshot = snapshotJsonValue(data)
+    const dataSnapshot = snapshotJsonObject(data)
     if (dataSnapshot === undefined) {
       throw new Error(`session event "${type}" carries non-JSON-serializable data`)
     }
     assertSupportedRequestHeader(type, dataSnapshot, `session event "${type}"`)
-    const surfaceMetadataSnapshot = snapshotJsonValue(surfaceMetadata)
+    const surfaceMetadataSnapshot = snapshotJsonObject(surfaceMetadata)
     if (surfaceMetadataSnapshot === undefined) {
       throw new Error(`session event "${type}" carries non-JSON-serializable surface metadata`)
     }
@@ -627,34 +741,38 @@ export class Session {
     if (entry?.appending) {
       throw new Error('session append cannot reenter while another append is being published')
     }
-    const event = deepFreeze({
+    const published = deepFreeze({
       type,
       seq: this.log.length,
       time: Date.now(),
       data: dataSnapshot,
-      ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
-    } as unknown as SessionEvent<T>)
-    this.surfaceManager.validateNext(event as SessionEvent)
+      ...surfaceMetadataSnapshot,
+    })
+    assertPublishedSessionEvent(published, type, this.log.length)
+    this.surfaceManager.validateNext(published)
+    if (!isSessionEventOfType(published, type)) {
+      throw new Error(`session event "${type}" failed publication narrowing`)
+    }
 
     if (entry !== undefined) entry.appending = true
-    try {
-      let callbacks: SessionCallback[] | undefined
-      const callbackArgs: unknown[] = [this, event]
-      if (entry !== undefined) {
-        callbacks = collectSessionCallbacks(entry.emitCtx, [entry.carrier, 'session/event', ...callbackArgs])
-      }
-      this.log.push(event as SessionEvent)
-      this.eventsSnapshot = undefined
-      if (callbacks !== undefined && entry !== undefined) {
-        invokeContainedSessionObservers(entry.emitCtx, 'session/event', entry.id, callbackArgs, callbacks)
-      }
-      return event
-    } finally {
-      if (entry !== undefined) {
+    using _publishing = {
+      [Symbol.dispose]: (): void => {
+        if (entry === undefined) return
         entry.appending = false
         if (entry.detachRequested && !entry.announcing) entry.detach()
-      }
+      },
     }
+    let callbacks: SessionCallback[] | undefined
+    const callbackArgs: unknown[] = [this, published]
+    if (entry !== undefined) {
+      callbacks = collectSessionCallbacks(entry.emitCtx, [entry.carrier, 'session/event', ...callbackArgs])
+    }
+    this.log.push(published)
+    this.eventsSnapshot = undefined
+    if (callbacks !== undefined && entry !== undefined) {
+      invokeContainedSessionObservers(entry.emitCtx, 'session/event', entry.id, callbackArgs, callbacks)
+    }
+    return published
   }
 
   /** Cached fold of the request-header events — see {@link requestHeader}. */
@@ -736,10 +854,11 @@ export class Session {
       this.derivedGeneration = generation
     }
     for (const seq of nodes.slice(this.derivedNodes)) {
-      // Surface sequences are built from this.log — seq is always a valid
-      // index by construction. The non-null assertion expresses that invariant.
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      const msg = this.deriveEventMessage(this.log[seq]!)
+      const event = this.log[seq]
+      if (event === undefined) {
+        throw new Error(`surface sequence ${String(seq)} is missing from the session log`)
+      }
+      const msg = this.deriveEventMessage(event)
       // A surface node is one of the five message-producing types, but an
       // empty-content assistant/message (a max-tokens step that hosts only
       // usage) derives to null and must not enter the transcript.
@@ -956,8 +1075,9 @@ export class SessionStore extends Service {
     entry.detachRequested = false
     // A stale capability cannot remove observers or storage belonging to a
     // later same-id lifecycle.
-    /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
-    if (this.store.get(entry.id) !== entry) return
+    if (this.store.get(entry.id) !== entry) {
+      throw new Error(`session "${entry.id}" detach target is not the live entry`)
+    }
     this.store.delete(entry.id)
     attachments.delete(entry.session)
     if (entry.announced) this.emitDisposed(entry)
@@ -981,34 +1101,40 @@ export class SessionStore extends Service {
     entry.announced = true
     const callbackArgs: unknown[] = [session]
     entry.announcing = true
-    try {
-      const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])
-      for (const callback of callbacks) {
-        // Synchronous throws intentionally propagate and veto publication; the
-        // yielded detach then emits the paired disposal edge. An async function
-        // is nevertheless assignable to a void listener, so observe its returned
-        // promise: rejection is too late to roll back and must be logged instead
-        // of becoming unhandled.
-        const returned: unknown = callback(...callbackArgs)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${String(error)}`)
-        })
-      }
-    } finally {
-      entry.announcing = false
-      if (entry.detachRequested && !entry.appending) entry.detach()
+    using _announcing = {
+      [Symbol.dispose]: (): void => {
+        entry.announcing = false
+        if (entry.detachRequested && !entry.appending) entry.detach()
+      },
+    }
+    const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/created', session])
+    for (const callback of callbacks) {
+      // Synchronous throws intentionally propagate and veto publication; the
+      // yielded detach then emits the paired disposal edge. An async function
+      // is nevertheless assignable to a void listener, so observe its returned
+      // promise: rejection is too late to roll back and must be logged instead
+      // of becoming unhandled.
+      observeReturnedThenable(callback(...callbackArgs), (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/created listener rejected: ${renderContainedFailure(reason)}`)
+      })
     }
   }
 
   /** Emit the paired teardown notification with per-listener containment. */
   private emitDisposed(entry: SessionEntry): void {
     const callbackArgs: unknown[] = [entry.session]
-    try {
-      const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/disposed', entry.session])
-      invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
-    } catch (error: unknown) {
-      this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${String(error)}`)
-    }
+    observeListenerInvocation(
+      () => {
+        const callbacks = collectSessionCallbacks(this.ctx, [entry.carrier, 'session/disposed', entry.session])
+        invokeContainedSessionObservers(this.ctx, 'session/disposed', entry.id, callbackArgs, callbacks)
+      },
+      (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch threw: ${renderContainedFailure(reason)}`)
+      },
+      (reason) => {
+        this.ctx.logger.warn(`session "${entry.id}": session/disposed dispatch rejected: ${renderContainedFailure(reason)}`)
+      },
+    )
   }
 
   /**
@@ -1030,7 +1156,10 @@ export class SessionStore extends Service {
     const callbacks = collectSessionCallbacks(this.ctx, [carrier, 'session/flush', session])
     const results = await Promise.allSettled(callbacks.map(async callback => await callback(...callbackArgs)))
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
-    if (failure !== undefined) throw failure.reason
+    if (failure !== undefined) {
+      if (failure.reason instanceof Error) throw failure.reason
+      throw new Error('session flush listener failed')
+    }
     return callbacks.length > 0
   }
 

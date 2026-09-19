@@ -276,7 +276,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['when the initiator scope is closing/disposed, or when `operation` throws.'],
       },
       {
-        signature: 'setFactory(factory: AgentFactory): () => void',
+        signature: 'setFactory(factory: AgentFactory): () => void | Promise<void>',
         description: 'Register the agent-creation factory (the loop calls this on construction, effect-scoped). A traced Cordis service is canonicalized to its concrete target; each create/resume call is then traced through that caller\'s context so ownership follows the caller without stacking proxy layers. Throws if a factory is already registered. Returns the disposer; on dispose the factory slot is cleared.',
         parameters: [{ name: 'factory', description: 'the loop-owned factory {@link create}/{@link resume} delegate to.' }],
         returns: 'the disposer that clears the factory slot. The exact Cordis effect disposer (single-shot): composite (generator) effects may yield it directly — exact identity nests the teardown in order.',
@@ -294,7 +294,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the handle after setup, rollback-covered publication, and loop start complete.',
       },
       {
-        signature: 'register(agent: Agent): () => void',
+        signature: 'register(agent: Agent): () => void | Promise<void>',
         description: 'Register a live agent. Throws if an agent with the same id is already registered. Emits `agent/created` on registration and `agent/disposed` when the calling fiber is disposed — both with the agent\'s scope carrier (`scopeTarget(agent, agent)`): the subject is the agent in hand, so the emits are scope-filtered regardless of which context invoked `register` (calling through `agent.ctx` scopes EFFECTS; dispatch scoping always requires passing the carrier). Returns the disposer.',
         parameters: [{ name: 'agent', description: 'the already-constructed agent to record in the store.' }],
         returns: 'the EXACT Cordis effect disposer (single-shot; a repeat call returns undefined without awaiting an in-flight teardown). Exact identity is load-bearing: a composite (generator) effect that owns a teardown ORDER — the agent factory\'s lifecycle chain — must yield THIS function so Cordis nests the unregistration at that yield position; yielding a wrapper would leave it disposing as a concurrent sibling on owner unload, unregistering the agent (and emitting `agent/disposed`) while its final turn is still draining.',
@@ -1091,7 +1091,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Package-owned invariant registry with global and regex-based selection.',
     methods: [
       {
-        signature: 'register(packageName: string, installer: InvariantInstaller): () => void',
+        signature: 'register(packageName: string, installer: InvariantInstaller): () => void | Promise<void>',
         description: 'Register one package\'s invariant installer. The package name is reserved even when filtering disables its checks. Enabled installers run in a child fiber; failure disposes that fiber and releases the reservation.',
         parameters: [{ name: 'packageName', description: 'full npm package name that owns the contribution.' }, { name: 'installer', description: 'listener or startup-check installer for the child context.' }],
         returns: 'an effect-scoped disposer for the registration.',
@@ -1675,6 +1675,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the header and the stored events with `seq >= fromSeq`.',
       },
       {
+        signature: 'async exists(id: SessionId, signal?: AbortSignal): Promise<boolean>',
+        description: 'Whether one identity currently has a materialized durable log. Coordinator-backed implementations wait for that id\'s in-flight retirement so a just-disposed session is reported present once its flush has landed. A lazy create with no append remains absent.',
+        parameters: [{ name: 'id', description: 'session identity to probe.' }, { name: 'signal', description: 'optional cancellation for retirement wait and backend read.' }],
+        returns: 'true only when a materialized artifact exists for `id`.',
+      },
+      {
         signature: 'abstract list(signal?: AbortSignal): Promise<SessionHeader[]>',
         description: 'Lightweight listing from metadata, without a full-log parse.',
         parameters: [{ name: 'signal', description: 'optional cancellation for backend listing work.' }],
@@ -2218,14 +2224,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.',
     methods: [
       {
-        signature: 'registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void',
+        signature: 'registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void | Promise<void>',
         description: 'Register a borrowed same-process provider synchronously during plugin apply, into the calling context\'s layer: a scoped context (an agent preset\'s standing mount) registers for that scope alone, an unscoped context registers globally. Duplicate names within one layer and reserved names throw; remote initialization belongs in `list()`. Fiber disposal unregisters the provider and invalidates catalog caches.',
         parameters: [{ name: 'create', description: 'synchronous factory receiving this registration\'s lifecycle and invalidation control.' }],
         returns: 'the exact Cordis effect disposer that unregisters this provider; composite effects may yield it directly to preserve teardown ordering.',
       },
       {
-        signature: 'register(skill: SkillRegistration): () => void',
-        description: 'Register a borrowed readonly runtime skill into the calling context\'s layer. Project entries outrank runtime entries, which outrank user entries, within one layer. Same-name runtime entries in one layer are first-wins; a duplicate logs a warning and receives a no-op disposer so it cannot remove the winner.',
+        signature: 'register(skill: SkillRegistration): () => void | Promise<void>',
+        description: 'Register a borrowed readonly runtime skill into the calling context\'s layer. Project entries outrank runtime entries, which outrank user entries, within one layer. Same-name runtime entries in one layer throw so a duplicate cannot dispose or replace the winner.',
         parameters: [{ name: 'skill', description: 'the skill definition input; omitted invocation and provider fields receive defaults.' }],
         returns: 'the exact Cordis effect disposer, preserving composite teardown order and invalidating caches.',
       },
@@ -3044,10 +3050,10 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'agent-loop/config-start-failed',
     mode: 'emit',
-    signature: '\'agent-loop/config-start-failed\'(payload: { sessionId: SessionId; error: unknown }): void',
+    signature: '\'agent-loop/config-start-failed\'(payload: { sessionId: SessionId; error: ListenerFailure }): void | Promise<void>',
     summary: 'A declarative agent entry failed before it could publish a live agent.',
     description: 'A declarative agent entry failed before it could publish a live agent. Consumers that buffer work for the configured identity use this transient signal to reject that work instead of waiting forever. Normal factory teardown suppresses failures from the cancelled startup attempt.',
-    parameters: [{ name: 'payload', description: '.error - persistence, setup, or publication failure.' }],
+    parameters: [{ name: 'payload', description: '.error - contained persistence, setup, or publication failure.' }],
   },
   {
     name: 'agent-preset/recompose',
@@ -3068,7 +3074,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'agent/created',
     mode: 'emit',
-    signature: '\'agent/created\'(this: Scoped<Agent>, payload: { agent: Agent }): void',
+    signature: '\'agent/created\'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>',
     summary: 'A fully configured agent and live session were published.',
     description: 'A fully configured agent and live session were published. Setup is composition-only; `agent/session-start` is the first startup-driving extension point. Synchronous listener failure vetoes publication, while returned-promise rejection is reported. Detach requested during dispatch waits until every creation listener has observed the stable entry.',
     parameters: [{ name: 'payload', description: '.agent - the newly registered agent with its live session and completed setup. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
@@ -3076,7 +3082,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'agent/disposed',
     mode: 'emit',
-    signature: '\'agent/disposed\'(this: Scoped<Agent>, payload: { agent: Agent }): void',
+    signature: '\'agent/disposed\'(this: Scoped<Agent>, payload: { agent: Agent }): void | Promise<void>',
     summary: 'An agent left the registry; AgentLoop emits this after driver quiescence and scoped-registration unwind, but before session detachment.',
     description: 'An agent left the registry; AgentLoop emits this after driver quiescence and scoped-registration unwind, but before session detachment. Custom registry users own their driver-ordering contract.',
     parameters: [{ name: 'payload', description: '.agent - the exact agent removed from the registry. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
@@ -3228,7 +3234,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'commands/change',
     mode: 'emit',
-    signature: '\'commands/change\'(): void',
+    signature: '\'commands/change\'(): void | Promise<void>',
     summary: 'A command was registered or unregistered.',
     description: 'A command was registered or unregistered. This is an unfiltered registry notification because a global or scoped change may affect any UI view. Observer failures are contained and cannot veto the registry mutation.',
     parameters: [],
@@ -3436,7 +3442,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'skills/change',
     mode: 'emit',
-    signature: '\'skills/change\'(): void',
+    signature: '\'skills/change\'(): void | Promise<void>',
     summary: 'A skill provider, runtime contribution, or provider-backed catalog may have changed.',
     description: 'A skill provider, runtime contribution, or provider-backed catalog may have changed. This is an unfiltered invalidation notification; consumers refetch the catalog for their own lookup options. Listener failures are contained and cannot veto the registry mutation.',
     parameters: [],
@@ -3460,7 +3466,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'subagent/provider-removed',
     mode: 'emit',
-    signature: '\'subagent/provider-removed\'(name: string): void',
+    signature: '\'subagent/provider-removed\'(name: string): void | Promise<void>',
     summary: 'A provider left the registry.',
     description: 'A provider left the registry. Accepted runs remain holder-owned.',
     parameters: [{ name: 'name', description: 'the provider name that no longer resolves.' }],
@@ -3564,7 +3570,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
   {
     name: 'workflow/agent-start',
     mode: 'emit',
-    signature: '\'workflow/agent-start\'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void',
+    signature: '\'workflow/agent-start\'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void | Promise<void>',
     summary: 'One `agent()` call established a published child run.',
     description: 'One `agent()` call established a published child run. Paired with Events[\'workflow/agent-end\'] by `agent.seq`. A call that never receives a published run from the provider emits neither event in this pair.',
     parameters: [{ name: 'info', description: 'the run\'s identity snapshot.' }, { name: 'agent', description: 'the call\'s sequence number, label, phase, and child id.' }],
@@ -4512,6 +4518,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KvUnitDescriptor',
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n}',
+  },
+  {
+    name: 'ListenerFailure',
+    declaration: 'export type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined;',
   },
   {
     name: 'LlmAdapter',

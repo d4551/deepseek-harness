@@ -8,7 +8,7 @@ afterEach(cleanup)
 
 describe('Button', () => {
   it('renders children, icon, and forwards clicks', () => {
-    const onClick = vi.fn()
+    const onClick = vi.fn<() => void>()
     render(<Button variant="primary" icon={<svg data-testid="ic" />} onClick={onClick}>Go</Button>)
     const button = screen.getByRole('button', { name: 'Go' })
     expect(screen.getByTestId('ic')).toBeDefined()
@@ -17,7 +17,7 @@ describe('Button', () => {
   })
 
   it('disabled blocks interaction', () => {
-    const onClick = vi.fn()
+    const onClick = vi.fn<() => void>()
     render(<Button disabled onClick={onClick}>No</Button>)
     fireEvent.click(screen.getByRole('button'))
     expect(onClick).not.toHaveBeenCalled()
@@ -49,7 +49,7 @@ describe('Pill', () => {
 
 describe('Input', () => {
   it('forwards value/onChange and renders the leading icon', () => {
-    const onChange = vi.fn()
+    const onChange = vi.fn<() => void>()
     render(<Input icon={<svg data-testid="ic" />} value="q" onChange={onChange} placeholder="search" />)
     const input = screen.getByPlaceholderText<HTMLInputElement>('search')
     expect(input.value).toBe('q')
@@ -66,7 +66,7 @@ describe('Menu', () => {
   ]
 
   it('shows items only while open; select fires onSelect', () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     const { rerender } = render(
       <Menu open={false} anchor={<span>trigger</span>} items={items} onSelect={onSelect} onClose={() => {}} />)
     expect(screen.queryByRole('menu')).toBeNull()
@@ -77,8 +77,8 @@ describe('Menu', () => {
   })
 
   it('disabled item does not select; Escape and outside pointerdown close', () => {
-    const onSelect = vi.fn()
-    const onClose = vi.fn()
+    const onSelect = vi.fn<() => void>()
+    const onClose = vi.fn<() => void>()
     render(
       <Menu open anchor={<span>trigger</span>} items={items} onSelect={onSelect} onClose={onClose} />)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Beta' }))
@@ -95,12 +95,12 @@ describe('Menu', () => {
       { id: 'b', label: 'Beta', disabled: true },
       { id: 'c', label: 'Gamma' },
     ]
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     render(<button type="button">trigger seat</button>)
     const seat = screen.getByRole('button', { name: 'trigger seat' })
     seat.focus()
     const { rerender } = render(
-      <Menu open autoFocus anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
+      <Menu open focusOnOpen anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
     // The list is a portal at the end of the document, so it must come to the
     // operator rather than wait for a Tab through everything before it.
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
@@ -130,7 +130,7 @@ describe('Menu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Gamma' }))
 
     rerender(
-      <Menu open={false} autoFocus anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
+      <Menu open={false} focusOnOpen anchor={<span>trigger</span>} items={three} onSelect={onSelect} onClose={() => {}} />)
     expect(document.activeElement).toBe(seat)
   })
 
@@ -145,7 +145,7 @@ describe('Menu', () => {
   })
 
   it('inside pointerdown does not close', () => {
-    const onClose = vi.fn()
+    const onClose = vi.fn<() => void>()
     render(
       <Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
     fireEvent.pointerDown(screen.getByRole('menuitem', { name: 'Alpha' }))
@@ -194,7 +194,7 @@ describe('Menu', () => {
   })
 
   it('renders a non-interactive heading label and a danger row', () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     render(
       <Menu
         open
@@ -219,7 +219,7 @@ describe('Menu', () => {
   it('closeOnPointerLeave closes a grace after the pointer leaves trigger and list; default never does', () => {
     vi.useFakeTimers()
     try {
-      const onClose = vi.fn()
+      const onClose = vi.fn<() => void>()
       const { rerender } = render(
         <Menu open closeOnPointerLeave anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
       const wrapper = screen.getByText('trigger').parentElement as HTMLElement
@@ -242,7 +242,7 @@ describe('Menu', () => {
   it('coming back inside the grace keeps the list open (trigger and list are one region)', () => {
     vi.useFakeTimers()
     try {
-      const onClose = vi.fn()
+      const onClose = vi.fn<() => void>()
       render(
         <Menu open closeOnPointerLeave anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
       const wrapper = screen.getByText('trigger').parentElement as HTMLElement
@@ -259,7 +259,7 @@ describe('Menu', () => {
   it('a close from selection disarms the pending grace close', () => {
     vi.useFakeTimers()
     try {
-      const onClose = vi.fn()
+      const onClose = vi.fn<() => void>()
       const { rerender } = render(
         <Menu open closeOnPointerLeave anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
       const wrapper = screen.getByText('trigger').parentElement as HTMLElement
@@ -278,7 +278,7 @@ describe('Menu', () => {
   it('leaving a closed list arms nothing', () => {
     vi.useFakeTimers()
     try {
-      const onClose = vi.fn()
+      const onClose = vi.fn<() => void>()
       render(
         <Menu open={false} closeOnPointerLeave anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
       fireEvent.pointerLeave(screen.getByText('trigger').parentElement as HTMLElement)
@@ -290,17 +290,17 @@ describe('Menu', () => {
   })
 
   it('a list click does not bubble to the anchor row (portal synthetic-event path)', () => {
-    const rowClick = vi.fn()
+    const rowClick = vi.fn<() => void>()
     render(
-      <div onClick={rowClick}>
+      <button type="button" onClick={rowClick}>
         <Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />
-      </div>)
+      </button>)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Alpha' }))
     expect(rowClick).not.toHaveBeenCalled()
   })
 
   it('opens a submenu on hover and selects a nested item', () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     render(
       <Menu
         open
@@ -379,8 +379,8 @@ describe('Menu', () => {
   })
 
   it('portal mode renders the list under body, positions it fixed, and still closes on outside pointerdown', () => {
-    const onSelect = vi.fn()
-    const onClose = vi.fn()
+    const onSelect = vi.fn<() => void>()
+    const onClose = vi.fn<() => void>()
     const { container } = render(
       <Menu portal open anchor={<span>trigger</span>} items={items} onSelect={onSelect} onClose={onClose} />)
     const menu = screen.getByRole('menu')
@@ -419,7 +419,7 @@ describe('Menu', () => {
   })
 
   it('renders footer rows in a pinned section below the items; they still select', () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     render(
       <Menu
         open
@@ -464,7 +464,7 @@ describe('Menu', () => {
   })
 
   it('opens no submenu from a row the list has made unavailable', () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<() => void>()
     render(
       <Menu
         open
@@ -524,8 +524,8 @@ describe('Modal', () => {
   })
 
   it('keeps portaled menu selection and Escape inside the owning dialog', () => {
-    const close = vi.fn()
-    const select = vi.fn()
+    const close = vi.fn<() => void>()
+    const select = vi.fn<() => void>()
     function SettingsMenu() {
       const [open, setOpen] = useState(false)
       return (
@@ -562,7 +562,7 @@ describe('Modal', () => {
     const background = render(<Button>Open dialog</Button>)
     const trigger = screen.getByRole('button', { name: 'Open dialog' })
     trigger.focus()
-    const modal = render(<Modal open onClose={vi.fn()} title="Task" closeLabel="Close" />)
+    const modal = render(<Modal open onClose={vi.fn<() => void>()} title="Task" closeLabel="Close" />)
     const dialog = screen.getByRole('dialog', { name: 'Task' })
     expect(document.activeElement).toBe(dialog)
     expect(background.container.inert).toBe(true)
@@ -574,7 +574,7 @@ describe('Modal', () => {
   })
 
   it('is absent while closed; Escape and mask click call onClose', () => {
-    const onClose = vi.fn()
+    const onClose = vi.fn<() => void>()
     const { rerender } = render(
       <Modal open={false} onClose={onClose} title="Create new workspace" closeLabel="Close">body</Modal>)
     expect(screen.queryByRole('dialog')).toBeNull()

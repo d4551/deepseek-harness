@@ -2,6 +2,8 @@
 
 import { TeamError } from './error.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Owns the single Team runtime cancellation fact and disposal timeout. */
 export class TeamRuntimeLifecycle {
   private readonly controller = new AbortController()
@@ -53,14 +55,18 @@ export class TeamRuntimeLifecycle {
    */
   async settle(operations: readonly Promise<unknown>[], failures: unknown[]): Promise<void> {
     if (operations.length === 0) return
-    try {
-      const outcomes = await this.withTimeout(Promise.allSettled(operations))
-      for (const outcome of outcomes) {
-        if (outcome.status === 'rejected' && !this.isCancellation(outcome.reason)) failures.push(outcome.reason)
-      }
-    } catch (error: unknown) {
-      failures.push(error)
-    }
+    const pending = operations.map(operation => operation.then(
+      undefined,
+      (error: Thrown) => {
+        if (!this.isCancellation(error)) failures.push(error)
+      },
+    ))
+    await this.withTimeout(Promise.all(pending)).then(
+      undefined,
+      (error: Thrown) => {
+        failures.push(error)
+      },
+    )
   }
 
   /**
@@ -68,7 +74,7 @@ export class TeamRuntimeLifecycle {
    * @param operation - settlement that may otherwise block HMR or process shutdown.
    * @returns the operation result.
    */
-  async withTimeout<T>(operation: Promise<T>): Promise<T> {
+  withTimeout<T>(operation: Promise<T>): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
@@ -78,10 +84,15 @@ export class TeamRuntimeLifecycle {
         ))
       }, this.disposalTimeoutMs)
     })
-    try {
-      return await Promise.race([operation, timeout])
-    } finally {
-      clearTimeout(timer)
-    }
+    return Promise.race([operation, timeout]).then(
+      (value) => {
+        clearTimeout(timer)
+        return value
+      },
+      (error: Thrown) => {
+        clearTimeout(timer)
+        return Promise.reject(error)
+      },
+    )
   }
 }

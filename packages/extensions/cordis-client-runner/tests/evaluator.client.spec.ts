@@ -1,6 +1,5 @@
+// @vitest-environment jsdom
 /**
- * @vitest-environment jsdom
- *
  * Closure evaluation account: the symbol surface a browser half receives, the
  * teaching traps shadowing ambient globals, the parse/return diagnostics, and
  * the style bookkeeping whose disposal the runner owns.
@@ -77,14 +76,14 @@ describe('evaluateClientHalf', () => {
   })
 
   it('routes host.call to the runner invoke seam', async () => {
-    const invoke = vi.fn(() => Promise.resolve({ ok: 1 }))
+    const invoke = vi.fn<(method: string, args: unknown) => Promise<unknown>>(() => Promise.resolve({ ok: 1 }))
     const { plugin } = await run('return { apply: (ctx) => host.call("ping", { a: 1 }) }', env({ invoke }))
     await expect((plugin as DynamicCordisEvaluatedPlugin).apply({})).resolves.toEqual({ ok: 1 })
     expect(invoke).toHaveBeenCalledWith('ping', { a: 1 })
   })
 
   it('sends null for a host.call written without arguments', async () => {
-    const invoke = vi.fn(() => Promise.resolve(['fs', 'web']))
+    const invoke = vi.fn<(method: string, args: unknown) => Promise<unknown>>(() => Promise.resolve(['fs', 'web']))
     // A handler that takes nothing is the natural case ("list the services"), and
     // `undefined` is not JSON — so the omission travels as null rather than
     // making the wire refuse the call.
@@ -105,15 +104,12 @@ describe('evaluateClientHalf', () => {
 
   it('propagates a non-syntax construction failure untouched', async () => {
     const boom = new TypeError('engine refused')
-    // The constructor is the only failure seam before evaluation; a
-    // non-SyntaxError must not be reinterpreted as a source problem.
-    vi.stubGlobal('Function', function stub(): never { throw boom })
-    try {
-      await expect(run('return () => {}')).rejects.toBe(boom)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-    expect(typeof Function).toBe('function')
+    vi.stubGlobal('encodeURIComponent', () => {
+      throw boom
+    })
+    await expect(run('return () => {}')).rejects.toBe(boom)
+    vi.unstubAllGlobals()
+    expect(typeof encodeURIComponent).toBe('function')
   })
 })
 

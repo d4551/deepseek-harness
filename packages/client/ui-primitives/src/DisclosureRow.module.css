@@ -22,8 +22,8 @@
 .leading {
   position: relative;
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -39,8 +39,8 @@
    without a per-callsite size prop. StateDot (its svg carries data-state)
    stays at its fixed figma size — it is a status mark, not text furniture. */
 .leading svg:not([data-state]) {
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--dsh-content-font-delta));
+  height: calc(14px + var(--dsh-content-font-delta));
 }
 
 button.leading {
@@ -71,7 +71,7 @@ button.leading {
 
 .title {
   flex: none;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(24px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-secondary);
 }

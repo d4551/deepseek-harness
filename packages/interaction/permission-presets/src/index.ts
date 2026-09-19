@@ -80,7 +80,8 @@ export const PERMISSION_SETTINGS_NAMESPACE = settingsNamespace('permission')
  */
 export function effectivePermissionPreset(events: readonly SessionEvent[]): string | undefined {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (event.type === 'permission/preset') return event.data.preset
   }
   return undefined

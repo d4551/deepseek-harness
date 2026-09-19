@@ -26,7 +26,10 @@ let exitListeners = process.listeners('exit')
 beforeEach(() => { exitListeners = process.listeners('exit') })
 afterEach(async () => {
   for (const ctx of ownedContexts.splice(0).reverse()) await ctx.fiber.dispose()
-  expect(process.listeners('exit')).toEqual(exitListeners)
+  const remaining = process.listeners('exit')
+  if (remaining.length !== exitListeners.length || remaining.some((listener, index) => listener !== exitListeners[index])) {
+    throw new Error('bash-sandbox tests leaked process exit listeners')
+  }
 })
 afterAll(() => { rmSync(spillDir, { recursive: true, force: true }) })
 
@@ -578,10 +581,8 @@ describe('background sandbox facts', () => {
       stdout: undefined,
       stderr: undefined,
       collected: { stdout: emptyReader, stderr: emptyReader },
-      // Arbitrary subprocess providers can reject without a value; that edge is the point of this test.
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-      done: Promise.reject(undefined),
-      terminate: vi.fn(),
+      done: (async () => { throw undefined })(),
+      terminate: vi.fn<() => void>(),
       waitForExit: async () => true,
     } satisfies SubprocessHandle)
 

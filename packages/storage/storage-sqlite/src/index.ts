@@ -14,6 +14,8 @@ import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepsee
 import { openDatabase, recordTableName, type JournalMode } from './schema.ts'
 import { SqliteKvUnit } from './unit.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 export { STORAGE_SQLITE_SCHEMA_VERSION, type JournalMode } from './schema.ts'
 
 /** Cordis plugin name. */
@@ -80,7 +82,7 @@ export class SqliteStorageBackend implements StorageBackend {
     // Mark the rejection handled: every primitive re-awaits `ready`, so an
     // open failure still surfaces to each caller; this guard only prevents an
     // unhandled-rejection crash when the failure precedes the first use.
-    this.ready.catch(() => {})
+    this.ready.catch((_error: Thrown) => {})
   }
 
   private openUnit(descriptor: KvUnitDescriptor): Promise<KvUnit> {
@@ -102,7 +104,7 @@ export class SqliteStorageBackend implements StorageBackend {
     // name rejects instead of racing past the guard during the awaits below.
     const pending = this.materializeUnit(descriptor)
     this.units.set(descriptor.name, pending)
-    pending.catch(() => this.units.delete(descriptor.name))
+    pending.catch((_error: Thrown) => this.units.delete(descriptor.name))
     return pending
   }
 
@@ -152,8 +154,8 @@ export class SqliteStorageBackend implements StorageBackend {
       // every unit call, so there is nothing left to release here.
       return
     }
-    for (const pending of [...this.units.values()]) {
-      const unit = await pending.catch(() => undefined)
+    for (const pending of this.units.values()) {
+      const unit = await pending.catch((_error: Thrown) => undefined)
       await unit?.close()
     }
     db.close()

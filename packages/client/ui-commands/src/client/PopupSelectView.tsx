@@ -8,6 +8,10 @@
  * caret. Any pointer interaction outside the box dismisses (the click's own
  * target takes focus). Closed state renders null; the overlay slot stays
  * mounted. The card height clamps to the space above the composer.
+ *
+ * Ready options render in a native `<select size>` listbox with
+ * `appearance: base-select` so rows keep implicit option semantics while
+ * still hosting label, detail, and the current-value check.
  */
 import { startTransition, useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
@@ -40,7 +44,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
     fn => popup.state.subscribe(fn),
     () => popup.state.getSnapshot(),
   )
-  const cardRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDialogElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   // The card is bottom-anchored above the composer; clamp the design cap to
   // the space above it, re-measured on every store update.
@@ -79,7 +83,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   const rows = filterOptions(state.options, state.search)
   const confirmation = state.confirming?.confirmation
 
-  const onKeyDown = (ev: React.KeyboardEvent<HTMLDivElement>): void => {
+  const onKeyDown = (ev: React.KeyboardEvent<HTMLDialogElement>): void => {
     // ArrowLeft/ArrowRight fall through on purpose: the search input keeps
     // its native caret movement.
     switch (ev.key) {
@@ -106,10 +110,10 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   return (
     <>
       {state.confirming === null && (
-        <div
+        <dialog
           ref={cardRef}
           className={css.card}
-          role="dialog"
+          open
           style={{ maxHeight }}
           aria-label={t('overlay.aria', { command: String(state.command) })}
           onKeyDown={onKeyDown}
@@ -135,28 +139,39 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           {state.status === 'pending' && <div className={css.status}>{t('status.loading')}</div>}
           {state.submitting && <div className={css.status}>{t('status.applying')}</div>}
           {state.status === 'ready' && rows.length === 0 && <div className={css.status}>{t('status.empty')}</div>}
-          {state.status === 'ready' && (
-            <div role="listbox" tabIndex={0} aria-label={t('listbox.aria', { command: String(state.command) })} className={css.viewport}>
+          {state.status === 'ready' && rows.length > 0 && (
+            <select
+              className={css.viewport}
+              size={Math.max(2, rows.length)}
+              tabIndex={-1}
+              aria-label={t('listbox.aria', { command: String(state.command) })}
+              value={rows[state.active]?.id ?? rows[0]?.id ?? ''}
+              onMouseDown={(ev) => { ev.preventDefault() }}
+              onChange={(ev) => {
+                const value = ev.currentTarget.value
+                if (value === '') return
+                const selected = rows.findIndex(option => option.id === value)
+                if (selected < 0) throw new Error(`popup option ${value} is missing`)
+                popup.highlight(selected)
+              }}
+            >
               {rows.map((option, index) => (
-                <div
+                <option
                   key={option.id}
-                  role="option"
+                  value={option.id}
                   aria-selected={index === state.active}
                   className={clsx(css.row, index === state.active && css.rowActive)}
-                  // mousedown would race the document capture listener; the shell
-                  // owns focus anyway, so a plain click (inside the card → no
-                  // dismiss) works.
                   onClick={() => { startTransition(() => popup.select(index)) }}
                   onMouseEnter={() => { popup.highlight(index) }}
                 >
                   <span className={css.label}>{option.label}</span>
                   {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
                   {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
-                </div>
+                </option>
               ))}
-            </div>
+            </select>
           )}
-        </div>
+        </dialog>
       )}
       {confirmation !== undefined && (
         <RiskConfirmation

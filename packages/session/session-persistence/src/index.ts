@@ -263,6 +263,19 @@ export abstract class SessionPersistence extends Service {
   Promise<{ meta: SessionHeader; events: SessionEvent[] }>
 
   /**
+   * Whether one identity currently has a materialized durable log.
+   * Coordinator-backed implementations wait for that id's in-flight retirement
+   * so a just-disposed session is reported present once its flush has landed.
+   * A lazy create with no append remains absent.
+   * @param id - session identity to probe.
+   * @param signal - optional cancellation for retirement wait and backend read.
+   * @returns true only when a materialized artifact exists for `id`.
+   */
+  async exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    return (await this.list(signal)).some(header => header.id === id)
+  }
+
+  /**
    * Lightweight listing from metadata, without a full-log parse.
    * @param signal - optional cancellation for backend listing work.
    * @returns one header per materialized session.

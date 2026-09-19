@@ -23,7 +23,11 @@ const roots: string[] = []
 const contexts: Context[] = []
 
 interface ZstdReaderInternals {
-  readZstdPrefix(buffer: Buffer, signal?: AbortSignal): Promise<{ events: SessionEvent[] }>
+  readZstdPrefix(buffer: Buffer, signal?: AbortSignal): Promise<{ events: object[] }>
+}
+
+function storedType(event: object): unknown {
+  return Reflect.get(event, 'type')
 }
 
 type HeaderRead = (
@@ -249,29 +253,35 @@ describe('Zstandard frame structure', () => {
     const first = new Error('first emitted decoder failure')
     emittedInternals.stream.emit('error', first)
     emittedInternals.stream.emit('error', new Error('later emitted decoder failure'))
-    try {
+    const emittedFailure = Promise.resolve().then(() => {
       Array.from(emitted.decode(frame, range))
+    }).then(() => {
       throw new Error('expected emitted decoder failure')
-    } catch (error) {
-      expect((error as Error).cause).toBe(first)
-    }
+    }, (error: object) => Reflect.get(error, 'cause'))
+    await expect(emittedFailure).resolves.toBe(first)
 
-    for (const internalFailure of [new Error('internal decoder failure'), 'not an Error']) {
-      const decoder = NodePrivateZstdFrameDecoder.create()!
-      const internals = decoder as unknown as PrivateDecoderInternals
-      internals.stream[internals.errorKey] = internalFailure
-      try {
-        Array.from(decoder.decode(frame, range))
-        throw new Error('expected internal decoder failure')
-      } catch (error) {
-        const cause = (error as Error).cause
-        if (internalFailure instanceof Error) {
-          expect(cause).toBe(internalFailure)
-        } else {
-          expect(cause).toMatchObject({ message: 'Zstandard decoder exposed a non-Error internal failure' })
-        }
-      }
-    }
+    const decoderWithError = NodePrivateZstdFrameDecoder.create()!
+    const errorInternals = decoderWithError as unknown as PrivateDecoderInternals
+    const internalFailure = new Error('internal decoder failure')
+    errorInternals.stream[errorInternals.errorKey] = internalFailure
+    const errorCause = Promise.resolve().then(() => {
+      Array.from(decoderWithError.decode(frame, range))
+    }).then(() => {
+      throw new Error('expected internal decoder failure')
+    }, (error: object) => Reflect.get(error, 'cause'))
+    await expect(errorCause).resolves.toBe(internalFailure)
+
+    const decoderWithNonError = NodePrivateZstdFrameDecoder.create()!
+    const nonErrorInternals = decoderWithNonError as unknown as PrivateDecoderInternals
+    nonErrorInternals.stream[nonErrorInternals.errorKey] = 'not an Error'
+    const nonErrorCause = Promise.resolve().then(() => {
+      Array.from(decoderWithNonError.decode(frame, range))
+    }).then(() => {
+      throw new Error('expected internal decoder failure')
+    }, (error: object) => Reflect.get(error, 'cause'))
+    await expect(nonErrorCause).resolves.toMatchObject({
+      message: 'Zstandard decoder exposed a non-Error internal failure',
+    })
   })
 
   it('distinguishes incomplete frame regions from invalid complete structure', () => {
@@ -355,7 +365,7 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
     const path = logPath(root, header.cwd, header.id, 'zstd')
     const buffer = await readFile(path)
     expect(buffer.subarray(0, 4)).toEqual(MAGIC)
-    await expect(stat(logPath(root, header.cwd, header.id, 'none'))).rejects.toThrow()
+    await expect(stat(logPath(root, header.cwd, header.id, 'none'))).rejects.toThrow(/ENOENT/)
     expect(ctx.sessionPersistence.locate(header)).toEqual({ kind: 'jsonl', path })
 
     const scan = scanZstdFrames(buffer)
@@ -387,7 +397,7 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
       '',
     ].join('\n'))
     const scanned = scanLog(Buffer.from(raw!.content))
-    expect(scanned.events.map(event => event.type)).toEqual(oneTurnLog().map(event => event.type))
+    expect(scanned.events.map(storedType)).toEqual(oneTurnLog().map(event => event.type))
   })
 
   it('readRaw rejects a present zstd artifact that carries no frame', async () => {

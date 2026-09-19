@@ -730,6 +730,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
     'upgrade route registration contract is owned by packages/host/webserver/src/index.ts',
   InvariantRegistration: 'service-local lifecycle handle is owned by packages/runtime-diagnostics/invariants/README.md',
   JsonValue: 'JSON value union is owned by packages/core/session/src/json.ts',
+  ListenerFailure: 'contained listener throw/reject union is owned by packages/core/agent/src/dispatch.ts',
   KnobState: 'projection unit state fields are owned by packages/interaction/permission-presets/README.md',
   PermissionSelect: 'permissions projection payload is owned by packages/interaction/permission-presets/src/types.ts',
   PromptAssembly: 'assembly result is owned by packages/core/system-prompt/README.md',
@@ -1113,7 +1114,9 @@ export function main(): void {
     writeFileSync(destination, content)
     changedPages++
   }
-  for (const page of [...new Set([...Object.values(SERVICE_PAGE), ...Object.values(EVENT_SCOPE_PAGE)])]) {
+  const catalogPages = new Set(Object.values(SERVICE_PAGE))
+  for (const page of Object.values(EVENT_SCOPE_PAGE)) catalogPages.add(page)
+  for (const page of catalogPages) {
     const rel = `${SUBSYSTEMS_DIR}/${page}`
     const zhRel = rel.replace(/\.md$/, '.zh.md')
     const wroteEither = [rel, zhRel].some((side) => {

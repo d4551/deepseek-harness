@@ -111,7 +111,10 @@ export function MessageImage({ image, load, variant, labels }: {
     let live = true
     setError(false)
     setLoaded(load.peek?.(attachment) ?? null)
-    load(attachment).then((url) => { if (live) setLoaded(url) }).catch(() => { if (live) setError(true) })
+    load(attachment).then(
+      (url) => { if (live) setLoaded(url) },
+      () => { if (live) setError(true) },
+    )
     return () => { live = false }
   }, [attachment, load, attempt])
 

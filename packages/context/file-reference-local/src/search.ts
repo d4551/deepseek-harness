@@ -99,6 +99,8 @@ interface SettledIndex {
   startedAt: number
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Cancellable, reusable fuzzy index over one agent's workspace roots.
  * Directory-scoped queries list live state in every root; bare fuzzy queries
@@ -188,7 +190,7 @@ export class WorkspaceFileSearch {
     const settled = this.settled
     if (settled === undefined) return waitForPromise(this.ensureIndex(), signal)
     if (settled.startedAt < this.invalidations) {
-      this.ensureIndex().catch(() => {
+      this.ensureIndex().catch((_error: Thrown) => {
         // A background refresh failure is not this caller's error: the stale
         // entries still answer and `settled.startedAt` stays behind, so the
         // next bare query starts a fresh attempt.
@@ -216,7 +218,7 @@ export class WorkspaceFileSearch {
         this.settled = { entries, startedAt }
         return entries
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         /* v8 ignore next -- dispose clears `generation` synchronously; this only protects an unexpected scan failure */
         if (this.generation === generation) this.generation = undefined
         throw error
@@ -351,14 +353,17 @@ async function resolveDisplayDirectory(
   for (const segment of fromRoot.split(sep).filter(Boolean)) {
     signal.throwIfAborted()
     current = join(current, segment)
-    try {
-      const status = await lstat(current)
-      signal.throwIfAborted()
-      if (status.isSymbolicLink() || !status.isDirectory()) return undefined
-    } catch (_error: unknown) {
-      signal.throwIfAborted()
-      return undefined
-    }
+    const status = await lstat(current).then(
+      (value) => {
+        signal.throwIfAborted()
+        return value
+      },
+      (_error: Thrown) => {
+        signal.throwIfAborted()
+        return undefined
+      },
+    )
+    if (status === undefined || status.isSymbolicLink() || !status.isDirectory()) return undefined
   }
   return absolute
 }
@@ -370,18 +375,20 @@ async function readWorkspaceRoot(absolute: string, signal: AbortSignal) {
   return entries.sort((left, right) => compareText(left.name, right.name))
 }
 
-async function readDirectory(absolute: string, signal: AbortSignal) {
+function readDirectory(absolute: string, signal: AbortSignal) {
   signal.throwIfAborted()
-  try {
-    const entries = await readdir(absolute, { withFileTypes: true })
-    signal.throwIfAborted()
-    return entries.sort((left, right) => compareText(left.name, right.name))
-  } catch (_error: unknown) {
-    signal.throwIfAborted()
-    // An unreadable/missing subtree contributes no candidates; other readable
-    // branches remain useful and autocomplete is advisory.
-    return []
-  }
+  return readdir(absolute, { withFileTypes: true }).then(
+    (entries) => {
+      signal.throwIfAborted()
+      return entries.sort((left, right) => compareText(left.name, right.name))
+    },
+    (_error: Thrown) => {
+      signal.throwIfAborted()
+      // An unreadable/missing subtree contributes no candidates; other readable
+      // branches remain useful and autocomplete is advisory.
+      return []
+    },
+  )
 }
 
 function visibleForGlobalQuery(path: string, query: string): boolean {
@@ -455,7 +462,7 @@ function waitForPromise<T>(promise: Promise<T>, signal: AbortSignal): Promise<T>
         signal.removeEventListener('abort', onAbort)
         resolvePromise(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         signal.removeEventListener('abort', onAbort)
         rejectPromise(errorReason(error, 'file search index failed'))
       },

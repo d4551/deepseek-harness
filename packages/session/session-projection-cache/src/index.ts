@@ -26,11 +26,31 @@ import type {
   SessionProjectionMap,
 } from '@deepseek-ai/dsh-session-projection'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import { projectionCacheDomainSpec } from './spec.ts'
+import { checkpointRecord, projectionCacheDomainSpec } from './spec.ts'
 import type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
 
 export { checkpointIdentity, checkpointRecord, checkpointRow, projectionCacheDomainSpec } from './spec.ts'
 export type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -208,8 +228,8 @@ export class SessionProjectionCache extends Service {
     const restored = this.ctx.sessionProjections.restore(this.recordFor(meta.id, identityOf(meta))?.rows ?? {}, events, 0, meta)
     // Refresh the row so the next cold read seeds from it; fail-soft and
     // fire-and-forget — a failed write-back only costs a longer tail replay.
-    this.put(meta.id, identityOf(meta), restored.checkpoint).catch((error: unknown) => {
-      this.ctx.logger.warn(`session projection cache: cold-read write-back for "${meta.id}" failed (cache stays stale): ${String(error)}`)
+    this.put(meta.id, identityOf(meta), restored.checkpoint).catch((reason: Thrown) => {
+      this.ctx.logger.warn(`session projection cache: cold-read write-back for "${meta.id}" failed (cache stays stale): ${thrownMessage(reason)}`)
     })
     return restored.snapshot
   }
@@ -276,8 +296,8 @@ export class SessionProjectionCache extends Service {
    * the counter) and the mandatory points write unconditionally.
    */
   private flushSoft(session: Session, trigger: string): void {
-    this.write(session).then(undefined, (error: unknown) => {
-      this.ctx.logger.warn(`session projection cache: ${trigger} write for "${session.id}" failed (cache stays stale): ${String(error)}`)
+    this.write(session).then(undefined, (reason: Thrown) => {
+      this.ctx.logger.warn(`session projection cache: ${trigger} write for "${session.id}" failed (cache stays stale): ${thrownMessage(reason)}`)
     })
   }
 
@@ -298,7 +318,11 @@ export class SessionProjectionCache extends Service {
     if (detached === undefined) {
       throw new TypeError('projection checkpoint is not losslessly JSON-serializable (a unit state violates the plain-JSON contract)')
     }
-    await this.requireTable().put(id, { identity, rows: detached as CheckpointRecord['rows'] })
+    const parsed = checkpointRecord.shape.rows.safeParse(detached)
+    if (!parsed.success) {
+      throw new TypeError('projection checkpoint is not losslessly JSON-serializable (a unit state violates the plain-JSON contract)')
+    }
+    await this.requireTable().put(id, { identity, rows: parsed.data })
   }
 
   private requireTable(): KvTable<SessionId, CheckpointRecord> {

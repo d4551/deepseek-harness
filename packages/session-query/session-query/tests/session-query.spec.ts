@@ -138,8 +138,9 @@ function expectCode(code: SessionQueryErrorCode): Error {
 }
 
 function rejectUnknown<T>(reason: unknown): Promise<T> {
-  // Exercise containment for an implementation that violates the Error rejection convention.
-  return Promise.reject(reason) // oxlint-disable-line typescript/prefer-promise-reject-errors
+  return (async () => {
+    throw reason
+  })()
 }
 
 const cancellableSessionListings = [
@@ -917,10 +918,11 @@ describe('session-query exact reads', () => {
         message: createMessage({
           role: 'assistant',
           content: [{ type: 'text', text: 'replacement' }],
-          source: {
+          source: ({
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
-          },
+            provider: 'mock',
+            model: 'mock',
+          }),
         }),
       },
       { surfaceOp: { op: 'replace', start: first.seq, end: first.seq }, sourceEventSeqs: [first.seq] },
@@ -973,10 +975,11 @@ describe('session-query exact reads', () => {
         message: createMessage({
           role: 'assistant',
           content: [{ type: 'text', text: 'latest answer' }],
-          source: {
+          source: ({
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
-          },
+            provider: 'mock',
+            model: 'mock',
+          }),
         }),
       },
       { surfaceOp: 'append' },
@@ -992,7 +995,7 @@ describe('session-query exact reads', () => {
     if (snapshot.events[0]?.type !== 'user/message') throw new Error('expected current user message')
     expect(() => {
       (snapshot.events[0]!.data as { content: unknown[] }).content = []
-    }).toThrow()
+    }).toThrow(/read only|Cannot assign/)
     Object.assign(snapshot.session, { cwd: '/mutated' })
 
     expect(session.events[4]?.type === 'user/message' && session.events[4].data.content).toHaveLength(1)
@@ -1029,7 +1032,7 @@ describe('session-query exact reads', () => {
     if (result.events[0]?.type !== 'user/message') throw new Error('expected user message')
     expect(() => {
       (result.events[0]!.data as { content: unknown[] }).content = []
-    }).toThrow()
+    }).toThrow(/read only|Cannot assign/)
     expect(session.header.createdAt).not.toBe(-1)
     expect(session.events[1]?.type === 'user/message' && session.events[1].data.content).toHaveLength(1)
 

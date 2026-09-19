@@ -13,6 +13,7 @@ import {
   BUN_PIN,
   collectorFloorDisagreements,
   declaredRange,
+  forbiddenProductDependencyHits,
   forbiddenStackHits,
   installedNamedVersion,
   LIVE_TOOLCHAIN_FLOORS,
@@ -124,9 +125,13 @@ describe('injected floor misses', () => {
     }])).toEqual([])
   })
 
-  it('fails Vite 6 on the web app', () => {
-    const misses = rangeMisses('apps/web/package.json', '{"devDependencies":{"vite":"^6.0.0"}}', { vite: VITE_FLOOR })
-    expect(misses.map(m => m.range)).toEqual(['^6.0.0'])
+  it('fails Vite 5, Vite 6, Vite 7, and Vite 8.2 on the web app', () => {
+    for (const range of ['^5.4.14', '^6.0.0', '^7.1.0', '^8.2.2']) {
+      expect(rangeMeetsFloor(range, VITE_FLOOR), range).toBe(false)
+      expect(rangeMisses('apps/web/package.json', JSON.stringify({ devDependencies: { vite: range } }), { vite: VITE_FLOOR })
+        .map(m => m.range)).toEqual([range])
+    }
+    expect(rangeMeetsFloor('^8.3.0', VITE_FLOOR)).toBe(true)
   })
 
   it('fails a vitest 4 pin the toolchain floor already rejects', () => {
@@ -184,6 +189,28 @@ describe('forbidden stacks', () => {
   it('does not fire on a clean snippet', () => {
     expect(forbiddenStackHits([{ file: 'packages/client/ui-chat/src/x.tsx', content: 'export const n = 1\n' }])).toEqual([])
   })
+
+  it('fails daisyUI 4, Tailwind 3, and htmx 1 declared as product dependencies', () => {
+    const hits = forbiddenProductDependencyHits([{
+      file: 'apps/web/package.json',
+      source: JSON.stringify({
+        dependencies: {
+          daisyui: '4.12.24',
+          tailwindcss: '3.4.17',
+          'htmx.org': '1.9.12',
+          '@tailwindcss/vite': '4.1.12',
+        },
+      }),
+    }])
+    expect(hits.map(h => h.token).sort()).toEqual(['@tailwindcss/vite', 'daisyui', 'htmx.org', 'tailwindcss'])
+  })
+
+  it('does not treat a CSS Modules stack as a forbidden product dependency', () => {
+    expect(forbiddenProductDependencyHits([{
+      file: 'apps/web/package.json',
+      source: JSON.stringify({ dependencies: { react: '^19.3.0' } }),
+    }])).toEqual([])
+  })
 })
 
 describe('live workspace floors', () => {
@@ -199,7 +226,7 @@ describe('live workspace floors', () => {
     expect(typescriptCompileMisses(manifests)).toEqual([])
   })
 
-  it('holds React 19.3.0, Vite 8.2.2 (except VitePress), axe-core 4.13, and MCP SDK 1.30', () => {
+  it('holds React 19.3.0, Vite 8.3.0 (except VitePress), axe-core 4.13, and MCP SDK 1.30', () => {
     expect(reactMisses(manifests)).toEqual([])
     expect(viteMisses(manifests)).toEqual([])
     expect(auditStackMisses(manifests)).toEqual([])
@@ -222,6 +249,7 @@ describe('live workspace floors', () => {
       expect(files.some(entry => entry.file.startsWith(tree)), tree).toBe(true)
     }
     expect(forbiddenStackHits(files)).toEqual([])
+    expect(forbiddenProductDependencyHits(manifests)).toEqual([])
   })
 
   it('loads the installed TypeScript 7 compiler, not a mocked version string', () => {
@@ -232,7 +260,7 @@ describe('live workspace floors', () => {
 
   it('holds the root packageManager at the bun pin', () => {
     expect(packageManagerMisses(rootManifestSource())).toEqual([])
-    const manifest = JSON.parse(rootManifestSource()) as { packageManager?: unknown }
+    const manifest: { packageManager?: string } = JSON.parse(rootManifestSource())
     expect(manifest.packageManager).toBe(BUN_PIN)
     expect(execFileSync('bun', ['--version'], { encoding: 'utf8' }).trim())
       .toBe(`${BUN_FLOOR.major}.${BUN_FLOOR.minor}.${BUN_FLOOR.patch}`)
@@ -261,7 +289,7 @@ describe('live workspace floors', () => {
       packageManager: BUN_PIN,
       devDependencies: {
         typescript: '^7.0.2',
-        vite: '^8.2.2',
+        vite: '^8.3.0',
         vitest: '^5.0.0',
         '@vitest/coverage-v8': '^4.1.11',
         tsx: '^4.23.13',
@@ -270,7 +298,7 @@ describe('live workspace floors', () => {
       devDependencies: {
         react: '~19.3.0',
         'react-dom': '~19.3.0',
-        playwright: '^1.62.1',
+        playwright: '^1.63.0',
       },
     })
     expect(live.map(miss => miss.name)).toEqual(['@vitest/coverage-v8'])
@@ -287,7 +315,7 @@ describe('live workspace floors', () => {
       packageManager: BUN_PIN,
       devDependencies: {
         typescript: '^7.0.2',
-        vite: '^8.2.2',
+        vite: '^8.3.0',
         vitest: '^4.1.11',
         tsx: '^4.23.13',
       },
@@ -295,7 +323,7 @@ describe('live workspace floors', () => {
       devDependencies: {
         react: '~19.3.0',
         'react-dom': '~19.3.0',
-        playwright: '^1.62.1',
+        playwright: '^1.63.0',
       },
     })
     expect(live.map(miss => miss.name)).toEqual(['vitest'])
@@ -354,6 +382,8 @@ describe('injected root manifest misses', () => {
     ['canvas', '3.2.2', '3.2.3'],
     ['axe-core', '4.12.0', '4.13.0'],
     ['playwright', '1.62.1', '1.63.0'],
+    ['unrun', '0.2.9', '0.3.1'],
+    ['tsdown', '0.21.7', '0.22.14'],
   ])('holds the declared and installed %s dependency at its reviewed floor', (name, stale, current) => {
     expect(rootDependencyMisses(JSON.stringify({ devDependencies: { [name]: stale } }))).toEqual([{
       file: 'package.json', name, range: stale, floor: ROOT_DEPENDENCY_FLOORS[name],
@@ -369,7 +399,7 @@ describe('injected root manifest misses', () => {
   it('reports a floor whose dependency the manifest no longer declares', () => {
     // Every floored name minus the one this manifest keeps: the rest are the
     // floors a removal would strand, which is what the live case asserts is empty.
-    const source = JSON.stringify({ devDependencies: { oxlint: '1.81.0' } })
+    const source = JSON.stringify({ devDependencies: { oxlint: '1.83.0' } })
     const stranded = staleRootDependencyFloors(source)
     expect(stranded).not.toContain('oxlint')
     expect(stranded).toContain('typescript')

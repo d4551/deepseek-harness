@@ -25,7 +25,9 @@ const PARENT_FIXTURE = join(REPO_ROOT, 'snapshots/session/workflow-run/session.j
 const CHILD_FIXTURE = join(REPO_ROOT, 'snapshots/session/workflow-run/session.1.jsonl')
 const CHILD_PROMPT = 'Reply with exactly the word WF_CHILD_OK and nothing else.'
 
-describe.skipIf(MODE === 'record')('web e2e: durable workflow run in Chat', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] workflow-run.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: durable workflow run in Chat', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

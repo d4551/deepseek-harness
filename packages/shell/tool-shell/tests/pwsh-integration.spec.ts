@@ -52,7 +52,9 @@ function text(result: { content: { type: string; text?: string }[] }): string {
   return result.content.filter(b => b.type === 'text').map(b => b.text).join('')
 }
 
-describe.skipIf(!hasPwsh)('pwsh tool over the real pwsh executor', () => {
+const SKIP_WITHOUT_PWSH = !hasPwsh
+if (SKIP_WITHOUT_PWSH) console.info('[skip] pwsh-integration.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH)('pwsh tool over the real pwsh executor', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'dsh-tool-shell-pwsh-'))
     await writeFile(join(dir, 'greeting.txt'), 'hello pwsh\n')

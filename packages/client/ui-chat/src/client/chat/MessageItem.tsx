@@ -97,9 +97,9 @@ function ModelRetryItem({ node, active, t }: {
   return (
     <details className={css.retryRow} data-active={active || undefined}>
       <summary className={css.retrySummary}>
-        <span className={css.retryText} role="status">
+        <output className={css.retryText}>
           {t('message.retry.status', { label, retry: node.retry, maximum, seconds })}
-        </span>
+        </output>
       </summary>
       <div className={css.retryDetails}>
         <div>
@@ -121,14 +121,14 @@ function TurnErrorItem({ node, t }: {
   t: ChatViewSlotProps['t']
 }) {
   return (
-    <div className={css.turnErrorRow} role="status">
+    <output className={css.turnErrorRow}>
       <StateDot state="error" className={css.turnErrorDot} />
-      <div className={css.turnErrorCopy}>
+      <span className={css.turnErrorCopy}>
         <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
         <span className={css.turnErrorMessage}>{failureMessage(node.message, node.code, t)}</span>
-      </div>
+      </span>
       {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
-    </div>
+    </output>
   )
 }
 

@@ -34,6 +34,32 @@ interface TestSnapshot {
   readonly nodes: ReadonlyMap<string, ConversationViewNode>
 }
 
+function numberState(state: unknown, absent: number): number {
+  if (state === undefined) return absent
+  if (typeof state !== 'number') throw new TypeError('predecessor State is not a number')
+  return state
+}
+
+function scopeProbeStep(value: unknown): ScopeProbeStepData | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('scope-probe Step data is not an object')
+  }
+  const claimed: unknown = Reflect.get(value, 'value')
+  if (typeof claimed !== 'number') throw new TypeError('scope-probe Step value is not a number')
+  return { value: claimed }
+}
+
+function scopeProbeTurn(value: unknown): ScopeProbeTurnData | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('scope-probe Turn data is not an object')
+  }
+  const claimed: unknown = Reflect.get(value, 'valueSeenFromStep')
+  if (typeof claimed !== 'number') throw new TypeError('scope-probe Turn valueSeenFromStep is not a number')
+  return { valueSeenFromStep: claimed }
+}
+
 class TestEventDefinitions {
   readonly definitions: readonly ConversationNodeDefinition[]
   readonly fallback: ConversationNodeDefinition | undefined
@@ -63,8 +89,10 @@ class TestViewDefinitions {
   }
 }
 
+type TestApplyMock = (upserts: readonly ConversationViewNode[]) => void
+
 function testView(
-  apply = vi.fn(),
+  apply = vi.fn<TestApplyMock>(),
 ): ConversationViewDefinition<ConversationViewNode, TestSnapshot> {
   return {
     target: 'test',
@@ -110,8 +138,18 @@ function chunkInput(row: ChunkRow): SessionEventLikeEntry {
   return { type: 'chunks', event }
 }
 
+function isTestSnapshot(value: unknown): value is TestSnapshot {
+  if (typeof value !== 'object' || value === null) return false
+  const order: unknown = Reflect.get(value, 'order')
+  const nodes: unknown = Reflect.get(value, 'nodes')
+  return Array.isArray(order) && nodes instanceof Map
+}
+
 function testSnapshot(assembler: ConversationNodeAssembler): TestSnapshot | undefined {
-  return assembler.snapshot('test') as TestSnapshot | undefined
+  const value = assembler.snapshot('test')
+  if (value === undefined) return undefined
+  if (!isTestSnapshot(value)) throw new TypeError('test target snapshot is not TestSnapshot')
+  return value
 }
 
 function node(
@@ -127,7 +165,7 @@ function node(
   }
 }
 
-function fallbackDefinition(start: () => string): ConversationNodeDefinition<string> {
+function fallbackDefinition(start: ConversationNodeDefinition<string>['start']): ConversationNodeDefinition<string> {
   return {
     kind: 'fallback',
     target: 'test',
@@ -140,11 +178,11 @@ function fallbackDefinition(start: () => string): ConversationNodeDefinition<str
 
 describe('ConversationNodeAssembler', () => {
   it('appends through an exact business-id Context without replaying unrelated Contexts', () => {
-    const starts = vi.fn((
+    const starts = vi.fn<ConversationNodeDefinition<{ callSeq: number; results: number }>['start']>((
       _context: ConversationNodeContext<{ callSeq: number; results: number }>,
       match: ConversationMatch,
     ) => ({ callSeq: match.event.seq, results: 0 }))
-    const updates = vi.fn((context: { state: { callSeq: number; results: number } }) => ({
+    const updates = vi.fn<ConversationNodeDefinition<{ callSeq: number; results: number }>['update']>((context: { state: { callSeq: number; results: number } }) => ({
       ...context.state,
       results: context.state.results + 1,
     }))
@@ -188,8 +226,8 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('keeps one Match collection while a long Context appends without replay', () => {
-    const starts = vi.fn(() => 0)
-    const updates = vi.fn((context: ConversationNodeContext<number> & { readonly state: number }) => (
+    const starts = vi.fn<() => number>(() => 0)
+    const updates = vi.fn<(context: ConversationNodeContext<number> & { readonly state: number }) => number>(context => (
       context.state + 1
     ))
     const matchCollections = new Set<readonly ConversationMatch[]>()
@@ -236,7 +274,7 @@ describe('ConversationNodeAssembler', () => {
       readonly packedStatus: string | undefined
     }
 
-    const matches = vi.fn((event: SessionEventLike) => {
+    const matches = vi.fn<ConversationNodeDefinition['match']>((event: SessionEventLike) => {
       if (event.type === 'step/start') return { id: '2:3', role: 'start' as const }
       if ((event.type as string) === 'probe/update'
         || event.type === 'chunkrow/text-chunks') {
@@ -244,8 +282,8 @@ describe('ConversationNodeAssembler', () => {
       }
       return null
     })
-    const passiveMatches = vi.fn(() => null)
-    const updates = vi.fn((
+    const passiveMatches = vi.fn<ConversationNodeDefinition['match']>(() => null)
+    const updates = vi.fn<ConversationNodeDefinition<State>['update']>((
       context: ConversationNodeContext<State> & { readonly state: State },
       match: ConversationMatch,
     ): State => {
@@ -351,8 +389,8 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('replays one pending packed Match after prepend supplies its scalar start', () => {
-    const starts = vi.fn(() => ({ batches: 0, status: 'unresolved' }))
-    const updates = vi.fn((
+    const starts = vi.fn<ConversationNodeDefinition<{ batches: number; status: string }>['start']>(() => ({ batches: 0, status: 'unresolved' }))
+    const updates = vi.fn<ConversationNodeDefinition<{ batches: number; status: string }>['update']>((
       context: ConversationNodeContext<{ batches: number; status: string }> & {
         readonly state: { batches: number; status: string }
       },
@@ -440,8 +478,8 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('merges an older page and replays its affected Context once', () => {
-    const starts = vi.fn(() => 0)
-    const updates = vi.fn((context: ConversationNodeContext<number> & { readonly state: number }) => (
+    const starts = vi.fn<ConversationNodeDefinition<number>['start']>(() => 0)
+    const updates = vi.fn<ConversationNodeDefinition<number>['update']>((context: ConversationNodeContext<number> & { readonly state: number }) => (
       context.state + 1
     ))
     const definition: ConversationNodeDefinition<number> = {
@@ -484,7 +522,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('collects an update before its start and replays it once prepend supplies the start', () => {
-    const updates = vi.fn((context: { state: { settled: boolean } }) => ({ ...context.state, settled: true }))
+    const updates = vi.fn<ConversationNodeDefinition<{ settled: boolean }>['update']>((context: { state: { settled: boolean } }) => ({ ...context.state, settled: true }))
     const definition: ConversationNodeDefinition<{ settled: boolean }> = {
       kind: 'tool',
       match: (event) => {
@@ -553,11 +591,11 @@ describe('ConversationNodeAssembler', () => {
       target: 'test',
       buildViewNode: () => null,
     }
-    const consumerStart = vi.fn((
+    const consumerStart = vi.fn<ConversationNodeDefinition<number>['start']>((
       _context: Parameters<ConversationNodeDefinition<number>['start']>[0],
       _match: Parameters<ConversationNodeDefinition<number>['start']>[1],
       reader: Parameters<ConversationNodeDefinition<number>['start']>[2],
-    ) => reader.previous<number>('source')?.state ?? -1)
+    ) => numberState(reader.previous('source')?.state, -1))
     const consumer: ConversationNodeDefinition<number> = {
       kind: 'consumer',
       match: event => event.type === 'assistant/message'
@@ -603,7 +641,7 @@ describe('ConversationNodeAssembler', () => {
       match: event => event.type === 'assistant/message'
         ? { id: `${event.data.turn}:${event.data.step}`, role: 'start' }
         : null,
-      start: (_context, _match, reader) => reader.previous<number>('source')?.state ?? -1,
+      start: (_context, _match, reader) => numberState(reader.previous('source')?.state, -1),
       update: context => context.state,
       target: 'test',
       buildViewNode: context => node(context, context.state),
@@ -638,11 +676,11 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('replays a window-gap reader when an empty prepend closes the unknown prefix', () => {
-    const consumerStart = vi.fn((
+    const consumerStart = vi.fn<ConversationNodeDefinition<number>['start']>((
       _context: Parameters<ConversationNodeDefinition<number>['start']>[0],
       _match: Parameters<ConversationNodeDefinition<number>['start']>[1],
       reader: Parameters<ConversationNodeDefinition<number>['start']>[2],
-    ) => reader.previous<number>('source')?.state ?? -1)
+    ) => numberState(reader.previous('source')?.state, -1))
     const consumer: ConversationNodeDefinition<number> = {
       kind: 'consumer',
       match: event => event.type === 'assistant/message'
@@ -682,11 +720,11 @@ describe('ConversationNodeAssembler', () => {
       target: 'test',
       buildViewNode: () => null,
     }
-    const consumerStart = vi.fn((
+    const consumerStart = vi.fn<ConversationNodeDefinition<number>['start']>((
       _context: Parameters<ConversationNodeDefinition<number>['start']>[0],
       _match: Parameters<ConversationNodeDefinition<number>['start']>[1],
       reader: Parameters<ConversationNodeDefinition<number>['start']>[2],
-    ) => reader.previous<number>('source')?.state ?? -1)
+    ) => numberState(reader.previous('source')?.state, -1))
     const consumer: ConversationNodeDefinition<number> = {
       kind: 'consumer',
       match: event => event.type === 'assistant/message'
@@ -745,8 +783,8 @@ describe('ConversationNodeAssembler', () => {
         ? { id: 'one', role: 'start' }
         : null,
       start: (_context, _match, reader) => (
-        (reader.previous<number>('diamond-a')?.state ?? 0)
-        + (reader.previous<number>('diamond-x')?.state ?? 0)
+        numberState(reader.previous('diamond-a')?.state, 0)
+        + numberState(reader.previous('diamond-x')?.state, 0)
       ),
       update: context => context.state,
       target: 'test',
@@ -758,8 +796,8 @@ describe('ConversationNodeAssembler', () => {
         ? { id: 'one', role: 'start' }
         : null,
       start: (_context, _match, reader) => (
-        (reader.previous<number>('diamond-a')?.state ?? 0) * 100
-        + (reader.previous<number>('diamond-b')?.state ?? 0)
+        numberState(reader.previous('diamond-a')?.state, 0) * 100
+        + numberState(reader.previous('diamond-b')?.state, 0)
       ),
       update: context => context.state,
       target: 'test',
@@ -786,8 +824,8 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('replays Location-derived State and rebuilds only owned Nodes when a step closes', () => {
-    const apply = vi.fn()
-    const starts = vi.fn((
+    const apply = vi.fn<TestApplyMock>()
+    const starts = vi.fn<ConversationNodeDefinition<string>['start']>((
       _context: Parameters<ConversationNodeDefinition<string>['start']>[0],
       match: Parameters<ConversationNodeDefinition<string>['start']>[1],
     ) => match.location.kind === 'step' ? match.location.step.status : 'missing')
@@ -861,7 +899,7 @@ describe('ConversationNodeAssembler', () => {
         }
         const location = context.start?.location
         const stepValue = location?.kind === 'step'
-          ? location.step.data.get('scope-probe')?.value
+          ? scopeProbeStep(location.step.data.get('scope-probe'))?.value
           : undefined
         return {
           kind: 'turn',
@@ -875,8 +913,8 @@ describe('ConversationNodeAssembler', () => {
         const location = context.start?.location
         if (location?.kind !== 'step') return null
         return node(context, {
-          step: location.step.data.get('scope-probe')?.value,
-          turn: location.turn.data.get('scope-probe')?.valueSeenFromStep,
+          step: scopeProbeStep(location.step.data.get('scope-probe'))?.value,
+          turn: scopeProbeTurn(location.turn.data.get('scope-probe'))?.valueSeenFromStep,
         })
       },
     }
@@ -900,7 +938,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('updates existing turn Locations when their Step membership changes', () => {
-    const apply = vi.fn()
+    const apply = vi.fn<TestApplyMock>()
     const definition: ConversationNodeDefinition<null> = {
       kind: 'turn-probe',
       match: event => event.type === 'turn/start'
@@ -929,7 +967,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('publishes a changed timeline even when no business Definition claims the boundary', () => {
-    const apply = vi.fn()
+    const apply = vi.fn<TestApplyMock>()
     const assembler = new ConversationNodeAssembler(
       new TestEventDefinitions([]),
       new TestViewDefinitions([testView(apply)]),
@@ -1082,7 +1120,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('restarts State creation from undefined when Location changes replay a Context', () => {
-    const seen = vi.fn((context: Parameters<ConversationNodeDefinition<number>['start']>[0]) => {
+    const seen = vi.fn<ConversationNodeDefinition<number>['start']>((context: Parameters<ConversationNodeDefinition<number>['start']>[0]) => {
       expect(context.state).toBeUndefined()
       return 1
     })
@@ -1110,7 +1148,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('invokes the fallback when only a State-only Definition claims an event', () => {
-    const fallbackStart = vi.fn(() => 'fallback')
+    const fallbackStart = vi.fn<ConversationNodeDefinition<string>['start']>(() => 'fallback')
     const claimed: ConversationNodeDefinition<null> = {
       kind: 'claimed-state',
       match: event => (event.type as string) === 'command/run'
@@ -1132,7 +1170,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('invokes the fallback when only another target claims an event', () => {
-    const fallbackStart = vi.fn(() => 'fallback')
+    const fallbackStart = vi.fn<ConversationNodeDefinition<string>['start']>(() => 'fallback')
     const claimed: ConversationNodeDefinition<null> = {
       kind: 'claimed-trajectory',
       target: 'trajectory',
@@ -1156,7 +1194,7 @@ describe('ConversationNodeAssembler', () => {
   })
 
   it('suppresses the fallback when the same target claims an event', () => {
-    const fallbackStart = vi.fn(() => 'fallback')
+    const fallbackStart = vi.fn<ConversationNodeDefinition<string>['start']>(() => 'fallback')
     const claimed: ConversationNodeDefinition<null> = {
       kind: 'claimed',
       target: 'test',

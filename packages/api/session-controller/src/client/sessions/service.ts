@@ -35,6 +35,8 @@ import type { SessionRemotes } from './remotes.ts'
 import type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot } from './manager.ts'
 import type { Session } from './session.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Session list row projected from the host list RPC plus live stream increments. */
 export interface SessionSummary {
   id: SessionId
@@ -528,9 +530,10 @@ export class ClientSessions implements ISessions {
     ])
     for (const result of results) {
       if (result.status === 'rejected') {
-        this.manager.handleSessionError(id, result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason))
+        const reason: Thrown = result.reason
+        this.manager.handleSessionError(id, reason instanceof Error
+          ? reason.message
+          : String(reason))
       }
     }
   }
@@ -665,13 +668,13 @@ export class ClientSessions implements ISessions {
     this.scopeDrops.add(drop)
     drop.then(
       () => { this.scopeDrops.delete(drop) },
-      () => { this.scopeDrops.delete(drop) },
+      (_error: Thrown) => { this.scopeDrops.delete(drop) },
     )
   }
 
   private async drainScopeDrops(): Promise<void> {
     while (this.scopeDrops.size > 0) {
-      await Promise.allSettled([...this.scopeDrops])
+      await Promise.allSettled(this.scopeDrops)
     }
   }
 
@@ -695,7 +698,7 @@ export class ClientSessions implements ISessions {
 
   /** Run deferred teardowns whose session is no longer staged (called when the stage moves). */
   private sweepDeferred(): void {
-    for (const id of [...this.deferredRemovals]) {
+    for (const id of Array.from(this.deferredRemovals)) {
       /* v8 ignore next -- defensive: only the staged id ever defers, and every
        * stage move sweeps first, so the set cannot contain the id the stage just
        * moved to; kept as a guard against future extra sweep call sites. */

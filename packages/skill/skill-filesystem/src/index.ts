@@ -42,6 +42,8 @@ const DEFAULT_WATCH_STABILITY_THRESHOLD_MS = 200
 const DEFAULT_WATCH_POLL_INTERVAL_MS = 100
 const DEFAULT_WATCH_MAX_PROJECTS = 128
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 export const name = 'skill-filesystem'
 export const inject = ['skills']
 
@@ -165,7 +167,7 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
     this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
     control.signal.addEventListener('abort', () => {
-      this.dispose().then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+      this.dispose().then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
     }, { once: true })
     // The environment bundled root is a default root: an isolated provider
     // must see only its explicit roots, or every such provider would
@@ -390,7 +392,7 @@ class SkillWatchManager {
       () => {
         state.opening = undefined
       },
-      () => {
+      (_error: Thrown) => {
         state.opening = undefined
       },
     )
@@ -455,7 +457,7 @@ class SkillWatchManager {
 
   private openAncestorWatcher(state: RootWatchState, mode: Extract<RootWatchMode, { kind: 'ancestor' }>): WatchHandle {
     const listener = (_current: Stats, _previous: Stats): void => {
-      this.handleAncestorWatchEvent(state, mode).then(undefined, (error: unknown) => {
+      this.handleAncestorWatchEvent(state, mode).then(undefined, (error: Thrown) => {
         this.handleWatcherError(state, error)
       })
     }
@@ -570,7 +572,7 @@ class SkillWatchManager {
     const currentOpening = state.opening ?? Promise.resolve()
     settleWatcherOpening(currentOpening)
       .then(() => this.ensureWatcher(state))
-      .then(() => { this.queueInvalidation() }, (error: unknown) => {
+      .then(() => { this.queueInvalidation() }, (error: Thrown) => {
         this.ctx.logger.warn(`skill-filesystem: rewatch of ${state.root.path} failed: ${errorMessage(error)}`)
       })
   }
@@ -1026,6 +1028,25 @@ function optionalMetadata(data: Record<string, unknown>): { metadata?: Record<st
   return {}
 }
 
+/**
+ * Human text for a rejected or caught filesystem skill failure.
+ * @param error - the unknown value a claim boundary received.
+ * @returns the Error message, primitive text, or object tag.
+ */
 function errorMessage(error: unknown): string {
-  return String(error)
+  if (error instanceof Error) return error.message
+  switch (typeof error) {
+    case 'string': return error
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(error)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (error === null) return 'null'
+      return Object.prototype.toString.call(error)
+  }
 }

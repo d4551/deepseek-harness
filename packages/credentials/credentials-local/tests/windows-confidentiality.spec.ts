@@ -49,7 +49,9 @@ async function ownerOnlyDocument(): Promise<{ path: string; owner: string }> {
   return { path, owner: owner ?? '' }
 }
 
-describe.skipIf(process.platform !== 'win32')('credentials-local Windows confidentiality', () => {
+const SKIP_WHEN_NOT_WIN32 = process.platform !== 'win32'
+if (SKIP_WHEN_NOT_WIN32) console.info('[skip] windows-confidentiality.spec.ts: non-Windows host; this exercises the Win32-only surface')
+describe.skipIf(SKIP_WHEN_NOT_WIN32)('credentials-local Windows confidentiality', () => {
   it('accepts a document whose DACL names only its owner', async () => {
     const { path } = await ownerOnlyDocument()
 

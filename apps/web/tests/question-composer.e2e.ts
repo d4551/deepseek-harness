@@ -312,7 +312,9 @@ describe('web e2e: resident question composer round trip', () => {
   // padding, which is where a cap measured in box pixels drifts off the line
   // count — so it is asked straight through the user-questions seam (the same
   // service the tool calls; no model round is involved in a layout metric).
-  it.skipIf(MODE === 'record')('grows the optionless answer to the same cap', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] question-composer.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('grows the optionless answer to the same cap', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-question-optionless'))
     const sessionId = answeredSession
     expect(sessionId).toBeDefined()
@@ -350,7 +352,9 @@ describe('web e2e: resident question composer round trip', () => {
 
 })
 
-describe.skipIf(MODE === 'record')('web e2e: cancelled question transcript', () => {
+const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+if (SKIP_IN_RECORD_MODE_2) console.info('[skip] question-composer.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE_2)('web e2e: cancelled question transcript', () => {
   let cancelledScaffold: WebScaffold
   let cancelledBrowser: Browser
   let cancelledPage: Page

@@ -60,7 +60,9 @@ const REPLAY: ReplayOverrideDoc = [{
   ],
 }]
 
-describe.skipIf(MODE === 'record')('web e2e: user-explicit skill invocation through the composer', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] skill-user-invoke.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: user-explicit skill invocation through the composer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

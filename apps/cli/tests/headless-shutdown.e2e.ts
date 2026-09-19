@@ -121,7 +121,9 @@ async function runHeadlessPtySmoke(): Promise<string> {
   }
 }
 
-describe.skipIf(process.platform === 'win32')('headless process shutdown (real Loader tree in a PTY)', () => {
+const SKIP_ON_WIN32 = process.platform === 'win32'
+if (SKIP_ON_WIN32) console.info('[skip] headless-shutdown.e2e.ts: Windows lacks this POSIX semantic; skipped on win32')
+describe.skipIf(SKIP_ON_WIN32)('headless process shutdown (real Loader tree in a PTY)', () => {
   it('lets a second Ctrl+C force exit while the first signal is draining', async () => {
     const output = await runHeadlessPtySmoke()
     expect(output).not.toContain('dsh: observing at ')

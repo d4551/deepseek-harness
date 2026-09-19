@@ -20,6 +20,25 @@ export interface BashSettings {
   maxOutputBytes?: number
 }
 
+/**
+ * Claim one wire section as the shell card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is not a finite number.
+ */
+export function decodeBashSettings(section: unknown): BashSettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const timeoutMs = Reflect.get(section, 'timeoutMs')
+  const maxOutputBytes = Reflect.get(section, 'maxOutputBytes')
+  if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs))) return undefined
+  if (maxOutputBytes !== undefined && (typeof maxOutputBytes !== 'number' || !Number.isFinite(maxOutputBytes))) {
+    return undefined
+  }
+  const claimed: BashSettings = {}
+  if (timeoutMs !== undefined) claimed.timeoutMs = timeoutMs
+  if (maxOutputBytes !== undefined) claimed.maxOutputBytes = maxOutputBytes
+  return claimed
+}
+
 /** What the shell card renders. */
 export interface BashCardState extends CardShell {
   /** Command timeout in milliseconds. */

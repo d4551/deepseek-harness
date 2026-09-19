@@ -3,6 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { errorMessage } from './error.ts'
 import { applyTeamEvent, foldTeam, isTeamEvent } from './fold.ts'
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-agent-team'
@@ -21,9 +22,8 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     try {
       const state = foldTeam(session.id, session.events)
       applyTeamEvent(state, event)
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      fail(`session event ${event.seq} violates the Agent Teams stream: ${message}`)
+    } catch (error) {
+      fail(`session event ${event.seq} violates the Agent Teams stream: ${errorMessage(error)}`)
     }
   }, { global: true })
 }, { inject: ['sessions'] })

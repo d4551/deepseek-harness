@@ -55,6 +55,31 @@ const INVALID_NAME_CHARS = /[^A-Za-z0-9_-]/g
 /** Hex chars of the SHA-256 identity hash appended on lossy normalization. */
 const HASH_LENGTH = 12
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected tool call or image admission.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Raw result record: the bridge owns JSON-value validation after transport. */
 const RawCallToolResultSchema = z.record(z.string(), z.unknown())
 
@@ -195,7 +220,17 @@ export async function syncTools(
     // registration occupies this server's namespace. Roll back so the model
     // sees either the full generation or none of it — never a partial set.
     for (const dispose of disposers.values()) dispose()
-    ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`)
+    const message = error instanceof Error
+      ? String(error)
+      : typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean'
+        || typeof error === 'bigint' || typeof error === 'symbol'
+        ? String(error)
+        : error === undefined
+          ? 'undefined'
+          : error === null
+            ? 'null'
+            : Object.prototype.toString.call(error)
+    ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${message}`)
     if (opts.registrationFailure === 'throw') throw error
     return new Map()
   }
@@ -315,7 +350,11 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
       additionalProperties: false,
     },
     render(_args: unknown, value: JsonValue) {
-      const result = value as unknown as McpResult
+      if (typeof value !== 'object' || value === null || Array.isArray(value)
+        || !('content' in value) || !Array.isArray(value.content)) {
+        throw new Error(`mcp-client(${rawName}): tool result value has no content array`)
+      }
+      const result = value as McpResult
       return [{ type: 'text', text: extractText(result.content, rawName) }]
     },
   }
@@ -365,10 +404,10 @@ function createExecutor(
       }
     }
 
-    // Trust boundary: the SDK's return type erases to `any[]` due to the
-    // union of CallToolResult | CompatibilityCallToolResult; extractText
-    // validates each element.
-    const content = result.content as unknown as JsonValue[]
+    // Trust boundary: the uncached record carries `content: unknown`; the
+    // `Array.isArray` guard above narrowed it to `any[]`, and `extractText`
+    // validates each element before it reaches model context.
+    const content = result.content as JsonValue[]
     const text = extractText(content, rawName)
 
     // MCP isError → throw so ToolRuntime produces an isError result for the model.
@@ -427,27 +466,28 @@ function decodeImage(block: McpContentBlock): SaveImageAttachment {
  * @param exec - exact tool execution whose agent supplies the latest route.
  * @returns the attachment store after exact positive image-capability proof.
  */
-async function resolveImageAdmission(ctx: Context, exec: ToolExecution): Promise<AttachmentStore> {
+function resolveImageAdmission(ctx: Context, exec: ToolExecution): Promise<AttachmentStore> {
   const attachments = ctx.get('attachments')
-  if (attachments === undefined) throw new Error('no attachment store is mounted')
+  if (attachments === undefined) return Promise.reject(new Error('no attachment store is mounted'))
   const routed = exec.agent?.session.requestHeader()?.config
   const provider = routed?.provider ?? exec.agent?.options.provider
   const model = routed?.model ?? exec.agent?.options.model
   const llm = ctx.get('llm')
   if (provider === undefined || model === undefined || llm === undefined) {
-    throw new Error('the current model route could not be resolved')
+    return Promise.reject(new Error('the current model route could not be resolved'))
   }
-  let info: Awaited<ReturnType<typeof llm.resolveModelInfo>>
-  try {
-    info = await llm.resolveModelInfo(provider, model, exec.signal)
-  } catch {
-    throw new Error('the current model route could not be verified')
-  }
-  if (info.inputModalities === undefined || !info.inputModalities.includes('image')) {
-    throw new Error(`model "${model}" does not declare image input`)
-  }
-  if (exec.signal.aborted) throw new Error('the tool call was canceled before image storage')
-  return attachments
+  return llm.resolveModelInfo(provider, model, exec.signal).then(
+    (info) => {
+      if (info.inputModalities === undefined || !info.inputModalities.includes('image')) {
+        throw new Error(`model "${model}" does not declare image input`)
+      }
+      if (exec.signal.aborted) throw new Error('the tool call was canceled before image storage')
+      return attachments
+    },
+    (_error: Thrown) => {
+      throw new Error('the current model route could not be verified')
+    },
+  )
 }
 
 /** Stable diagnostic text for an image block that was not admitted. */
@@ -475,9 +515,9 @@ async function prepareImageProjection(
     imageIndexes.push(index)
     try {
       decoded.push(decodeImage(toMcpContentBlock(value, 'image')))
-    } catch (error: unknown) {
+    } catch (error) {
       // decodeImage owns every throw above and always produces Error.
-      validationErrors.set(index, (error as Error).message)
+      validationErrors.set(index, error instanceof Error ? error.message : Object.prototype.toString.call(error))
     }
   }
   if (validationErrors.size > 0) {
@@ -490,31 +530,31 @@ async function prepareImageProjection(
     }))
   }
 
-  let attachments: AttachmentStore
-  try {
-    attachments = await resolveImageAdmission(ctx, exec)
-  } catch (error: unknown) {
-    // resolveImageAdmission contains provider failures and throws Error only.
-    const reason = (error as Error).message
-    return projectContent(content, toolName, block => ({ type: 'text', text: imageDiagnostic(block, reason) }))
-  }
-
-  try {
-    const refs = await attachments.saveImages(decoded)
-    const byIndex = new Map(imageIndexes.map((index, offset) => [index, refs[offset] as ImageAttachmentRef] as const))
-    return projectContent(content, toolName, (_block, index) => ({
-      type: 'image',
-      attachment: byIndex.get(index) as ImageAttachmentRef,
-    }))
-  } catch (error: unknown) {
-    const reason = isImageAdmissionError(error)
-      ? `image admission rejected the result: ${error.message}`
-      : 'durable image storage rejected the result'
-    return projectContent(content, toolName, block => ({
-      type: 'text',
-      text: imageDiagnostic(block, reason),
-    }))
-  }
+  const projected = await resolveImageAdmission(ctx, exec).then(
+    attachments => attachments.saveImages(decoded).then(
+      (refs) => {
+        const byIndex = new Map(imageIndexes.map((index, offset) => [index, refs[offset] as ImageAttachmentRef] as const))
+        return projectContent(content, toolName, (_block, index) => ({
+          type: 'image',
+          attachment: byIndex.get(index) as ImageAttachmentRef,
+        }))
+      },
+      (error: Thrown) => {
+        const reason = isImageAdmissionError(error)
+          ? `image admission rejected the result: ${error.message}`
+          : 'durable image storage rejected the result'
+        return projectContent(content, toolName, block => ({
+          type: 'text',
+          text: imageDiagnostic(block, reason),
+        }))
+      },
+    ),
+    (error: Thrown) => {
+      const reason = error instanceof Error ? error.message : thrownMessage(error)
+      return projectContent(content, toolName, block => ({ type: 'text', text: imageDiagnostic(block, reason) }))
+    },
+  )
+  return projected
 }
 
 /**

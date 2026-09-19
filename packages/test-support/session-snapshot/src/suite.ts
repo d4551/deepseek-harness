@@ -1208,7 +1208,9 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
       // In RECORD mode, only re-run the `recorded` (live-API) scenarios; the `authored` ones
       // (sidecar-driven errors/cancel) are never re-recorded. `posixOnly` scenarios skip on Windows;
       // `pwshOnly` scenarios skip when the caller's `hasPwsh` probe is false.
-      it.skipIf(scenarioSkipped(scenario, RECORDING, process.platform, options.hasPwsh))(`snapshot: ${scenario.name} matches the expected outputs`, async ({ expect }) => {
+      const SKIP_WHEN_SCENARIO_INELIGIBLE = scenarioSkipped(scenario, RECORDING, process.platform, options.hasPwsh)
+      if (SKIP_WHEN_SCENARIO_INELIGIBLE) console.info(`[skip] snapshot scenario '${scenario.name}': ineligible for this mode/host (unrecorded in record mode, posix-only on win32, or pwsh-only without pwsh)`)
+      it.skipIf(SKIP_WHEN_SCENARIO_INELIGIBLE)(`snapshot: ${scenario.name} matches the expected outputs`, async ({ expect }) => {
         const dir = join(snapshotsDir, scenario.name)
         const manifestPath = join(dir, 'snapshot.yml')
         const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)

@@ -56,6 +56,13 @@ const PROMPT_TEXT =
 
 /** Register all five tools and their shared model guidance. */
 export function apply(ctx: Context, config: Config): void {
+  if (
+    Reflect.get(ctx, 'systemPrompt') === undefined
+    || Reflect.get(ctx, 'tools') === undefined
+    || Reflect.get(ctx, 'sessionQuery') === undefined
+  ) {
+    throw new Error(`tool-session-query apply requires inject: ${inject.join(', ')}`)
+  }
   const resolved = resolveConfig(config)
   ctx.systemPrompt.section({
     name: 'tool:session-query',

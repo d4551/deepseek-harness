@@ -11,6 +11,8 @@ import {
 export class TranscriptViewPolicy {
   /** Reactive current mode; defaults to Compact before Host settings arrive. */
   readonly mode: SnapshotStore<TranscriptViewMode> = createSnapshotStore(DEFAULT_TRANSCRIPT_VIEW_MODE)
+  /** Latest Host write for the published mode. */
+  persist: Promise<void> = Promise.resolve()
 
   /**
    * @param host - durable Chat settings scope.
@@ -27,7 +29,7 @@ export class TranscriptViewPolicy {
   setMode(mode: TranscriptViewMode): void {
     if (this.mode.getSnapshot() === mode) return
     this.mode.set(mode)
-    this.host.set(TRANSCRIPT_VIEW_FIELD, mode).catch(console.error)
+    this.persist = this.host.set(TRANSCRIPT_VIEW_FIELD, mode)
   }
 
   /** Adopt the latest accepted Host section without writing it back. */

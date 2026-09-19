@@ -55,7 +55,9 @@ describe('web e2e: durable per-message feedback', () => {
     await sessionRow.click()
   }
 
-  it.skipIf(MODE === 'record')('persists a rating and its note across a reload, then retracts', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] message-feedback.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('persists a rating and its note across a reload, then retracts', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-feedback'))
     await openSeededSession()
 
@@ -113,7 +115,9 @@ describe('web e2e: durable per-message feedback', () => {
     await expect.poll(() => page.getByText(NOTE, { exact: true }).count(), { timeout: 10_000 }).toBe(0)
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('kept the console clean', () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] message-feedback.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('kept the console clean', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

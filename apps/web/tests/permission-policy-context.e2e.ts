@@ -122,7 +122,9 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
     await assertFinalWorkspaceSnapshot(SNAPSHOT_DIR, sessionWorkspace)
   }, 240_000)
 
-  it.skipIf(MODE === 'record')('records cache-safe current policy before the corresponding model behavior', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] permission-policy-context.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('records cache-safe current policy before the corresponding model behavior', async () => {
     const systems = requestSystems(sessionEvents)
     expect(systems).toHaveLength(1)
     expect(systems[0]).not.toContain('Current DSH file policy:')
@@ -164,7 +166,9 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
     expect(await readFile(join(sessionWorkspace, 'policy-neutral.txt'), 'utf8')).toBe('POLICY_NEUTRAL_OK')
   })
 
-  it.skipIf(MODE === 'record')('stays clean and keeps the fixture inventory closed', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] permission-policy-context.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('stays clean and keeps the fixture inventory closed', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'workspace.expected'])

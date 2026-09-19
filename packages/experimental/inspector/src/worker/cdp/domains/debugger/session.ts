@@ -17,6 +17,8 @@ import { parseCallFrameEvaluation, requestScriptId } from './cdp-params.ts'
 import { debuggerEvent, scriptParsedEvent } from './projector.ts'
 import { DebuggerScriptRegistry } from './script-registry.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Owns Debugger lifecycle, shared script projection, and Host-native fallback. */
 export class DebuggerDomainSession {
   private readonly scripts = new DebuggerScriptRegistry()
@@ -90,9 +92,9 @@ export class DebuggerDomainSession {
     this.runtime.releaseProjectedGroup('backtrace')
   }
 
-  private async enable(params: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+  private enable(params: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
     exactKeys(params, ['maxScriptsCacheSize'], 'Debugger.enable parameters')
-    if (this.enabled) return {}
+    if (this.enabled) return Promise.resolve({})
     const maxScriptsCacheSize = params.maxScriptsCacheSize
     if (maxScriptsCacheSize !== undefined
       && (typeof maxScriptsCacheSize !== 'number' || !Number.isFinite(maxScriptsCacheSize) || maxScriptsCacheSize < 0)) {
@@ -101,22 +103,23 @@ export class DebuggerDomainSession {
     const enableRequest = maxScriptsCacheSize === undefined ? {} : { maxScriptsCacheSize }
     this.debuggerEnableRequest = enableRequest
     this.enabled = true
-    try {
+    return new Promise<readonly Readonly<Record<string, unknown>>[]>((resolve) => {
       for (const realm of this.realms.all()) this.attachCapabilities(realm)
-      const results = await Promise.all(this.realms.all().map(async realm =>
-        realm.debugger.state === 'supported' ? realm.debugger.backend.enable(enableRequest) : {}))
-      await Promise.all(this.realms.all().map(async realm => this.publishCatalog(realm)))
-      return mergeResults(results)
-    } catch (error) {
+      resolve(Promise.all(this.realms.all().map(async realm =>
+        realm.debugger.state === 'supported' ? realm.debugger.backend.enable(enableRequest) : {})))
+    }).then(results =>
+      Promise.all(this.realms.all().map(async realm => this.publishCatalog(realm))).then(() => mergeResults(results)),
+    ).then(undefined, (error: Thrown) => {
       this.enabled = false
       this.debuggerEnableRequest = {}
       this.detachCapabilities()
       this.scripts.clear()
-      await Promise.allSettled(this.realms.all().map(async (realm) => {
+      return Promise.allSettled(this.realms.all().map(async (realm) => {
         if (realm.debugger.state === 'supported') await realm.debugger.backend.disable()
-      }))
-      throw error
-    }
+      })).then(() => {
+        throw error
+      })
+    })
   }
 
   private async disable(): Promise<Readonly<Record<string, unknown>>> {
@@ -237,8 +240,8 @@ export class DebuggerDomainSession {
 
   private receiveRealm(event: InspectorRealmSessionEvent): void {
     if (event.type === 'opened') {
-      if (this.enabled) this.enableRealm(event.session).catch((error: unknown) => {
-        console.error(`Inspector could not enable Debugger realm ${event.session.descriptor.label}:`, error)
+      if (this.enabled) this.enableRealm(event.session).then(undefined, (reason: Thrown) => {
+        console.error(`Inspector could not enable Debugger realm ${event.session.descriptor.label}:`, reason)
       })
       return
     }

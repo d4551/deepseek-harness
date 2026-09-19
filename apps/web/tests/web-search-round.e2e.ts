@@ -195,7 +195,9 @@ describe('web e2e: shipped default web search', () => {
     if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('uses the real provider and persists the capped structured result', () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] web-search-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('uses the real provider and persists the capped structured result', () => {
     expect(searchRequests).toHaveLength(QUERIES.length)
     for (const query of QUERIES) {
       const request = searchRequests.find(candidate => JSON.stringify(candidate.body).includes(query))
@@ -260,7 +262,9 @@ describe('web e2e: shipped default web search', () => {
     })
   })
 
-  it.skipIf(MODE === 'record')('matches the settled search card aria golden', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] web-search-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('matches the settled search card aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-aria'))
     await expect.poll(() => page.getByText('SEARCH_DONE', { exact: true }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
@@ -271,7 +275,9 @@ describe('web e2e: shipped default web search', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('scrolls the capped source list inside the fixed-height container', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] web-search-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('scrolls the capped source list inside the fixed-height container', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-sources-scroll'))
     const row = page.locator('[data-tool="web_search"] [data-expandable]').first()
     await expandOwningTurnProcess(page, row)
@@ -301,7 +307,9 @@ describe('web e2e: shipped default web search', () => {
     expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight)
   })
 
-  it.skipIf(MODE === 'record')('reserves marker room a scroll container cannot clip back', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] web-search-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('reserves marker room a scroll container cannot clip back', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-marker-room'))
     await expandOwningTurnProcess(page, page.locator('[data-tool="web_search"]'))
     // `overflow-y: auto` clips inline-start overflow with no way to scroll it
@@ -321,7 +329,9 @@ describe('web e2e: shipped default web search', () => {
     expect(marker.paddingLeft).toBeGreaterThanOrEqual(marker.widest)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean and kept the exact fixture inventory', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] web-search-round.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('stayed clean and kept the exact fixture inventory', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'ui.expected.md'])

@@ -57,7 +57,12 @@ export abstract class ConversationDefinitionRegistry<Definition> {
         this.refresh()
       }
     }, effectName)
-    return () => { Promise.resolve(dispose()).catch(owner.logger().error) }
+    return () => {
+      const released = dispose()
+      if (released !== undefined) {
+        throw new TypeError('conversation Definition registry dispose must complete synchronously')
+      }
+    }
   }
 
   /** Refresh cached entries and synchronously invalidate subscribers. */

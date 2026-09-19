@@ -7,6 +7,8 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Context supplied to a Client inspect provider query. */
 export interface ClientCordisInspectQueryContext {
   /** Cancellation broadcast by the Host. */
@@ -81,8 +83,8 @@ export class ClientCordisInspectRegistry {
       const manifests = [...this.providers.values()].map(provider => provider.manifest)
       this.syncChain = this.syncChain.then(async () => {
         await this.host.sync(manifests)
-      }).catch((error: unknown) => {
-        console.error('[cordis-client-runner] syncing inspect providers failed:', error)
+      }).then(undefined, (reason: Thrown) => {
+        console.error('[cordis-client-runner] syncing inspect providers failed:', reason)
       })
     })
   }

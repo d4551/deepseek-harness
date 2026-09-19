@@ -13,6 +13,8 @@ import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/ty
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { DirectoryPickerErrorDetailsMap } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const createDirectoryRequestSchema = z.object({
   path: z.string(),
   name: z.string(),
@@ -52,11 +54,12 @@ export class DirectoryPickerController extends TypertRemoteService {
   @Remote('pick')
   async pick(signal: AbortSignal): Promise<string | null> {
     const capability = this.requireCapability('native', 'pick')
-    try {
-      return await capability.pick(signal)
-    } catch (error: unknown) {
-      throw cancellableFailure(error, signal, 'directory picker was aborted', 'directory picker failed')
-    }
+    return capability.pick(signal).then(
+      undefined,
+      (error: Thrown) => {
+        throw cancellableFailure(error, signal, 'directory picker was aborted', 'directory picker failed')
+      },
+    )
   }
 
   /**
@@ -69,11 +72,12 @@ export class DirectoryPickerController extends TypertRemoteService {
   @Remote('list')
   async list(path: string | undefined, signal: AbortSignal): Promise<DirectoryListing> {
     const capability = this.requireCapability('browse', 'list')
-    try {
-      return await capability.list(path, signal)
-    } catch (error: unknown) {
-      throw cancellableFailure(error, signal, 'directory listing was aborted')
-    }
+    return capability.list(path, signal).then(
+      undefined,
+      (error: Thrown) => {
+        throw cancellableFailure(error, signal, 'directory listing was aborted')
+      },
+    )
   }
 
   /**
@@ -93,11 +97,12 @@ export class DirectoryPickerController extends TypertRemoteService {
       )
     }
     const capability = this.requireCapability('browse', 'createDirectory')
-    try {
-      return await capability.createDirectory(request.data.path, request.data.name)
-    } catch (error: unknown) {
-      throw browseFailure(error)
-    }
+    return capability.createDirectory(request.data.path, request.data.name).then(
+      undefined,
+      (error: Thrown) => {
+        throw browseFailure(error)
+      },
+    )
   }
 
   /** Resolve the capability one wire verb needs, or refuse with the kind this backend serves. */

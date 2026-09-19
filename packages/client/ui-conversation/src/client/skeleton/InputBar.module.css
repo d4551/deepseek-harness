@@ -25,7 +25,7 @@
   border-radius: 8px;
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 
@@ -51,8 +51,8 @@
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
      delta. */
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--dsh-content-font-size);
+  line-height: calc(24px + var(--dsh-content-font-delta));
   /* Elevated surface in dark, same as the menus: the draft scrollport inside
      scrolls once the composer hits its height cap, so the thumb takes the l2
      pair. Declared on the card because the elevation belongs to the surface,
@@ -282,7 +282,7 @@
   background-position: right 4px center;
   background-size: 12px 12px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 20px;
   font-weight: 500;
   white-space: nowrap;
@@ -341,7 +341,7 @@
   border-radius: 4px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   cursor: pointer;
 }
 

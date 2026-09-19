@@ -41,6 +41,8 @@ export type {
 export { renderWorkspaceContext } from './render.ts'
 export type { RenderedWorkspaceContext, TruncatedInstruction } from './render.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function visibleBaselineSource(
   agent: Agent,
   authorityMessages: readonly UserMessage[],
@@ -281,7 +283,7 @@ export function apply(ctx: Context, config: Config): void {
   ): void => {
     const previous = projectionTails.get(agent) ?? Promise.resolve()
     const current = previous.then(() => composeAndSync(agent, projectionLifecycle.signal, [], [touchedPath]))
-      .catch((error: unknown) => {
+      .catch((error: Thrown) => {
         if (!projectionLifecycle.signal.aborted) ctx.logger.warn('workspace instruction refresh failed: %o', error)
       })
     projectionTails.set(agent, current)

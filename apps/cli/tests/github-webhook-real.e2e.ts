@@ -316,14 +316,29 @@ function assistantText(page: HistoryPage): string {
 
 /** Expand lossless history records for assertions over the public event stream. */
 function historyEvents(page: HistoryPage): HistoryEvent[] {
-  return page.records.flatMap(record => record.type === 'event'
-    ? [record.event]
-    : decodeStorageRecord({
+  const events: HistoryEvent[] = []
+  for (const record of page.records) {
+    if (record.type === 'event') {
+      events.push(record.event)
+      continue
+    }
+    for (const item of decodeStorageRecord({
       type: record.event.type.replace(/^chunkrow\//u, ''),
       seq0: record.event.seq,
       time0: record.event.time,
       data: record.event.data,
-    }))
+    })) {
+      if (typeof item !== 'object' || item === null) {
+        throw new TypeError('decoded history record must be an object')
+      }
+      const type = Reflect.get(item, 'type')
+      if (typeof type !== 'string') {
+        throw new TypeError('decoded history record type must be a string')
+      }
+      events.push({ type, data: Reflect.get(item, 'data') })
+    }
+  }
+  return events
 }
 
 /** Stop the spawned CLI through its normal signal path, escalating only on a stuck teardown. */
@@ -366,7 +381,9 @@ async function sendGitHubDelivery(origin: string): Promise<Response> {
   })
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('GitHub webhook through the real dsh CLI and model', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] github-webhook-real.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('GitHub webhook through the real dsh CLI and model', () => {
   it('creates, attaches, prompts, and completes a Workspace Session', async () => {
     expect(existsSync(BUILT_BIN), `missing built CLI ${BUILT_BIN}; run bun run build:official`).toBe(true)
     const root = await mkdtemp(join(tmpdir(), 'dsh-github-webhook-real-'))

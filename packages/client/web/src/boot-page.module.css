@@ -31,7 +31,7 @@
 }
 
 .wordmark {
-  font-size: 16px;
+  font-size: var(--dsw-font-base-16-font-size);
   line-height: 24px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -39,7 +39,7 @@
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, var(--dsh-boot-label-tertiary));
 }
@@ -78,7 +78,7 @@
 }
 
 .failedTitle {
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   font-weight: 600;
   color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
@@ -97,7 +97,7 @@
     'PingFang SC',
     'Microsoft YaHei'
   );
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-secondary, var(--dsh-boot-label-secondary));
   white-space: pre-wrap;

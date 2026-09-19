@@ -55,7 +55,7 @@ export interface AssertionlessTestFinding {
   /** Title of the case, as authored. */
   readonly test: string
   /** Which no-op form fired. */
-  readonly kind: 'empty-body' | 'no-assertion' | 'callback-only-assertion'
+  readonly kind: 'empty-body' | 'no-assertion' | 'callback-only-assertion' | 'todo-case' | 'skipped-case'
   /** What the case does instead of asserting. */
   readonly detail: string
 }
@@ -516,18 +516,39 @@ function collectAssertionlessTests(module: ParsedModule, graph: ModuleGraph): As
   const shadowed = shadowedRunnerNames(source)
   const found: AssertionlessTestFinding[] = []
   const record = (node: CallExpression, injected: ReadonlySet<string>): void => {
-    // `it.todo('name')` declares work with no body by design.
-    if (runnerModifiers(node.expression).includes('todo')) return
     const args = [...node.arguments]
     if (args.length === 0) return
+    const modifiers = runnerModifiers(node.expression)
+    const shared = { file, line: lineOf(node, source), test: caseTitle(args[0], source) }
+    if (modifiers.includes('todo')) {
+      found.push({
+        ...shared,
+        kind: 'todo-case',
+        detail: 'the case is registered as todo, so it never exercises the behavior its title names',
+      })
+      return
+    }
     const body = caseBody(args)
-    // `it('name')` without a handler registers as a todo case.
-    if (body === undefined) return
+    if (body === undefined) {
+      found.push({
+        ...shared,
+        kind: 'todo-case',
+        detail: 'the case is title-only, so the runner records a todo and never exercises the behavior its title names',
+      })
+      return
+    }
+    if (modifiers.includes('skip')) {
+      found.push({
+        ...shared,
+        kind: 'skipped-case',
+        detail: 'the case is unconditionally skipped, so it never exercises the behavior its title names',
+      })
+      return
+    }
     // A registration helper — `itInScratch(name, run)` — hands the runner a
     // body built from its own parameters. The assertions belong to each call
     // site, which this module cannot see, so the registration is not a case.
     if (referencesAny(body, injected)) return
-    const shared = { file, line: lineOf(node, source), test: caseTitle(args[0], source) }
     const scan = scanBody(body)
     if (scan.empty) {
       found.push({

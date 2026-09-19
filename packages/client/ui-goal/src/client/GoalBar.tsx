@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import {
   GlyphButton, IconCheckOutline16, IconCloseOutline16, IconEditOutline16, IconGoalOutline16,
-  IconPauseOutline16, IconPlayOutline16, IconTrashOutline16, Tooltip,
+  IconPauseOutline16, IconPlayOutline16, IconTrashOutline16, Tooltip, useFocusWhen,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GoalActionResult, GoalBarActions } from './slots.ts'
@@ -38,6 +38,12 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
   const [actionError, setActionError] = useState<string | null>(null)
   const [clearedGoalId, setClearedGoalId] = useState<GoalSnapshot['id'] | null>(null)
   const pendingRef = useRef(false)
+  const editorOpen = editing
+    && goal !== undefined
+    && goal !== null
+    && goal.phase !== 'complete'
+    && goal.id !== clearedGoalId
+  const objectiveRef = useFocusWhen<HTMLInputElement>(editorOpen)
 
   // A new goal identity (cleared/completed/replaced externally) invalidates the local edit
   // state: without the reset a surviving draft's Enter would write over the NEW goal.
@@ -75,11 +81,12 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
   // Loading, absent, and complete goals have no strip at all.
   if (goal === undefined || goal === null || goal.phase === 'complete' || goal.id === clearedGoalId) return null
 
-  if (editing) {
+  if (editorOpen) {
     return (
       <div className={css.dock} data-goal-bar>
         <div className={css.bar}>
           <input
+            ref={objectiveRef}
             className={css.objectiveInput}
             type="text"
             aria-label={t('objective.aria')}
@@ -89,7 +96,6 @@ export function GoalBar({ goal, onEdit, onPause, onResume, onClear, t }: GoalBar
               if (e.key === 'Enter') startTransition(handleEdit)
               if (e.key === 'Escape') setEditing(false)
             }}
-            autoFocus
           />
           {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
           <div className={css.actions}>

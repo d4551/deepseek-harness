@@ -37,7 +37,7 @@
   border-radius: 12px;
   background: var(--dsw-specific-menu);
   box-shadow: var(--dsw-shadow-lv3);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
   cursor: default;

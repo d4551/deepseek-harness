@@ -321,6 +321,29 @@ describe('LocalPtySession readiness and output', () => {
     await expect(operation.done).rejects.toThrow('inspection failed with reply pending')
   })
 
+  it('claims a leftover protocol drain rejection as transport failure', async () => {
+    vi.useFakeTimers()
+    const terminal = new FakeTerminal()
+    const inspector = new FakeInspector()
+    const session = makeSession(terminal, inspector, config())
+    await initialize(session, terminal)
+    const operation = session.startSend({ text: '', submit: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    const internal = session as unknown as {
+      stopReadinessPolling(): void
+      pollReadiness(operation: TerminalSendOperation): Promise<void>
+      drainTerminalProtocol(): Promise<void>
+    }
+    internal.stopReadinessPolling()
+    terminal.inspectForeground = async () => { throw new Error('inspect failed') }
+    internal.drainTerminalProtocol = () => Promise.reject(new Error('drain failed'))
+    terminal.emitData('\x1b[6n')
+    await internal.pollReadiness(operation)
+    await expect(operation.done).rejects.toThrow('drain failed')
+    expect(session.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
+  })
+
   it('retains pre-write ownership when inspection fails with a terminal reply pending', async () => {
     vi.useFakeTimers()
     const terminal = new FakeTerminal()
@@ -393,6 +416,71 @@ describe('LocalPtySession readiness and output', () => {
     emulatorTerminal.emitData('output')
     await expect(emulatorOperation.done).rejects.toThrow('emulator failed')
     expect(emulatorSession.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
+
+    const leftoverTerminal = new FakeTerminal()
+    const leftoverSession = new LocalPtySession(leftoverTerminal, config())
+    const leftoverOperation = leftoverSession.startSend({ text: '', submit: false })
+    const leftoverEmulator = (leftoverSession as unknown as {
+      emulator: { write(data: string, callback?: () => void): void }
+    }).emulator
+    leftoverEmulator.write = () => { throw 'emulator string' }
+    leftoverTerminal.emitData('output')
+    await expect(leftoverOperation.done).rejects.toThrow('emulator string')
+
+    const leftoverInspectTerminal = new FakeTerminal()
+    const leftoverInspectSession = new LocalPtySession(leftoverInspectTerminal, config())
+    const leftoverInspectOperation = leftoverInspectSession.startSend({ text: '', submit: false })
+    leftoverInspectTerminal.inspectForeground = async () => { throw 'inspect string' }
+    await Promise.resolve()
+    await Promise.resolve()
+    const leftoverInspectInternal = leftoverInspectSession as unknown as {
+      pollReadiness(operation: TerminalSendOperation): Promise<void>
+    }
+    await leftoverInspectInternal.pollReadiness(leftoverInspectOperation)
+    await expect(leftoverInspectOperation.done).rejects.toThrow('inspect string')
+  })
+
+  it('contains leftover sync inspect and signal throws so a successor send can start', async () => {
+    vi.useFakeTimers()
+    const inspectTerminal = new FakeTerminal()
+    const inspectSession = new LocalPtySession(inspectTerminal, config())
+    await initialize(inspectSession, inspectTerminal)
+    inspectTerminal.inspectForeground = () => { throw new Error('sync inspect') }
+    const inspectOperation = inspectSession.startSend({ text: 'must fail', submit: true })
+    await expect(inspectOperation.done).rejects.toThrow('sync inspect')
+    inspectTerminal.inspectForeground = FakeTerminal.prototype.inspectForeground.bind(inspectTerminal)
+    const inspectSuccessor = inspectSession.startSend({ text: '', submit: false })
+    await inspectSession.close('release inspect successor')
+    expect((await inspectSuccessor.done).waitReason).toBe('session_exit')
+
+    const pollTerminal = new FakeTerminal()
+    const pollSession = new LocalPtySession(pollTerminal, config())
+    await initialize(pollSession, pollTerminal)
+    const pollOperation = pollSession.startSend({ text: '', submit: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    pollTerminal.inspectForeground = () => { throw new Error('sync poll inspect') }
+    const pollInternal = pollSession as unknown as {
+      pollReadiness(operation: TerminalSendOperation): Promise<void>
+    }
+    await pollInternal.pollReadiness(pollOperation)
+    await expect(pollOperation.done).rejects.toThrow('sync poll inspect')
+    pollTerminal.inspectForeground = FakeTerminal.prototype.inspectForeground.bind(pollTerminal)
+    const pollSuccessor = pollSession.startSend({ text: '', submit: false })
+    await pollSession.close('release poll successor')
+    expect((await pollSuccessor.done).waitReason).toBe('session_exit')
+
+    const signalTerminal = new FakeTerminal()
+    const signalInspector = new FakeInspector()
+    const signalSession = makeSession(signalTerminal, signalInspector, config())
+    await initialize(signalSession, signalTerminal)
+    signalTerminal.signalForeground = () => { throw new Error('sync signal') }
+    const signalOperation = signalSession.startSend({ text: '', submit: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(signalOperation.cancel()).toBe(true)
+    await expect(signalOperation.done).rejects.toThrow('sync signal')
+    expect(signalSession.status()).toEqual({ kind: 'exited', exitCode: null, signal: null })
   })
 
   it('ignores terminal-protocol failures after closing starts and drains changing queues', async () => {
@@ -860,9 +948,8 @@ describe('LocalPtySession readiness and output', () => {
     await Promise.resolve()
     expect(operation.cancel()).toBe(true)
 
-    const rejected = expect(operation.done).rejects.toThrow('write failed after cancellation')
     writeGate.reject(new Error('write failed after cancellation'))
-    await rejected
+    await expect(operation.done).rejects.toThrow('write failed after cancellation')
     expect(inspector.groups).toEqual([])
 
     const next = session.startSend({ text: '', submit: false })
@@ -1084,9 +1171,11 @@ describe('LocalPtySession readiness and output', () => {
 
     const timeoutTerminal = new FakeTerminal()
     const timeout = new LocalPtySession(timeoutTerminal, config())
-    const timedOut = expect(timeout.initialize()).rejects.toThrow('startup timeout')
+    const timedOut = timeout.initialize()
+    const claimedTimeout = timedOut.then(undefined, _error => undefined)
     await vi.advanceTimersByTimeAsync(100)
-    await timedOut
+    await expect(timedOut).rejects.toThrow('startup timeout')
+    await claimedTimeout
   })
 
   it('preserves the caller abort reason when startup cannot resolve a foreground group', async () => {
@@ -1098,10 +1187,10 @@ describe('LocalPtySession readiness and output', () => {
     const reason = new Error('startup cancelled')
 
     const initializing = session.initialize(controller.signal)
-    const rejected = expect(initializing).rejects.toBe(reason)
+    const claimedAbort = initializing.then(undefined, _error => undefined)
     controller.abort(reason)
-
-    await rejected
+    await expect(initializing).rejects.toBe(reason)
+    await claimedAbort
   })
 
   it('waits for printable prompt text when the startup marker is split from PS1', async () => {
@@ -1222,6 +1311,19 @@ describe('LocalPtySession readiness and output', () => {
     const rejectedOperation = rejected.startSend({ text: '', submit: false })
     rejectedTerminal.emitFailure('raw transport failure')
     await expect(rejectedOperation.done).rejects.toThrow('raw transport failure')
+
+    for (const [reason, message] of [
+      [undefined, 'undefined'],
+      [null, 'null'],
+      [7, '7'],
+      [Object.create(null), '[object Object]'],
+    ] as const) {
+      const leftoverTerminal = new FakeTerminal()
+      const leftover = new LocalPtySession(leftoverTerminal, config())
+      const leftoverOperation = leftover.startSend({ text: '', submit: false })
+      leftoverTerminal.emitFailure(reason)
+      await expect(leftoverOperation.done).rejects.toThrow(message)
+    }
   })
 
   it('replaces invalid UTF-8 terminal output', async () => {

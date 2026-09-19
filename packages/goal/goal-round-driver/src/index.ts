@@ -67,6 +67,8 @@ function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Human-readable unexpected values for logs. */
 function renderThrown(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
@@ -118,7 +120,7 @@ export function apply(ctx: Context): void {
     try {
       const goal = currentGoal(state)
       if (goal?.activation === 'armed') ctx.goals.disarm(state.agent)
-    } catch (error: unknown) {
+    } catch (error) {
       ctx.logger.warn(`goal-round-driver: could not disarm agent "${state.agent.id}": ${renderThrown(error)}`)
     }
   }
@@ -141,13 +143,13 @@ export function apply(ctx: Context): void {
 
     if (state.needsCheckpoint) {
       state.needsCheckpoint = false
-      try {
-        await ctx.sessions.flush(agent.session)
-      } catch (error: unknown) {
+      let checkpointFailed = false
+      await ctx.sessions.flush(agent.session).then(undefined, (error: Thrown) => {
         ctx.logger.warn(`goal-round-driver: durability checkpoint failed for agent "${agent.id}": ${renderThrown(error)}`)
         disarm(state)
-        return
-      }
+        checkpointFailed = true
+      })
+      if (checkpointFailed) return
       // A mutation or ordinary prompt may have arrived while the checkpoint
       // was settling. Give it its own checkpoint / turn before reserving.
       if (!readyAfterCheckpoint(state)) return
@@ -190,7 +192,7 @@ export function apply(ctx: Context): void {
     state.attempt = reservation
     try {
       agent.followup(message)
-    } catch (error: unknown) {
+    } catch (error) {
       state.attempt = undefined
       ctx.logger.warn(`goal-round-driver: could not queue round ${round} for agent "${agent.id}": ${renderThrown(error)}`)
       const latest = currentGoal(state)
@@ -215,15 +217,13 @@ export function apply(ctx: Context): void {
       run = ctx.agents.withoutInitiator(async () => {
         while (state.requested && !state.stopping) {
           state.requested = false
-          try {
-            await drive(state)
-          } catch (error: unknown) {
+          await drive(state).then(undefined, (error: Thrown) => {
             ctx.logger.warn(`goal-round-driver: driver failed for agent "${state.agent.id}": ${renderThrown(error)}`)
             disarm(state)
-          }
+          })
         }
       })
-    } catch (error: unknown) {
+    } catch (error) {
       ctx.logger.warn(`goal-round-driver: could not start driver for agent "${state.agent.id}": ${renderThrown(error)}`)
       disarm(state)
       return
@@ -233,7 +233,7 @@ export function apply(ctx: Context): void {
       state.run = undefined
       if (state.requested && !state.stopping) requestDrive(state)
     }
-    run.then(retire, (error: unknown) => {
+    run.then(retire, (error: Thrown) => {
       ctx.logger.warn(`goal-round-driver: driver task rejected for agent "${state.agent.id}": ${renderThrown(error)}`)
       disarm(state)
       retire()
@@ -267,7 +267,7 @@ export function apply(ctx: Context): void {
           state.attempt = undefined
           try {
             ctx.goals.pause(agent, goalRef(goal))
-          } catch (error: unknown) {
+          } catch (error) {
             ctx.logger.warn(`goal-round-driver: could not pause cancelled goal for agent "${agent.id}": ${renderThrown(error)}`)
             disarm(state)
           }
@@ -355,7 +355,7 @@ export function apply(ctx: Context): void {
       let valid = false
       try {
         valid = validReservation(state, content, source)
-      } catch (error: unknown) {
+      } catch (error) {
         ctx.logger.warn(`goal-round-driver: pre-step check failed for agent "${agent.id}": ${renderThrown(error)}`)
         disarm(state)
       }
@@ -369,10 +369,7 @@ export function apply(ctx: Context): void {
         requestDrive(state)
         return { kind: 'reject' }
       }
-      let decision: PreStepDecision
-      try {
-        decision = await next()
-      } catch (error: unknown) {
+      const decision = await next().then(undefined, (error: Thrown) => {
         if (signal.aborted) throw error
         // A throwing downstream hook drops the whole step proposal. Clear the
         // reservation before the balanced no-step turn returns to idle so the
@@ -380,7 +377,7 @@ export function apply(ctx: Context): void {
         state.attempt = undefined
         requestDrive(state)
         throw error
-      }
+      })
       if (signal.aborted) {
         if (decision.kind === 'enter') restoreOtherClaimed(agent, decision.messages, submitted.id)
         return decision
@@ -399,7 +396,7 @@ export function apply(ctx: Context): void {
       }
       try {
         valid = validReservation(state, content, source)
-      } catch (error: unknown) {
+      } catch (error) {
         ctx.logger.warn(`goal-round-driver: post-decision check failed for agent "${agent.id}": ${renderThrown(error)}`)
         disarm(state)
         valid = false

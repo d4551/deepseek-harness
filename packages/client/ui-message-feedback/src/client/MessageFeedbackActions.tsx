@@ -21,6 +21,8 @@ import type { MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback/ty
 import type { MessageFeedbackActionProps } from './slots.ts'
 import css from './MessageFeedbackActions.module.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Safe distance kept between the panel and the viewport edges (the Menu portal margin). */
 const PANEL_MARGIN = 12
 
@@ -35,6 +37,7 @@ const PANEL_GAP = 4
  * portal-open beneath the trigger while it is open.
  */
 export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearNote, useFeedback, t }: MessageFeedbackActionProps) {
+  const reportThrown: (error: Thrown) => void = reportError
   const item = useFeedback(view => view.items.get(messageId))
   const loadFailed = useFeedback(view => view.status === 'error')
   const rating = item?.rating
@@ -48,7 +51,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   // looking; it stays open so the draft survives to be corrected.
   const [noteFailure, setNoteFailure] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDialogElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // The controls mount for every settled message in the transcript, so the
   // Session's feedback is read once on first hover/focus rather than on mount.
@@ -56,7 +59,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   const seed = useCallback(() => {
     if (seeded.current) return
     seeded.current = true
-    ensure().then(undefined, reportError)
+    ensure().then(undefined, reportThrown)
   }, [ensure])
 
   const alive = useRef(true)
@@ -92,7 +95,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
     // click that lands before the first list read still toggles the stored
     // value instead of this render's empty view.
     closeNote()
-    toggle(messageId, next).then(settleRating, reportError)
+    toggle(messageId, next).then(settleRating, reportThrown)
   }, [closeNote, messageId, settleRating, toggle])
 
   // The rating is a parameter because only the note editor's render site can
@@ -150,7 +153,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
       if (generation === noteGeneration.current || !noteOpenRef.current) {
         setNoteFailure(errorCopy(result))
       }
-    }, reportError)
+    }, reportThrown)
   }, [clearNote, draft, errorCopy, item?.note, messageId, noteOpenRef, rate])
 
   // The trigger toggles: while closed it opens the popover (seeding the draft
@@ -263,9 +266,9 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
         </button>
       )}
       {rowFailure === null && loadFailed && (
-        <span className={css.failure} role="status">{t('error.load')}</span>
+        <output className={css.failure}>{t('error.load')}</output>
       )}
-      {rowFailure !== null && <span className={css.failure} role="status">{rowFailure}</span>}
+      {rowFailure !== null && <output className={css.failure}>{rowFailure}</output>}
       {/* A note-save failure normally lives inside the panel, beside the buttons
           that produced it. Whenever the panel is not on screen it falls back to
           the row instead: the rating may have disappeared underneath an open
@@ -274,13 +277,13 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
           have closed the panel before a slow save came back. Either way the row
           reports that the save did not land rather than dropping it. */}
       {!(rating !== undefined && noteOpen) && noteFailure !== null && (
-        <span className={css.failure} role="status">{noteFailure}</span>
+        <output className={css.failure}>{noteFailure}</output>
       )}
       {rating !== undefined && noteOpen && createPortal(
-        <div
+        <dialog
           ref={panelRef}
           className={css.notePanel}
-          role="dialog"
+          open
           aria-label={t('note.dialog')}
           data-anchored-position={pos ?? undefined}
         >
@@ -306,8 +309,8 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
               {t('note.cancel')}
             </button>
           </div>
-          {noteFailure !== null && <span className={css.failure} role="status">{noteFailure}</span>}
-        </div>,
+          {noteFailure !== null && <output className={css.failure}>{noteFailure}</output>}
+        </dialog>,
         document.body,
       )}
     </>

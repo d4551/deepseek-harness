@@ -23,6 +23,8 @@ import {
 import { RuntimeObjectTable, type RuntimeObjectObserver } from './object-table.ts'
 import type { RuntimeObjectRoute } from './object-table.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Runtime router layered over the common per-connection realm sessions. */
 export class RuntimeDomainSession {
   private readonly objects: RuntimeObjectTable
@@ -429,7 +431,10 @@ export class RuntimeDomainSession {
     if (event.type === 'opened') {
       if (this.enabled) {
         this.pendingAnnouncements++
-        this.announceRealm(event.session).then(() => { this.settleAnnouncement() }, () => { this.settleAnnouncement() })
+        this.announceRealm(event.session).then(
+          () => { this.settleAnnouncement() },
+          (_error: Thrown) => { this.settleAnnouncement() },
+        )
       }
       return
     }
@@ -452,17 +457,17 @@ export class RuntimeDomainSession {
    * @returns The realm once its Console events and Runtime state are live for
    * this connection, or undefined when it was dropped instead.
    */
-  private async admitRealm(realm: InspectorRealmSession): Promise<InspectorRealmSession | undefined> {
-    try {
-      await Promise.all([this.attachConsole(realm), enableRuntime(realm)])
-      return realm
-    } catch {
-      // Closing the session ends a Console subscription that did establish, so
-      // this connection forgets it rather than replaying it to a closed backend.
-      this.detachConsole(realm.descriptor.realmId)
-      realm.close()
-      return undefined
-    }
+  private admitRealm(realm: InspectorRealmSession): Promise<InspectorRealmSession | undefined> {
+    return Promise.all([this.attachConsole(realm), enableRuntime(realm)]).then(
+      () => realm,
+      (_error: Thrown) => {
+        // Closing the session ends a Console subscription that did establish, so
+        // this connection forgets it rather than replaying it to a closed backend.
+        this.detachConsole(realm.descriptor.realmId)
+        realm.close()
+        return undefined
+      },
+    )
   }
 
   private async announceRealm(realm: InspectorRealmSession): Promise<void> {
@@ -472,11 +477,11 @@ export class RuntimeDomainSession {
 
   private settleAnnouncement(): void {
     this.pendingAnnouncements--
-    for (const listener of [...this.settledListeners]) listener()
+    for (const listener of Array.from(this.settledListeners)) listener()
   }
 
-  private async attachConsole(realm: InspectorRealmSession): Promise<void> {
-    if (realm.console.state === 'unsupported') return
+  private attachConsole(realm: InspectorRealmSession): Promise<void> {
+    if (realm.console.state === 'unsupported') return Promise.resolve()
     let subscription = this.consoleSubscriptions.get(realm.descriptor.realmId)
     if (subscription === undefined) {
       subscription = realm.console.backend.subscribe((event) => {
@@ -485,12 +490,10 @@ export class RuntimeDomainSession {
       })
       this.consoleSubscriptions.set(realm.descriptor.realmId, subscription)
     }
-    try {
-      await subscription
-    } catch (error) {
+    return subscription.then(undefined, (error: Thrown) => {
       this.consoleSubscriptions.delete(realm.descriptor.realmId)
       throw error
-    }
+    })
   }
 
   private detachConsole(realmId: InspectorRealmId): void {
@@ -499,14 +502,14 @@ export class RuntimeDomainSession {
     this.consoleSubscriptions.delete(realmId)
     subscription.then(
       (dispose) => { dispose() },
-      () => {
+      (_error: Thrown) => {
         // A subscription the realm never established retains nothing to release.
       },
     )
   }
 
   private detachConsoles(): void {
-    for (const realmId of [...this.consoleSubscriptions.keys()]) this.detachConsole(realmId)
+    for (const realmId of Array.from(this.consoleSubscriptions.keys())) this.detachConsole(realmId)
   }
 
   private announce(realm: InspectorRealmSession): void {

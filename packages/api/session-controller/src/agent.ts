@@ -67,6 +67,8 @@ export type ApiSessionAgentResult =
   | { readonly agent: Agent }
   | { readonly error: ApiSessionAgentError }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 type InstalledSelection = ModelSelectionRef & {
   current: AgentModelSelection
   consume(provider: string, model: string, reasoningEffort: string | undefined): boolean
@@ -116,22 +118,25 @@ export async function inspectApiSession(
   sessionId: SessionId,
   signal?: AbortSignal,
 ): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
-  try {
-    using observation = await ctx.sessionQuery.observeSession(sessionId, {
-      ...(signal === undefined ? {} : { signal }),
-      projectionMode: 'none',
-    })
-    if (observation.header.cwd === undefined) {
-      throw new ApiSessionNotFound(`session "${sessionId}" not found`)
-    }
-    return { meta: observation.header, events: [...observation.events] }
-  } catch (error: unknown) {
-    if (error instanceof SessionQueryError
-      && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
-      throw new ApiSessionNotFound(`session "${sessionId}" not found`)
-    }
-    throw error
-  }
+  return await ctx.sessionQuery.observeSession(sessionId, {
+    ...(signal === undefined ? {} : { signal }),
+    projectionMode: 'none',
+  }).then(
+    (observation) => {
+      using owned = observation
+      if (owned.header.cwd === undefined) {
+        throw new ApiSessionNotFound(`session "${sessionId}" not found`)
+      }
+      return { meta: owned.header, events: [...owned.events] }
+    },
+    (error: Thrown) => {
+      if (error instanceof SessionQueryError
+        && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
+        throw new ApiSessionNotFound(`session "${sessionId}" not found`)
+      }
+      throw error
+    },
+  )
 }
 
 /** Owns every operation that may create, resume, or configure a Web Agent. */
@@ -194,35 +199,36 @@ export class ApiSessionAgentController {
       resume = this.resume(sessionId, observation).finally(() => { this.resumes.delete(sessionId) })
       this.resumes.set(sessionId, resume)
     }
-    try {
-      return { agent: await resume }
-    } catch (error: unknown) {
-      if (error instanceof ApiSessionNotFound) {
+    return await resume.then(
+      agent => ({ agent }),
+      (error: Thrown): ApiSessionAgentResult => {
+        if (error instanceof ApiSessionNotFound) {
+          return {
+            error: {
+              code: 'session-not-found',
+              message: error.message,
+              details: { sessionId },
+            },
+          }
+        }
+        if (error instanceof ApiSessionSubagentOwnership) {
+          return { error: apiSessionSubagentOwnershipError(error.sessionId) }
+        }
+        const raced = this.liveAgent(sessionId)
+        if (raced !== undefined) return raced
+        const racedSession = this.ctx.sessions.get(sessionId)
+        if (racedSession !== undefined && hasApiSessionSubagentOwner(this.ctx, racedSession, undefined)) {
+          return { error: apiSessionSubagentOwnershipError(sessionId) }
+        }
         return {
           error: {
-            code: 'session-not-found',
-            message: error.message,
-            details: { sessionId },
+            code: 'internal',
+            message: `resume failed for session "${sessionId}": ${String(error)}`,
+            details: {},
           },
         }
-      }
-      if (error instanceof ApiSessionSubagentOwnership) {
-        return { error: apiSessionSubagentOwnershipError(error.sessionId) }
-      }
-      const raced = this.liveAgent(sessionId)
-      if (raced !== undefined) return raced
-      const racedSession = this.ctx.sessions.get(sessionId)
-      if (racedSession !== undefined && hasApiSessionSubagentOwner(this.ctx, racedSession, undefined)) {
-        return { error: apiSessionSubagentOwnershipError(sessionId) }
-      }
-      return {
-        error: {
-          code: 'internal',
-          message: `resume failed for session "${sessionId}": ${String(error)}`,
-          details: {},
-        },
-      }
-    }
+      },
+    )
   }
 
   /**
@@ -242,7 +248,7 @@ export class ApiSessionAgentController {
     let creation = this.creations.get(sessionId)
     if (creation === undefined) {
       creation = this.createOrAdopt(sessionId, cwd, checkPersistedIdentity, presetId)
-        .catch((error: unknown) => {
+        .catch((error: Thrown) => {
           const live = this.ctx.agents.get(sessionId)
           if (live !== undefined) {
             if (hasApiSessionSubagentOwner(this.ctx, live.session, live)) {
@@ -366,7 +372,7 @@ export class ApiSessionAgentController {
    */
   serializeImageAdmission<Value>(agent: Agent, operation: () => Promise<Value>): Promise<Value> {
     const result = (this.imageAdmissionChains.get(agent) ?? Promise.resolve()).then(operation)
-    this.imageAdmissionChains.set(agent, result.then(() => undefined, () => undefined))
+    this.imageAdmissionChains.set(agent, result.then(() => undefined, (_error: Thrown) => undefined))
     return result
   }
 
@@ -401,16 +407,18 @@ export class ApiSessionAgentController {
 
   private async resume(sessionId: SessionId, supplied?: SessionObservation): Promise<Agent> {
     if (supplied !== undefined) return this.resumeObserved(sessionId, supplied)
-    try {
-      using observation = await this.ctx.sessionQuery.observeSession(sessionId)
-      return await this.resumeObserved(sessionId, observation)
-    } catch (error: unknown) {
+    return await this.ctx.sessionQuery.observeSession(sessionId).then(
+      async (observation) => {
+        using owned = observation
+        return await this.resumeObserved(sessionId, owned)
+      },
+    ).then(undefined, (error: Thrown) => {
       if (error instanceof SessionQueryError
         && error.code === 'SESSION_QUERY_SESSION_NOT_FOUND') {
         throw new ApiSessionNotFound(`session "${sessionId}" not found`)
       }
       throw error
-    }
+    })
   }
 
   private async resumeObserved(
@@ -450,33 +458,38 @@ export class ApiSessionAgentController {
     if (live !== undefined) return live
 
     if (checkPersistedIdentity) {
-      try {
-        using observation = await this.ctx.sessionQuery.observeSession(sessionId)
-        if (hasApiSessionSubagentOwner(this.ctx, { header: observation.header }, undefined)) {
-          throw new ApiSessionSubagentOwnership(sessionId)
-        }
-        if (observation.header.cwd !== cwd) {
-          throw new ApiSessionCwdConflict(sessionId, cwd, observation.header.cwd)
-        }
-        const storedPreset = this.presetForObservation(observation)
-        this.assertPresetUnchanged(sessionId, presetId, storedPreset)
-        const composition = await this.composeAgent(storedPreset)
-        return (await this.ctx.agents.resume({
-          resumeSessionId: sessionId,
-          agentOptions: this.agentOptions(),
-          setup: composition.setup,
-        })).agent
-      } catch (error: unknown) {
+      const adopted = await this.ctx.sessionQuery.observeSession(sessionId).then(
+        async (observation) => {
+          using owned = observation
+          if (hasApiSessionSubagentOwner(this.ctx, { header: owned.header }, undefined)) {
+            throw new ApiSessionSubagentOwnership(sessionId)
+          }
+          if (owned.header.cwd !== cwd) {
+            throw new ApiSessionCwdConflict(sessionId, cwd, owned.header.cwd)
+          }
+          const storedPreset = this.presetForObservation(owned)
+          this.assertPresetUnchanged(sessionId, presetId, storedPreset)
+          const composition = await this.composeAgent(storedPreset)
+          return (await this.ctx.agents.resume({
+            resumeSessionId: sessionId,
+            agentOptions: this.agentOptions(),
+            setup: composition.setup,
+          })).agent
+        },
+      ).then(undefined, (error: Thrown) => {
         if (!(error instanceof SessionQueryError)
           || error.code !== 'SESSION_QUERY_SESSION_NOT_FOUND') throw error
-      }
+        return undefined
+      })
+      if (adopted !== undefined) return adopted
     }
 
-    try {
-      await mkdir(cwd, { recursive: true })
-    } catch (error: unknown) {
-      throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
-    }
+    await mkdir(cwd, { recursive: true }).then(
+      undefined,
+      (error: Thrown) => {
+        throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error })
+      },
+    )
     const composition = await this.composeAgent(presetId)
     return (await this.ctx.agents.create({
       sessionId,

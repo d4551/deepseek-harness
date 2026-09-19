@@ -54,6 +54,7 @@ import type {
 // still receive the SessionProjectionMap merge.
 export type { CreateGoalRequest, CreateGoalResult, EditGoalRequest, GoalActivation, GoalBlockReason, GoalPhase, GoalProjection, GoalRef, GoalSnapshot, GoalView } from './types.ts'
 export type { FoldedGoal, GoalChangeMeta, GoalChanged, GoalClearChangeMeta, GoalErrorCode, GoalMessageSource, GoalOperation, GoalSnapshotChangeMeta } from './domain.ts'
+export { GOAL_ERROR_CODES } from './domain.ts'
 export { GOAL_CHANGE_VERSION, GoalError, GoalId } from './runtime.ts'
 export { decodeGoalChange, foldGoal, goalChangeRef } from './fold.ts'
 
@@ -165,11 +166,14 @@ function resolveCreateGoal(request: CreateGoalRequest, defaultMaxGoalRounds: num
 
 /** Validate and detach one policy-owned blocker explanation. */
 function resolveBlockReason(reason: unknown): GoalBlockReason {
-  const record = typeof reason === 'object' && reason !== null && !Array.isArray(reason)
-    ? reason as Record<string, unknown>
-    : undefined
-  const code = record?.['code']
-  const message = record?.['message']
+  if (typeof reason !== 'object' || reason === null || Array.isArray(reason)) {
+    throw new GoalError(
+      'goal block reason requires a lower-kebab-case code and a non-empty message',
+      'GOAL_INVALID_BLOCK_REASON',
+    )
+  }
+  const code = 'code' in reason ? reason.code : undefined
+  const message = 'message' in reason ? reason.message : undefined
   if (typeof code !== 'string' || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(code)
     || typeof message !== 'string' || message.trim().length === 0) {
     throw new GoalError(

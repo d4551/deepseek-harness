@@ -16,6 +16,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { messageOf, presetOptions, readRoster } from './settings-store.ts'
 import type { AgentPresetOption } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Hero-chip snapshot. */
 export interface AgentPresetSeatState {
@@ -169,14 +170,17 @@ export class AgentPresetSeatController {
     revision: number,
   ): Promise<string | undefined> {
     const [outcome] = await Promise.allSettled([
-      Promise.try(() => this.remote.agentPresets.select(session.id, staged)),
+      new Promise<Awaited<ReturnType<ClientRemote['agentPresets']['select']>>>((resolve) => {
+        resolve(this.remote.agentPresets.select(session.id, staged))
+      }),
     ])
     this.applying = undefined
     if (revision === this.stagedRevision) this.staged = undefined
     let refusal: string | undefined
     let selected: string | undefined
     if (outcome.status === 'rejected') {
-      refusal = messageOf(outcome.reason)
+      const reason: Thrown = outcome.reason
+      refusal = messageOf(reason)
     } else if (outcome.value.ok) {
       selected = outcome.value.value
     } else {

@@ -59,7 +59,7 @@ export interface SessionInputDeps {
    * Steer every still-pending queued message into the running turn, in FIFO
    * order (the empty-draft accelerated-Enter gesture); absent = unsupported.
    */
-  steerQueue?: (() => void) | undefined
+  steerQueue?: (() => void | Promise<void>) | undefined
   /** The plain-message sink (send choreography / materialize fork — the hub owns it). */
   defaultSink(
     text: string,
@@ -98,6 +98,26 @@ function projectionContentChanged(prev: EditorProjection, next: EditorProjection
 }
 
 const EMPTY_QUEUE: readonly QueuedMessage[] = []
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** No-pipeline lexicon: zero text-ref decorations. */
 const EMPTY_LEXICON: ReadonlyMap<'/' | '@', readonly string[]> = new Map()
@@ -169,6 +189,8 @@ export class SessionInputShell implements SessionInput {
     readonly controller: AbortController
     readonly imageIds: readonly DraftAttachmentId[]
   }>()
+  /** In-flight empty-draft queue steer; rejects when updateQueue throws. */
+  private steerFlight: Promise<void> | undefined
 
   constructor(private readonly deps: SessionInputDeps) {
     this.editor = createEditor({
@@ -371,10 +393,10 @@ export class SessionInputShell implements SessionInput {
           if (outcome.kind === 'success') return
           this.restoreImages(imageIds)
           if (outcome.text !== undefined) this.notify('error', outcome.text)
-        }, (error: unknown) => {
+        }, (error: Thrown) => {
           if (this.disposed || !this.imageFlights.delete(flight)) return
           this.restoreImages(imageIds)
-          this.notify('error', error instanceof Error ? error.message : String(error))
+          this.notify('error', thrownMessage(error))
         })
       }
       return
@@ -413,7 +435,25 @@ export class SessionInputShell implements SessionInput {
    * empty-draft no-op.
    */
   steerQueue(): void {
-    this.deps.steerQueue?.()
+    const run = this.deps.steerQueue
+    if (run === undefined || this.steerFlight !== undefined) return
+    const flight = run()
+    if (!(flight instanceof Promise)) return
+    this.steerFlight = flight
+    flight.then(
+      () => {
+        if (this.steerFlight === flight) this.steerFlight = undefined
+      },
+      (error: Thrown) => {
+        if (this.steerFlight === flight) this.steerFlight = undefined
+        this.notify('error', thrownMessage(error))
+      },
+    )
+  }
+
+  /** In-flight empty-draft queue steer started by {@link SessionInputShell.steerQueue}. */
+  get pendingSteer(): Promise<void> | undefined {
+    return this.steerFlight
   }
 
   /**
@@ -473,7 +513,7 @@ export class SessionInputShell implements SessionInput {
     // Leading-trigger contract: only whitespace may precede the span; the
     // whitespace prefix is dropped so the claimed watch (startsWith) holds.
     if (this.projection.detectText.slice(0, span.start).trim() !== '') return false
-    let applied = false as boolean
+    let applied = false
     this.applyEdit(() => {
       applied = $replaceDetectSpanWithText({ start: 0, end: span.end }, claim.token)
     })
@@ -722,10 +762,9 @@ export class SessionInputShell implements SessionInput {
         out += draft.slice(cursor)
         this.settleSink(attempt, this.deps.defaultSink(out.trim(), imageIds, mode, attempt.signal))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        const message = error instanceof Error ? error.message : String(error)
-        this.settleDetachedFailure(attempt, message)
+        this.settleDetachedFailure(attempt, thrownMessage(error))
       },
     )
   }
@@ -745,9 +784,9 @@ export class SessionInputShell implements SessionInput {
         this.detachedDrafts.delete(attempt.seq)
         this.dispatchRun(({ type: 'sink-settled', attempt, ok: true, outcome }))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        this.settleDetachedFailure(attempt, error instanceof Error ? error.message : String(error))
+        this.settleDetachedFailure(attempt, thrownMessage(error))
       },
     )
   }
@@ -781,43 +820,44 @@ export class SessionInputShell implements SessionInput {
       }
     }
     this.restoringFailures = true
-    try {
-      this.editor.update(() => {
-        const root = $getRoot()
-        root.clear()
-        let paragraph = $createParagraphNode()
-        root.append(paragraph)
-        const appendText = (text: string): void => {
-          const lines = text.split('\n')
-          for (let i = 0; i < lines.length; i += 1) {
-            const line = lines[i]
-            if (line !== '') paragraph.append($createTextNode(line))
-            if (i < lines.length - 1) {
-              paragraph = $createParagraphNode()
-              root.append(paragraph)
-            }
+    using _clearRestore = {
+      [Symbol.dispose]: (): void => {
+        this.restoringFailures = false
+      },
+    }
+    this.editor.update(() => {
+      const root = $getRoot()
+      root.clear()
+      let paragraph = $createParagraphNode()
+      root.append(paragraph)
+      const appendText = (text: string): void => {
+        const lines = text.split('\n')
+        for (let i = 0; i < lines.length; i += 1) {
+          const line = lines[i]
+          if (line !== '') paragraph.append($createTextNode(line))
+          if (i < lines.length - 1) {
+            paragraph = $createParagraphNode()
+            root.append(paragraph)
           }
         }
-        let cursor = 0
-        for (const occurrence of occurrences) {
-          appendText(draft.slice(cursor, occurrence.offset))
-          paragraph.append(new ReferenceChipNode({
-            source: occurrence.source,
-            ref: occurrence.ref,
-            label: occurrence.label,
-            ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
-            clipboardText: occurrence.clipboardText,
-          }, occurrence.invalid === true))
-          cursor = occurrence.offset + occurrence.length
-        }
-        appendText(draft.slice(cursor))
-        root.selectEnd()
-      }, { discrete: true, tag: HISTORY_MERGE_TAG })
-      this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
-      this.failedRestoreRev = this.rev
-    } finally {
-      this.restoringFailures = false
-    }
+      }
+      let cursor = 0
+      for (const occurrence of occurrences) {
+        appendText(draft.slice(cursor, occurrence.offset))
+        paragraph.append(new ReferenceChipNode({
+          source: occurrence.source,
+          ref: occurrence.ref,
+          label: occurrence.label,
+          ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
+          clipboardText: occurrence.clipboardText,
+        }, occurrence.invalid === true))
+        cursor = occurrence.offset + occurrence.length
+      }
+      appendText(draft.slice(cursor))
+      root.selectEnd()
+    }, { discrete: true, tag: HISTORY_MERGE_TAG })
+    this.editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
+    this.failedRestoreRev = this.rev
   }
 
   /** Return failed-send images to the head of the rail (ids still resolve — release happens only after success). */
@@ -843,10 +883,9 @@ export class SessionInputShell implements SessionInput {
         if (this.dead(attempt)) return
         this.dispatchRun(({ type: 'adjudicated', attempt, outcome }))
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         if (this.dead(attempt)) return
-        const message = error instanceof Error ? error.message : String(error)
-        this.dispatchRun(({ type: 'adjudication-failed', attempt, message }))
+        this.dispatchRun(({ type: 'adjudication-failed', attempt, message: thrownMessage(error) }))
       },
     )
   }
@@ -882,12 +921,11 @@ export class SessionInputShell implements SessionInput {
             ...(outcome.kind === 'error' && outcome.text === undefined ? { message: 'command failed' } : {}),
           }))
         },
-        (error: unknown) => {
+        (error: Thrown) => {
           if (this.dead(attempt)) return
-          const message = error instanceof Error ? error.message : String(error)
           this.dispatchRun(({
             type: 'submit-settled', attempt, ok: false,
-            draft: this.projection.clipboardText, message,
+            draft: this.projection.clipboardText, message: thrownMessage(error),
           }))
         },
       )

@@ -183,7 +183,14 @@ beforeEach(() => {
   rangeAnswer = CONFORMING_RANGE_ANSWER
 })
 
+const launchUser = process.env.DRIVE_USER
+const launchPass = process.env.DRIVE_PASS
+
 afterEach(async () => {
+  if (launchUser === undefined) delete process.env.DRIVE_USER
+  else process.env.DRIVE_USER = launchUser
+  if (launchPass === undefined) delete process.env.DRIVE_PASS
+  else process.env.DRIVE_PASS = launchPass
   while (contexts.length > 0) await contexts.pop()!.fiber.dispose()
 })
 
@@ -246,6 +253,11 @@ describe('WebDavNetworkDrive operations', () => {
       type: 'file',
       version: 'etag:"abc123"',
       size: 11,
+    })
+    await expect(drive.stat(drivePath('dir'))).resolves.toEqual({
+      path: 'dir',
+      type: 'directory',
+      version: 'mtime:Tue, 03 Sep 2026 00:00:00 GMT:0',
     })
     await expect(drive.stat(drivePath('missing.md'))).resolves.toBeUndefined()
 
@@ -462,7 +474,7 @@ describe('WebDavNetworkDrive credentials, cancellation, and failures', () => {
       token: { access_token: 'bearer-value', token_type: 'Bearer' },
     })
 
-    const anonymous = await setup({ authType: 'none' })
+    const anonymous = await setup({ authType: 'none', usernameEnv: undefined, passwordEnv: undefined })
     await anonymous.stat(drivePath('a.md'))
     expect(clientOptions.at(-1)).toMatchObject({ authType: AuthType.None })
 
@@ -479,6 +491,21 @@ describe('WebDavNetworkDrive credentials, cancellation, and failures', () => {
     const drive = await setup({ usernameEnv: 'DRIVE_ABSENT' })
     await expect(drive.stat(drivePath('a.md'))).rejects.toMatchObject({ code: 'DRIVE_UNAUTHENTICATED' })
     expect(calls).toHaveLength(0)
+  })
+
+  it('reads a launch-environment secret when no credentials service is mounted', async () => {
+    store('/a.md', 'a')
+    process.env.DRIVE_USER = 'alice'
+    process.env.DRIVE_PASS = 'hunter2'
+    const ctx = new Context()
+    contexts.push(ctx)
+    await ctx.plugin(WebDavNetworkDrive, {
+      url: 'https://drive.example.com/remote.php/dav/files/alice',
+      authType: 'password',
+      usernameEnv: 'DRIVE_USER',
+      passwordEnv: 'DRIVE_PASS',
+    })
+    await expect(ctx.networkDrive.stat(drivePath('a.md'))).resolves.toMatchObject({ path: 'a.md' })
   })
 
   it('threads the caller signal into the client and reports an abort as one', async () => {
@@ -515,6 +542,16 @@ describe('WebDavNetworkDrive credentials, cancellation, and failures', () => {
     await expect(drive.stat(drivePath('a.md'))).rejects.toMatchObject({
       code: 'DRIVE_IO_ERROR',
       message: expect.stringContaining('connection reset by peer') as string,
+    })
+    rejectWith = { value: { reset: true } }
+    await expect(drive.stat(drivePath('a.md'))).rejects.toMatchObject({
+      code: 'DRIVE_IO_ERROR',
+      message: expect.stringContaining('[object Object]') as string,
+    })
+    rejectWith = { value: { status: 'not-a-number' } }
+    await expect(drive.stat(drivePath('a.md'))).rejects.toMatchObject({
+      code: 'DRIVE_IO_ERROR',
+      message: expect.stringContaining('[object Object]') as string,
     })
   })
 
@@ -571,6 +608,6 @@ describe('WebDavNetworkDrive configuration', () => {
     await fiber.dispose()
     const release = ctx.invariants.register('@deepseek-ai/dsh-network-drive-webdav', () => {})
     expect(typeof release).toBe('function')
-    release()
+    await release()
   })
 })

@@ -11,11 +11,15 @@ import {
   interruptedTurnClosers,
   KNOWN_SESSION_EVENT_TYPES,
   SESSION_FORMAT_VERSION,
+  SessionId,
   SessionPreparation,
+  assertSessionEventObject,
+  snapshotJsonObject,
   snapshotJsonValue,
   snapshotSessionEvent,
 } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent, SessionId, SessionHeader } from '@deepseek-ai/dsh-session'
+import { MessageId } from '@deepseek-ai/dsh-llm'
+import type { JsonValue, Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { BorrowedSessionSource, SessionInspection, SessionLocation } from './index.ts'
 import { SessionPersistenceNotFoundError } from './errors.ts'
@@ -32,6 +36,35 @@ export const DEFAULT_WRITE_BATCH_MAX_DELAY_MS = 200
 
 /** Largest write batching delay accepted by Node's timer implementation. */
 export const MAX_WRITE_BATCH_DELAY_MS = MAX_TIMER_DELAY_MS
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected retirement or background write.
+ * @param reason - the Thrown the write path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    const line = reason.stack?.split('\n', 1)[0]
+    if (line === `Error: ${reason.message}`) return reason.message
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** Durable session contents failed validation after a successful backend read. */
 export class SessionPersistenceCorruptionError extends Error {
@@ -97,7 +130,7 @@ export interface PersistenceCoordinatorOptions {
  */
 export interface StoredPrefix<TornMarker = unknown> {
   meta: SessionHeader
-  events: SessionEvent[]
+  events: object[]
   /** Revision observed for exactly this detached prefix. */
   revision: SessionPersistenceRevision
   tornMarker?: TornMarker
@@ -111,7 +144,7 @@ export interface StoredPrefix<TornMarker = unknown> {
  */
 export interface StoredSuffix {
   meta: SessionHeader
-  events: SessionEvent[]
+  events: object[]
 }
 
 /**
@@ -121,7 +154,7 @@ export interface StoredSuffix {
  * coordinator supplies everything else (buffering, serialization, cursors,
  * adoption, crash repair sequencing, dispose quiescence).
  *
- * @typeParam TornMarker - the backend's opaque torn-tail repair token (see
+ * @template TornMarker - the backend's opaque torn-tail repair token (see
  * {@link StoredPrefix}). The coordinator treats it as fully opaque.
  */
 export interface PersistenceBackend<TornMarker = unknown> {
@@ -256,7 +289,7 @@ interface PreparedSessionSource<TornMarker> {
 
 /** Collect the rejection reasons from a set of promises (none-throwing). */
 async function settledErrors(promises: Iterable<Promise<unknown>>): Promise<unknown[]> {
-  const settled = await Promise.allSettled([...promises])
+  const settled = await Promise.allSettled(promises)
   const errors: unknown[] = []
   for (const result of settled) {
     if (result.status === 'rejected') errors.push(result.reason)
@@ -273,30 +306,124 @@ function seedCoversPrefix(seed: readonly SessionEvent[], prefix: readonly Sessio
     })
 }
 
-/** Reject events from an obsolete v0 vocabulary that this build cannot replay. */
-function assertSupportedEvents(events: readonly SessionEvent[], id: SessionId): void {
-  const legacyType: string = 'request/header-delta'
-  const legacy = events.find(event => event.type === legacyType)
-  if (legacy !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy request/header-delta event at seq ${legacy.seq}`)
+/** Rebuild a session header from its detached JSON object. */
+function sessionHeaderFromJson(record: { [key: string]: JsonValue }): SessionHeader {
+  const id = record.id
+  const version = record.version
+  const createdAt = record.createdAt
+  if (typeof id !== 'string' || typeof version !== 'number' || typeof createdAt !== 'number') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
   }
-  const legacyModeType: string = 'mode/set'
-  const legacyMode = events.find(event => event.type === legacyModeType)
-  if (legacyMode !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy mode/set event at seq ${legacyMode.seq}`)
+  const cwd = record.cwd
+  if (cwd !== undefined && typeof cwd !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
   }
-  const fallback = events.find(event => event.type === 'request/header'
-    && (event.data as { reason?: string }).reason === 'fallback')
-  if (fallback !== undefined) {
-    throw new Error(`session "${id}" contains unsupported legacy request/header reason "fallback" at seq ${fallback.seq}`)
+  const parentSession = record.parentSession
+  if (parentSession !== undefined && typeof parentSession !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const seedLength = record.seedLength
+  if (seedLength !== undefined && (typeof seedLength !== 'number' || !Number.isSafeInteger(seedLength) || seedLength < 0)) {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const origin = record.origin
+  if (origin !== undefined && origin !== 'subagent') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const delegationDepth = record.delegationDepth
+  if (
+    delegationDepth !== undefined
+    && (typeof delegationDepth !== 'number' || !Number.isSafeInteger(delegationDepth) || delegationDepth < 0)
+  ) {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  const agentPreset = record.agentPreset
+  if (agentPreset !== undefined && typeof agentPreset !== 'string') {
+    throw new TypeError('session metadata must be losslessly JSON-serializable')
+  }
+  return {
+    version,
+    id: SessionId(id),
+    createdAt,
+    ...cwd === undefined ? {} : { cwd },
+    ...parentSession === undefined ? {} : { parentSession: SessionId(parentSession) },
+    ...seedLength === undefined ? {} : { seedLength },
+    ...origin === undefined ? {} : { origin },
+    ...delegationDepth === undefined ? {} : { delegationDepth },
+    ...agentPreset === undefined ? {} : { agentPreset },
   }
 }
 
-/** Return an object record without widening arrays into message payloads. */
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined
+/** Detach a JSON array of stored event records. */
+function sessionEventRecordsFromJson(value: JsonValue): object[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
+  }
+  const records: object[] = []
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
+    }
+    records.push(item)
+  }
+  return records
+}
+
+/** Narrow stored records that already passed the current event vocabulary. */
+function sessionEventsFromRecords(records: readonly object[]): SessionEvent[] {
+  const events: SessionEvent[] = []
+  for (const record of records) {
+    assertSessionEventObject(record)
+    events.push(record)
+  }
+  return events
+}
+
+/** Reject records from an obsolete v0 vocabulary before they are claimed as session events. */
+function assertSupportedEventRecords(events: readonly object[], id: SessionId): void {
+  for (const event of events) {
+    const type = Reflect.get(event, 'type')
+    const seq = Reflect.get(event, 'seq')
+    if (type === 'request/header-delta') {
+      throw new Error(`session "${id}" contains unsupported legacy request/header-delta event at seq ${seq}`)
+    }
+    if (type === 'mode/set') {
+      throw new Error(`session "${id}" contains unsupported legacy mode/set event at seq ${seq}`)
+    }
+    if (requestHeaderReason(event) === 'fallback') {
+      throw new Error(`session "${id}" contains unsupported legacy request/header reason "fallback" at seq ${seq}`)
+    }
+  }
+}
+
+/** Narrow stored records after refusing obsolete vocabulary. */
+function storedSessionEvents(records: readonly object[], id: SessionId): SessionEvent[] {
+  assertSupportedEventRecords(records, id)
+  return sessionEventsFromRecords(records)
+}
+
+/** Read the request/header reason field. */
+function requestHeaderReason(event: object): unknown {
+  if (Reflect.get(event, 'type') !== 'request/header') return undefined
+  const data = Reflect.get(event, 'data')
+  if (typeof data !== 'object' || data === null) return undefined
+  return Reflect.get(data, 'reason')
+}
+
+/** Copy own string keys from a non-array object. */
+function asRecord(value: unknown): { [key: string]: unknown } | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const record: { [key: string]: unknown } = {}
+  for (const key of Object.keys(value)) {
+    record[key] = Reflect.get(value, key)
+  }
+  return record
+}
+
+/** Confirm a reconstructed migrate payload still carries the session-event envelope. */
+function migratedSessionEvent(value: object): SessionEvent {
+  assertSessionEventObject(value)
+  return adoptSessionEvent(value)
 }
 
 /** Whether a record contains every required key and no key outside the optional extension set. */
@@ -314,24 +441,26 @@ type PersistedMessageId = SessionEvent<'user/message'>['data']['id']
 
 /** Mint the stable import identity for a message persisted before identities existed. */
 function legacyMessageId(id: SessionId, seq: number): PersistedMessageId {
-  return `legacy-message:${id}:${seq}` as PersistedMessageId
+  return MessageId(`legacy-message:${id}:${seq}`)
 }
 
 /** Read a replacement target while leaving malformed surface metadata to the session validator. */
 function replacementStart(event: SessionEvent): number | undefined {
-  const op = asRecord((event as SessionEvent & { surfaceOp?: unknown }).surfaceOp)
+  if (!('surfaceOp' in event)) return undefined
+  const op = asRecord(Reflect.get(event, 'surfaceOp'))
   return op?.['op'] === 'replace' && typeof op['start'] === 'number'
     ? op['start']
     : undefined
 }
 
 /** Whether one suffix event needs facts available only from the preceding stored prefix. */
-function needsLegacyPrefix(event: SessionEvent): boolean {
-  const data = asRecord(event.data)
+function needsLegacyPrefix(event: object): boolean {
+  const type = Reflect.get(event, 'type')
+  const data = asRecord(Reflect.get(event, 'data'))
   const legacySteeringType: string = 'steering/message'
-  if (event.type === legacySteeringType) return true
+  if (type === legacySteeringType) return true
   if (data === undefined) return false
-  switch (event.type) {
+  switch (type) {
     case 'user/message':
       return !Object.hasOwn(data, 'id') && Object.hasOwn(data, 'content')
     case 'assistant/message':
@@ -354,13 +483,13 @@ function migrateLegacySteeringEvent(event: SessionEvent, id: SessionId): Session
   const wrapped = asRecord(data['message'])
   if (wrapped !== undefined && Number.isSafeInteger(data['turn'])
     && hasOnlyKeys(data, ['turn', 'message'])) {
-    return { ...event, type: 'user/message', data: wrapped } as SessionEvent
+    return migratedSessionEvent({ ...event, type: 'user/message', data: wrapped })
   }
   if (!Number.isSafeInteger(data['turn']) || !hasOnlyKeys(data, ['turn', 'content', 'source'])) {
     throw new Error(`session "${id}" contains malformed pre-react-loop steering/message at seq ${event.seq}`)
   }
   const { turn: _turn, ...message } = data
-  return {
+  return migratedSessionEvent({
     ...event,
     type: 'user/message',
     data: {
@@ -368,7 +497,7 @@ function migrateLegacySteeringEvent(event: SessionEvent, id: SessionId): Session
       id: legacyMessageId(id, event.seq),
       role: 'user',
     },
-  } as SessionEvent
+  })
 }
 
 /** Remove the obsolete trigger after verifying the complete old turn-start envelope. */
@@ -377,12 +506,13 @@ function migrateLegacyTurnStartEvent(event: SessionEvent, id: SessionId): Sessio
   const data = asRecord(event.data)
   if (data === undefined || !Object.hasOwn(data, 'trigger')) return event
   const trigger = asRecord(data['trigger'])
-  if (!Number.isSafeInteger(data['turn']) || (data['turn'] as number) < 1
+  const turn = data['turn']
+  if (typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1
     || !hasOnlyKeys(data, ['turn', 'trigger'])
     || trigger === undefined || typeof trigger['kind'] !== 'string' || trigger['kind'].length === 0) {
     throw new Error(`session "${id}" contains malformed pre-react-loop turn/start at seq ${event.seq}`)
   }
-  return { ...event, data: { turn: data['turn'] } } as SessionEvent
+  return migratedSessionEvent({ ...event, data: { turn } })
 }
 
 /** Upgrade an obsolete turn ending while preserving the latest-master envelope. */
@@ -394,7 +524,8 @@ function migrateLegacyTurnEndEvent(event: SessionEvent, id: SessionId): SessionE
   }
   if (data === undefined) return malformed()
   const reason = asRecord(data['reason'])
-  if (!Number.isSafeInteger(data['turn']) || (data['turn'] as number) < 1
+  const turn = data['turn']
+  if (typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1
     || !hasOnlyKeys(data, ['turn', 'reason'])
     || reason === undefined || typeof reason['kind'] !== 'string') return malformed()
 
@@ -417,7 +548,8 @@ function migrateLegacyTurnEndEvent(event: SessionEvent, id: SessionId): SessionE
       break
     case 'error': {
       if (Object.hasOwn(reason, 'error')) return event
-      if (!Number.isSafeInteger(reason['step']) || (reason['step'] as number) < 0) return malformed()
+      const step = reason['step']
+      if (typeof step !== 'number' || !Number.isSafeInteger(step) || step < 0) return malformed()
       const failure = asRecord(reason['failure'])
       if (failure !== undefined && hasOnlyKeys(reason, ['kind', 'step', 'failure'])
         && hasOnlyKeys(failure, ['message', 'code'], ['status', 'providerRetryAfterMs', 'requestId'])
@@ -447,13 +579,13 @@ function migrateLegacyTurnEndEvent(event: SessionEvent, id: SessionId): SessionE
       return event
   }
 
-  return {
+  return migratedSessionEvent({
     ...event,
     data: {
       ...data,
       reason: currentReason,
     },
-  } as SessionEvent
+  })
 }
 
 /**
@@ -473,20 +605,20 @@ function migrateLegacyMessageEvent(
       if (Object.hasOwn(data, 'id') || Object.hasOwn(data, 'role')
         || Object.hasOwn(data, 'message')
         || !Object.hasOwn(data, 'content') || !Object.hasOwn(data, 'source')) return event
-      return {
+      return migratedSessionEvent({
         ...event,
         data: {
           ...data,
           id: legacyMessageId(id, event.seq),
           role: 'user',
         },
-      } as SessionEvent
+      })
     }
     case 'assistant/message': {
       if (Object.hasOwn(data, 'message')
         || !Object.hasOwn(data, 'content') || !Object.hasOwn(data, 'provenance')) return event
       const { content, provenance, ...eventData } = data
-      return {
+      return migratedSessionEvent({
         ...event,
         data: {
           ...eventData,
@@ -500,7 +632,7 @@ function migrateLegacyMessageEvent(
             },
           },
         },
-      } as SessionEvent
+      })
     }
     case 'tool/result': {
       if (Object.hasOwn(data, 'message')
@@ -508,7 +640,7 @@ function migrateLegacyMessageEvent(
         || !Object.hasOwn(data, 'isError')) return event
       const { callId, content, isError, ...eventData } = data
       const inheritedId = replacementStart(event)
-      return {
+      return migratedSessionEvent({
         ...event,
         data: {
           ...eventData,
@@ -529,7 +661,7 @@ function migrateLegacyMessageEvent(
             },
           },
         },
-      } as SessionEvent
+      })
     }
     default:
       return event
@@ -540,14 +672,15 @@ function migrateLegacyMessageEvent(
 function eventMessageId(event: SessionEvent): PersistedMessageId | undefined {
   const data = asRecord(event.data)
   const message = event.type === 'user/message' ? data : asRecord(data?.['message'])
-  return typeof message?.['id'] === 'string' ? message['id'] as PersistedMessageId : undefined
+  const id = message?.['id']
+  return typeof id === 'string' ? MessageId(id) : undefined
 }
 
 /** Materialize stored events as upgraded, validated snapshots with immutable messages. */
-function snapshotStoredEvents(events: readonly SessionEvent[], id: SessionId): SessionEvent[] {
-  assertSupportedEvents(events, id)
+function snapshotStoredEvents(events: readonly object[], id: SessionId): SessionEvent[] {
+  const typed = storedSessionEvents(events, id)
   const messageIds = new Map<number, PersistedMessageId>()
-  return events.map((event) => {
+  return typed.map((event) => {
     const migratedStart = migrateLegacyTurnStartEvent(event, id)
     const migratedTurn = migrateLegacyTurnEndEvent(migratedStart, id)
     const migratedSteering = migrateLegacySteeringEvent(migratedTurn, id)
@@ -559,19 +692,20 @@ function snapshotStoredEvents(events: readonly SessionEvent[], id: SessionId): S
 }
 
 /** Upgrade and validate an exclusively owned backend result without copying it. */
-function adoptStoredEvents(events: SessionEvent[], id: SessionId): SessionEvent[] {
-  assertSupportedEvents(events, id)
+function adoptStoredEvents(events: object[], id: SessionId): SessionEvent[] {
+  const typed = storedSessionEvents(events, id)
   const messageIds = new Map<number, PersistedMessageId>()
-  for (const [index, event] of events.entries()) {
+  const adopted: SessionEvent[] = []
+  for (const event of typed) {
     const migratedStart = migrateLegacyTurnStartEvent(event, id)
     const migratedTurn = migrateLegacyTurnEndEvent(migratedStart, id)
     const migratedSteering = migrateLegacySteeringEvent(migratedTurn, id)
-    const adopted = adoptSessionEvent(migrateLegacyMessageEvent(migratedSteering, id, messageIds))
-    events[index] = adopted
-    const messageId = eventMessageId(adopted)
-    if (messageId !== undefined) messageIds.set(adopted.seq, messageId)
+    const next = adoptSessionEvent(migrateLegacyMessageEvent(migratedSteering, id, messageIds))
+    adopted.push(next)
+    const messageId = eventMessageId(next)
+    if (messageId !== undefined) messageIds.set(next.seq, messageId)
   }
-  return events
+  return adopted
 }
 
 /**
@@ -585,7 +719,7 @@ function adoptStoredEvents(events: SessionEvent[], id: SessionId): SessionEvent[
  * constructor installs the write-path listeners, per-session retirement, and
  * the backend dispose effect.
  *
- * @typeParam TornMarker - the backend's opaque torn-tail repair token.
+ * @template TornMarker - the backend's opaque torn-tail repair token.
  */
 export class PersistenceCoordinator<TornMarker = unknown> {
   /** Backend bookkeeping keyed by session id (NOT the live Session object). */
@@ -634,13 +768,15 @@ export class PersistenceCoordinator<TornMarker = unknown> {
    */
   create(meta: SessionHeader): Promise<void> {
     // Snapshot before queueing so caller mutation cannot diverge the key and header.
-    const snapshot = snapshotJsonValue(meta)
-    if (snapshot === undefined) {
+    const record = snapshotJsonObject(meta)
+    if (record === undefined) {
       return Promise.reject(new TypeError('session metadata must be losslessly JSON-serializable'))
     }
-    if (!Number.isSafeInteger(snapshot.createdAt) || snapshot.createdAt < 0) {
+    const createdAt = record.createdAt
+    if (typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt) || createdAt < 0) {
       return Promise.reject(new TypeError('session metadata createdAt must be a non-negative safe integer'))
     }
+    const snapshot = sessionHeaderFromJson(record)
     return this.serialize(snapshot.id, async () => { await this.createCore(snapshot) })
   }
 
@@ -699,7 +835,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     if (batch === undefined) {
       throw new TypeError('session event batch is not losslessly JSON-serializable because it contains non-JSON-serializable data')
     }
-    return this.serialize(id, () => this.appendCore(id, batch))
+    return this.serialize(id, () => this.appendCore(id, storedSessionEvents(sessionEventRecordsFromJson(batch), id)))
   }
 
   private async appendCore(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
@@ -711,7 +847,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // session's durability mid-flight, which costs more than a loud refusal at
     // the log's next load (trade-off owned by the fail-closed-session-event-
     // vocabulary Agent Note).
-    assertSupportedEvents(events, id)
+    assertSupportedEventRecords(events, id)
     if (events.length === 0) return
     this.preparations.assertWritable(id)
     let state = this.states.get(id)
@@ -832,7 +968,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         if (this.preparations.discardReady(id, source) === 'retained') {
           return source.inspection
         }
-      } catch (error: unknown) {
+      } catch (error) {
         signal?.throwIfAborted()
         const attached = this.ctx.sessions.get(id)
         if (attached !== undefined) return this.inspectLive(attached)
@@ -886,7 +1022,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
             [Symbol.dispose]: () => { observation[Symbol.dispose]() },
           }
         }
-      } catch (error: unknown) {
+      } catch (error) {
         observation[Symbol.dispose]()
         signal?.throwIfAborted()
         const attached = this.ctx.sessions.get(id)
@@ -919,6 +1055,24 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     return waited.then(() => this.serialize(id, () => this.readFromCore(id, fromSeq, signal), signal))
   }
 
+  /**
+   * Whether one identity currently has a materialized durable log.
+   * Waits for that id's in-flight retirement so a just-disposed session is
+   * reported present once its flush has landed. A lazy create with no append
+   * remains absent.
+   * @param id - session identity to probe.
+   * @param signal - optional cancellation for retirement wait and backend read.
+   * @returns true only when a materialized artifact exists for `id`.
+   */
+  async exists(id: SessionId, signal?: AbortSignal): Promise<boolean> {
+    await this.waitForRetirement(id, signal)
+    signal?.throwIfAborted()
+    return this.serialize(id, async () => {
+      if (this.states.get(id)?.materialized === true) return true
+      return await this.backend.loadStored(id, signal) !== undefined
+    }, signal)
+  }
+
   private async readFromCore(
     id: SessionId,
     fromSeq: number,
@@ -929,7 +1083,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       let suffix: StoredSuffix | undefined
       try {
         suffix = await this.backend.loadStoredFrom(id, fromSeq, signal)
-      } catch (error: unknown) {
+      } catch (error) {
         if (signal?.aborted) signal.throwIfAborted()
         throw error
       }
@@ -1000,7 +1154,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         tornMarker,
         closers,
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // An unsupported format is a refusal over an intact log, not damage —
       // surface it unwrapped so callers can point at the raw artifact.
       if (error instanceof SessionFormatUnsupportedError) throw error
@@ -1099,15 +1253,15 @@ export class PersistenceCoordinator<TornMarker = unknown> {
       started = true
       return op()
     }
-    const next = prior.then(run, run)
+    const next = prior.then(run, (_error: Thrown) => run())
     // Keep the chain alive but swallow this op's rejection for the NEXT waiter
     // (the caller still sees the real rejection via `next`).
-    const tail = next.then(() => undefined, () => undefined)
+    const tail = next.then(() => undefined, (_error: Thrown) => undefined)
     this.chains.set(id, tail)
     // Settled tails carry no serialization value. Delete only the exact tail
     // installed above: a later operation may already have replaced it.
     const forget = (): void => { if (this.chains.get(id) === tail) this.chains.delete(id) }
-    tail.then(forget, forget)
+    tail.then(forget, (_error: Thrown) => { forget() })
     return signal === undefined ? next : observeQueuedAbort(next, signal, () => started)
   }
 
@@ -1166,26 +1320,23 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // reverse registration order, so event admission closes before this final
     // drain reaches quiescence and closes the backend.
     ctx.effect(() => async () => {
-      let disposeError: unknown
-      try {
-        const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
-        while (this.chains.size > 0) await Promise.allSettled([...this.chains.values()])
-        if (errors.length > 0) {
-          throw new AggregateError(errors, `${this.backend.name} dispose failed`)
+      const errors = await settledErrors([...this.live.keys()].map(session => this.flush(session)))
+      while (this.chains.size > 0) await Promise.allSettled(this.chains.values())
+      const drainError = errors.length > 0
+        ? new AggregateError(errors, `${this.backend.name} dispose failed`)
+        : undefined
+      if (this.backend.close !== undefined) {
+        const closed = await Promise.allSettled([this.backend.close()])
+        if (drainError !== undefined) throw drainError
+        const closeResult = closed[0]
+        if (closeResult.status === 'rejected') {
+          throw closeResult.reason instanceof Error
+            ? closeResult.reason
+            : new Error('backend close failed')
         }
-      } catch (error: unknown) {
-        disposeError = error
-        throw error
-      } finally {
-        try {
-          await this.backend.close?.()
-        } catch (closeError: unknown) {
-          // A close failure can only add teardown context; keep the already-
-          // captured drain AggregateError as the primary failure rather than
-          // masking it. Only surface the close error if the drain succeeded.
-          if (disposeError === undefined) throw closeError
-        }
+        return
       }
+      if (drainError !== undefined) throw drainError
     }, `${this.backend.name} write path`)
 
     // Capture the header on creation and persist a fork's seed once.
@@ -1217,9 +1368,9 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     const forget = (): void => {
       if (this.retirements.get(session.id) === retirement) this.retirements.delete(session.id)
     }
-    retirement.then(forget, forget)
-    retirement.catch((error: unknown) => {
-      this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${String(error)}`)
+    retirement.then(forget, (_error: Thrown) => { forget() })
+    retirement.then(undefined, (error: Thrown) => {
+      this.ctx.logger.warn(`${this.backend.name}: session "${session.id}" retirement failed: ${thrownMessage(error)}`)
     })
   }
 
@@ -1251,7 +1402,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     }
     this.live.set(session, live)
     live.init = this.serialize(session.header.id, () => this.onCreated(session, seed))
-    live.init.catch(() => { /* observed by flush/dispose through the controller */ })
+    live.init.catch((_error: Thrown) => { /* observed by flush/dispose through the controller */ })
     return live
   }
 
@@ -1275,7 +1426,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     }
     if (suffix.length > 0) {
       live.init = this.serialize(session.id, () => this.appendCore(session.id, suffix))
-      live.init.catch(() => { /* observed by flush/dispose through the controller */ })
+      live.init.catch((_error: Thrown) => { /* observed by flush/dispose through the controller */ })
     }
     return live
   }
@@ -1397,7 +1548,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     live.writes.cancelAutomaticWait()
     try {
       await live.init
-    } catch (error: unknown) {
+    } catch (error) {
       // Admission is closed during retirement/teardown, but an ordinary flush
       // may have raced one last enqueue while initialization was pending.
       live.writes.cancelAutomaticWait()
@@ -1415,7 +1566,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         await this.serialize(session.header.id, () => this.appendLiveBatch(session.header.id, batch))
       },
       reportBackgroundFailure: (error) => {
-        this.ctx.logger.warn(`${this.backend.name}: background write for session "${session.id}" failed (buffered events retained): ${String(error)}`)
+        this.ctx.logger.warn(`${this.backend.name}: background write for session "${session.id}" failed (buffered events retained): ${thrownMessage(error)}`)
       },
     })
   }

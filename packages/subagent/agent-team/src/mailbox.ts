@@ -23,6 +23,8 @@ import type {
   TeamMessageSnapshot,
 } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Owns every process-local state transition for the durable Team mailbox. */
 export class TeamMailbox {
   private readonly dispatchTails = new Map<SessionId, Promise<void>>()
@@ -204,7 +206,9 @@ export class TeamMailbox {
     const forget = (): void => {
       this.inFlightMessages.delete(message.id)
     }
-    operation.then(forget, forget)
+    operation.then(forget, (_error: Thrown) => {
+      forget()
+    })
     return operation
   }
 
@@ -213,7 +217,7 @@ export class TeamMailbox {
     this.inFlightDispatches.add(operation)
     operation.then(() => {
       this.inFlightDispatches.delete(operation)
-    }, () => {
+    }, (_error: Thrown) => {
       this.inFlightDispatches.delete(operation)
     })
     return operation
@@ -249,8 +253,8 @@ export class TeamMailbox {
         this.activeDispatches.delete(targetId)
       }
     }
-    const run = prior.then(dispatch, dispatch)
-    const tail = run.then(() => undefined, () => undefined)
+    const run = prior.then(dispatch, (_error: Thrown) => dispatch())
+    const tail = run.then(() => undefined, (_error: Thrown) => {})
     this.dispatchTails.set(targetId, tail)
     try {
       return await run
@@ -313,7 +317,7 @@ export class TeamMailbox {
       return target === undefined
         ? true
         : await this.checkpointDelivered(root, target.session, message.id)
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`team message "${message.id}" remains queued: ${errorMessage(error)}`)
       return false
     }
@@ -379,7 +383,7 @@ export class TeamMailbox {
       const suffix = stored.events.slice(stored.meta.seedLength ?? 0)
       return messageAccepted(suffix, message => message.source.kind === 'team-message'
         && message.source.messageId === messageId)
-    } catch (error: unknown) {
+    } catch (error) {
       this.ctx.logger.warn(`cannot inspect Team message target "${targetId}": ${errorMessage(error)}`)
       return undefined
     }

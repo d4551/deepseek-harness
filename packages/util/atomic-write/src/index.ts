@@ -19,6 +19,8 @@ import { close, fsync, lstat, mkdir, open, rename, rm, rmSync, writeFile } from 
 import { dirname } from 'node:path'
 import { replaceFileDurablyWin32 } from './win32.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the
  * permission decision stays visible at every call site.
@@ -110,10 +112,17 @@ export async function writeFileAtomic(filename: string, content: string, options
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`
   // Cleanup runs before the rethrow, so the caller observes exactly the write
   // error; cleanup cannot mask it.
-  const failure = await writeTempAndCommit(temp, filename, content, options.mode)
-  if (failure === null) return
-  await attempt((done) => { rm(temp, { force: true }, done) })
-  throw failure
+  return writeTempAndCommit(temp, filename, content, options.mode).then(
+    async (failure) => {
+      if (failure === null) return
+      await attempt((done) => { rm(temp, { force: true }, done) })
+      throw failure
+    },
+    async (error: Thrown) => {
+      await attempt((done) => { rm(temp, { force: true }, done) })
+      throw error
+    },
+  )
 }
 
 /**
@@ -123,6 +132,7 @@ export async function writeFileAtomic(filename: string, content: string, options
  * @param content - complete next file content.
  * @param mode - permission bits stamped on the fresh temp inode.
  * @returns the first errno a step reported, otherwise `null`.
+ * @throws the Windows durable-commit Thrown when that move rejects.
  */
 async function writeTempAndCommit(
   temp: string,
@@ -145,16 +155,15 @@ async function writeTempAndCommit(
  * before it returns.
  * @param temp - the synced staging file.
  * @param filename - the committed path.
- * @returns the errno a step reported, otherwise `null`.
+ * @returns the errno a POSIX step reported, otherwise `null`.
+ * @throws the Windows durable-commit Thrown when that move rejects.
  */
 async function commitDurably(temp: string, filename: string): Promise<NodeJS.ErrnoException | null> {
   if (process.platform === 'win32') {
-    try {
-      await replaceFileDurablyWin32(temp, filename)
-      return null
-    } catch (error) {
-      return error as NodeJS.ErrnoException
-    }
+    return replaceFileDurablyWin32(temp, filename).then(
+      () => null,
+      (error: Thrown): never => { throw error },
+    )
   }
   const renamed = await attempt((done) => { rename(temp, filename, done) })
   if (renamed !== null) return renamed

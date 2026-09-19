@@ -6,7 +6,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   padding: 2px 6px;
@@ -29,7 +29,7 @@
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
   font-family: var(--ds-font-family-code);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 16px;
   color: var(--dsw-alias-label-primary);
 }

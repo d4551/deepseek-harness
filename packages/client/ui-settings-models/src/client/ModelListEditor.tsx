@@ -20,7 +20,9 @@ import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
-import { messageOf, type ModelsWire } from './store.ts'
+import { thrownMessage } from './store.ts'
+import type { ModelsWire } from './store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -225,37 +227,35 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     }))
   }
 
-  const fetchModels = async (): Promise<void> => {
+  const fetchModels = (): void => {
     setBusy(true)
     setFailure(undefined)
-    try {
-      const response = await api.llm.discoverModels(probe.settingsNs, {
-        ...probe.provider === undefined ? {} : { provider: probe.provider },
-        ...probe.baseURL === undefined || probe.baseURL.length === 0 ? {} : { baseURL: probe.baseURL },
-        ...probe.api === undefined ? {} : { api: probe.api },
-        ...probe.apiKey === undefined ? {} : { apiKey: probe.apiKey },
-      })
-      if (!response.ok) {
-        setFailure(response.error.message)
-        return
-      }
-      const found = response.value
-      if (found.length === 0) {
-        setFailure(t('fetchEmpty'))
-        return
-      }
-      // Everything already configured starts unchecked, so adopting a
-      // selection never silently rewrites a capacity the user corrected.
-      const known = new Set(models.map(model => textOf(model, 'id')))
-      setCandidates(found)
-      setPicked(new Set(found.filter(model => !known.has(model.id)).map(model => model.id)))
-    } catch (error) {
-      // The transport rejected rather than answering; without this the button
-      // would stay busy with nothing shown.
-      setFailure(messageOf(error))
-    } finally {
-      setBusy(false)
-    }
+    api.llm.discoverModels(probe.settingsNs, {
+      ...probe.provider === undefined ? {} : { provider: probe.provider },
+      ...probe.baseURL === undefined || probe.baseURL.length === 0 ? {} : { baseURL: probe.baseURL },
+      ...probe.api === undefined ? {} : { api: probe.api },
+      ...probe.apiKey === undefined ? {} : { apiKey: probe.apiKey },
+    }).then(
+      (response) => {
+        setBusy(false)
+        if (!response.ok) {
+          setFailure(response.error.message)
+          return
+        }
+        const found = response.value
+        if (found.length === 0) {
+          setFailure(t('fetchEmpty'))
+          return
+        }
+        const known = new Set(models.map(model => textOf(model, 'id')))
+        setCandidates(found)
+        setPicked(new Set(found.filter(model => !known.has(model.id)).map(model => model.id)))
+      },
+      (reason: Thrown) => {
+        setBusy(false)
+        setFailure(thrownMessage(reason))
+      },
+    )
   }
 
   const closePicker = (): void => {
@@ -264,8 +264,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   }
 
   const adoptPicked = (): void => {
-    /* v8 ignore next -- the dialog only renders with candidates loaded */
-    if (candidates === undefined) return
+    if (candidates === undefined) throw new TypeError('model picker adopt requires loaded candidates')
     const byId = new Map(models.map(model => [textOf(model, 'id'), model]))
     for (const candidate of candidates) {
       if (!picked.has(candidate.id)) continue
@@ -334,7 +333,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           title={props.probeBlocked !== undefined
             ? t(props.probeBlocked)
             : askable ? undefined : t('fetchNeedsBaseUrl')}
-          onClick={() => { fetchModels().then(undefined, (reason: unknown) => { setFailure(messageOf(reason)) }) }}
+          onClick={() => { fetchModels() }}
         >
           {busy ? t('fetching') : t('fetchModels')}
         </button>

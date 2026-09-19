@@ -4,7 +4,12 @@
 export type EncodedSeq = number | [number, number]
 
 function isStrictlyIncreasing(values: readonly number[]): boolean {
-  return values.every((value, index) => index === 0 || value > (values[index - 1] as number))
+  for (let index = 1; index < values.length; index++) {
+    const previous = values.at(index - 1)
+    const current = values.at(index)
+    if (previous === undefined || current === undefined || !(current > previous)) return false
+  }
+  return true
 }
 
 /**
@@ -17,9 +22,27 @@ export function encodeSeqRanges(values: readonly number[]): EncodedSeq[] {
   const encoded: EncodedSeq[] = []
   for (let start = 0; start < values.length;) {
     let end = start
-    while (end + 1 < values.length && values[end + 1] === (values[end] as number) + 1) end += 1
-    if (end - start >= 2) encoded.push([values[start] as number, values[end] as number])
-    else for (let index = start; index <= end; index += 1) encoded.push(values[index] as number)
+    while (end + 1 < values.length) {
+      const current = values.at(end)
+      const next = values.at(end + 1)
+      if (current === undefined || next === undefined || next !== current + 1) break
+      end += 1
+    }
+    const startValue = values.at(start)
+    const endValue = values.at(end)
+    if (startValue === undefined || endValue === undefined) {
+      throw new TypeError('sourceEventSeqs encode walked off the value list')
+    }
+    if (end - start >= 2) encoded.push([startValue, endValue])
+    else {
+      for (let index = start; index <= end; index += 1) {
+        const value = values.at(index)
+        if (value === undefined) {
+          throw new TypeError('sourceEventSeqs encode walked off the value list')
+        }
+        encoded.push(value)
+      }
+    }
     start = end + 1
   }
   return encoded
@@ -64,7 +87,7 @@ export function decodeSeqRanges(value: unknown, maxEntries = Number.MAX_SAFE_INT
 }
 
 function assertSeq(value: unknown): asserts value is number {
-  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
   }
 }

@@ -22,6 +22,9 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-cmdline'
 
+/** Values a Promise reject arm from the one-shot run may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Stable Cordis plugin name. */
 export const name = 'headless-runner'
 
@@ -147,9 +150,32 @@ function streamReasoning(
   }
 }
 
+/**
+ * Human text for a rejected one-shot run.
+ * @param reason - the Thrown the run rejected with.
+ * @returns the message to write.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Report an unexpected direct-driver failure and request a failing exit. */
-function fail(io: HeadlessIo, error: unknown): void {
-  io.stderr.write(`dsh: ${error instanceof Error ? error.message : String(error)}\n`)
+function fail(io: HeadlessIo, error: Thrown): void {
+  io.stderr.write(`dsh: ${thrownMessage(error)}\n`)
   io.exit(1)
 }
 
@@ -217,5 +243,5 @@ export function apply(ctx: Context, config: Config): void {
     throw new Error('headless-runner: the launcher must provide ctx.appExit before the tree mounts')
   }
   const io: HeadlessIo = { stdout: internals.stdout, stderr: internals.stderr, exit }
-  run(ctx, config.task, io).catch((error: unknown) => { fail(io, error) })
+  run(ctx, config.task, io).catch((error: Thrown) => { fail(io, error) })
 }

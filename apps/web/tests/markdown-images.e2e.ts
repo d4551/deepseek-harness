@@ -162,7 +162,9 @@ describe('web e2e: remote Markdown image rendering', () => {
     await stopServer(imageOrigin.server)
   })
 
-  it.skipIf(MODE === 'record')('loads only the remote image and matches the conversation golden', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] markdown-images.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('loads only the remote image and matches the conversation golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-images'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

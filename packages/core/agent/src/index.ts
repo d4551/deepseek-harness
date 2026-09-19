@@ -14,6 +14,7 @@ import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from './types.ts'
 import type { AgentOptions } from './runtime-types.ts'
+import { observeListenerInvocation, observeReturnedThenable, renderListenerFailure } from './dispatch.ts'
 
 export type { AgentOptions, AgentStatus, CancelOptions, PreStepDecision, RequestErrorAction, SessionStartSource } from './runtime-types.ts'
 export type { Agent, InboxTarget } from './types.ts'
@@ -23,8 +24,16 @@ export { foldConsumedWork } from './consumed-work.ts'
 export type { ConsumedWork } from './consumed-work.ts'
 export { installModelSelection } from './model-selection.ts'
 export type { ModelSelection, ModelSelectionRef } from './model-selection.ts'
-export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
-export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
+export {
+  agentCarrier,
+  agentEvents,
+  assembleContextFor,
+  emitAgentEvent,
+  observeListenerInvocation,
+  observeReturnedThenable,
+  renderListenerFailure,
+} from './dispatch.ts'
+export type { AgentEventDispatch, AgentSubjectEvent, ListenerFailure } from './dispatch.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -363,7 +372,7 @@ export class AgentRegistry extends Service {
    *   Cordis effect disposer (single-shot): composite (generator) effects may
    *   yield it directly — exact identity nests the teardown in order.
    */
-  setFactory(factory: AgentFactory): () => void {
+  setFactory(factory: AgentFactory): () => void | Promise<void> {
     const dispose = this.ctx.effect(() => {
       if (this.factory !== undefined) throw new Error('an agent factory is already registered')
       // Avoid stacking two Cordis shadow layers when a caller passes a Service
@@ -373,11 +382,6 @@ export class AgentRegistry extends Service {
       this.factory = { target }
       return () => { this.factory = undefined }
     }, 'agents.setFactory()')
-    // The exact cordis effect disposer (the agents.register() convention): a
-    // caller's composite effect can yield it for in-order teardown; the
-    // loop's constructor effect returns it directly, identity-nesting the
-    // registration under that effect.
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
     return dispose
   }
 
@@ -404,8 +408,7 @@ export class AgentRegistry extends Service {
     // capability and need no Cordis tracker magic.
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
-    // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-    return Reflect.apply(target.createAgent, receiver, [ownerCtx, options])
+    return target.createAgent.call(receiver, ownerCtx, options)
   }
 
   /**
@@ -419,8 +422,7 @@ export class AgentRegistry extends Service {
     const ownerCtx = this.ctx
     const { target } = this.requireFactory()
     const receiver = getTraceable(ownerCtx, target)
-    // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-    return Reflect.apply(target.resume, receiver, [ownerCtx, options])
+    return target.resume.call(receiver, ownerCtx, options)
   }
 
   /**
@@ -441,12 +443,11 @@ export class AgentRegistry extends Service {
    *   owner unload, unregistering the agent (and emitting `agent/disposed`)
    *   while its final turn is still draining.
    */
-  register(agent: Agent): () => void {
+  register(agent: Agent): () => void | Promise<void> {
     const dispose = this.ctx.effect(function* (this: AgentRegistry) {
       yield this.enter(agent, this.ctx.agent)
       this.announce(agent)
     }.bind(this), 'agents.register()')
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
     return dispose
   }
 
@@ -505,10 +506,6 @@ export class AgentRegistry extends Service {
   /** Remove one exact entered agent and emit its paired disposal when announced. */
   private detachEntered(entry: AgentEntry): void {
     entry.detachRequested = false
-    // A stale capability can never delete a later same-id lifecycle. The
-    // captured entry identity is the final boundary.
-    /* v8 ignore next -- enter() rejects replacement while this single-shot detach capability is live. */
-    if (this.store.get(entry.id) !== entry) return
     this.store.delete(entry.id)
     // An insertion rolled back before announce was never externally created,
     // so emitting disposed would invent an impossible lifecycle edge. Marking
@@ -522,14 +519,15 @@ export class AgentRegistry extends Service {
   private emitDisposed(entry: AgentEntry): void {
     const args: unknown[] = [entry.carrier, 'agent/disposed', { agent: entry.agent }]
     for (const callback of this.ctx.events.dispatch('emit', args)) {
-      try {
-        const returned: unknown = callback(...args)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(...args),
+        (reason) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
   }
 
@@ -553,19 +551,19 @@ export class AgentRegistry extends Service {
     entry.announcing = true
     entry.announced = true
     const args: unknown[] = [entry.carrier, 'agent/created', { agent: entry.agent }]
-    try {
-      for (const callback of this.ctx.events.dispatch('emit', args)) {
-        // A synchronous creation failure vetoes publication and rolls back.
-        // Returned-promise rejection happens after this synchronous boundary, so
-        // observe and report it instead of leaking an unhandled rejection.
-        const returned: unknown = callback(...args)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(error)}`)
-        })
-      }
-    } finally {
-      entry.announcing = false
-      if (entry.detachRequested) this.detachEntered(entry)
+    using _announcing = {
+      [Symbol.dispose]: (): void => {
+        entry.announcing = false
+        if (entry.detachRequested) this.detachEntered(entry)
+      },
+    }
+    for (const callback of this.ctx.events.dispatch('emit', args)) {
+      // A synchronous creation failure vetoes publication and rolls back.
+      // Returned-promise rejection happens after this synchronous boundary, so
+      // observe and report it instead of leaking an unhandled rejection.
+      observeReturnedThenable(callback(...args), (reason) => {
+        this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${renderListenerFailure(reason)}`)
+      })
     }
   }
 
@@ -638,28 +636,26 @@ export class AgentRegistry extends Service {
       parent: this.initiatorRuns.getStore(),
     }
     this.activeInitiatorRuns += 1
-    let result: T
-    try {
-      result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
-    } catch (error: unknown) {
-      this.releaseInitiatorRun(run)
-      throw error
+    let retain = true
+    using _boundary = {
+      [Symbol.dispose]: (): void => {
+        if (retain) this.releaseInitiatorRun(run)
+      },
     }
+    const result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation))
     if (isPromise(result)) {
-      try {
-        Promise.prototype.then.call(
-          result,
-          () => { this.releaseInitiatorRun(run) },
-          () => { this.releaseInitiatorRun(run) },
-        ).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
-      } catch {
-        // A branded Promise may expose a failing @@species. Observer setup did
-        // not attach, so preserve the exact return without leaking the run.
-        this.releaseInitiatorRun(run)
-      }
-    } else {
-      this.releaseInitiatorRun(run)
+      retain = false
+      const release = (): void => { this.releaseInitiatorRun(run) }
+      new Promise((resolve: (value: unknown) => void) => {
+        observeReturnedThenable(
+          Promise.prototype.then.call(result, resolve, resolve),
+          resolve,
+        )
+      }).then(release, release)
+      return result
     }
+    retain = false
+    this.releaseInitiatorRun(run)
     return result
   }
 

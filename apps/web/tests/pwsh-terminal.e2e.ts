@@ -42,7 +42,9 @@ const HAS_PWSH = MODE === 'record' ? false : spawnSync(
   { encoding: 'utf8' },
 ).status === 0
 
-describe.skipIf(MODE === 'record' || !HAS_PWSH)('web e2e: pwsh calls use the bash terminal-card layout', () => {
+const SKIP_IN_RECORD_MODE_OR_WITHOUT_PWSH = MODE === 'record' || !HAS_PWSH
+if (SKIP_IN_RECORD_MODE_OR_WITHOUT_PWSH) console.info('[skip] pwsh-terminal.e2e.ts: record mode or no usable pwsh; replay-only pwsh assertion stays off')
+describe.skipIf(SKIP_IN_RECORD_MODE_OR_WITHOUT_PWSH)('web e2e: pwsh calls use the bash terminal-card layout', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

@@ -26,6 +26,8 @@ import type {
   WorkerInit,
 } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** The book-keeping for one in-flight child RPC (keyed by callId). */
 interface PendingChild {
   started: PromiseWithResolvers<string>
@@ -82,7 +84,7 @@ class ChildRpcBridge implements ChildPort {
     // Containment: when asynchronous provider start fails (or
     // the run is torn down), the settled promise may never gain a consumer —
     // it must not surface as an unhandled rejection and kill the worker.
-    entry.settled.promise.catch(() => { /* consumed: unconsumed child settlement after failed start */ })
+    entry.settled.promise.catch((_error: Thrown) => {})
     this.pending.set(callId, entry)
     this.post(WorkerToHostType.ChildStart, { callId, request })
     const childId = await entry.started.promise
@@ -156,7 +158,7 @@ export async function runWorkerSession(port: MessagePort, init: WorkerInit): Pro
   let execution: WorkflowExecution
   try {
     execution = new WorkflowExecution(init.meta, init.body, init.args, init.limits, observer, children)
-  } catch (error: unknown) {
+  } catch (error) {
     post(WorkerToHostType.Result, { result: { value: null, stopReason: 'error', error: renderThrown(error), agentsStarted: 0 } })
     return
   }

@@ -30,6 +30,8 @@ export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Required Host service: the Gateway owns the physical Remote stream mux. */
 export const inject = ['typertGateway']
 
@@ -138,9 +140,10 @@ function forwardWaterfall(
   event: string,
   request: object,
   context: TypertRemoteEventInvocation['context'],
-  next: () => unknown,
+  hostNext: () => unknown,
 ): Promise<unknown> {
   const settled = Promise.withResolvers<unknown>()
+  const rejectThrown: (reason: Thrown) => void = settled.reject
   const dispatch: TypertRemoteEventInvocation = {
     event,
     request,
@@ -150,11 +153,11 @@ function forwardWaterfall(
         settled.resolve(outcome.value)
         return
       }
-      Promise.resolve().then(next).then(settled.resolve, settled.reject)
+      Promise.resolve().then(hostNext).then(settled.resolve, rejectThrown)
     },
     reject: settled.reject,
   }
-  if (!queue.push(dispatch)) Promise.resolve().then(next).then(settled.resolve, settled.reject)
+  if (!queue.push(dispatch)) Promise.resolve().then(hostNext).then(settled.resolve, rejectThrown)
   return settled.promise
 }
 

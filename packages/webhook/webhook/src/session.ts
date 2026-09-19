@@ -163,17 +163,17 @@ export async function createWebhookSession(
         summary: boundContextSummary(`${delivery.kind} webhook handled by ${ruleId}`),
       },
     }))
-  } catch (error: unknown) {
+  } catch (error) {
     if (attached) {
       try {
         await workspace.detachSession(sessionId)
-      } catch (rollbackError: unknown) {
+      } catch (rollbackError) {
         reportRollbackFailure(ctx, `Workspace detach for Session "${sessionId}"`, rollbackError)
       }
     }
     try {
       await handle.dispose()
-    } catch (rollbackError: unknown) {
+    } catch (rollbackError) {
       reportRollbackFailure(ctx, `Agent disposal for Session "${sessionId}"`, rollbackError)
     }
     throw error

@@ -1,7 +1,7 @@
 /**
- * @deepseek-ai/dsh-cmdline — the command line a dsh launcher hands to the app
- * it boots.
+ * The command line a dsh launcher hands to the app it boots.
  *
+ * @module dsh-cmdline
  * The launcher parses only its own flags (`--profile`, `--patch`, the config
  * dumps) and hands everything after them to the tree verbatim through the
  * {@link CmdlineArgs} service, so an app owns its flag family, its `--help`
@@ -197,7 +197,9 @@ export function parseCmdline(ctx: Context, program: Command): void {
  * @returns true when the command or any registered subcommand has an action.
  */
 function hasAction(command: Command): boolean {
-  if (typeof (command as unknown as { _actionHandler?: unknown })._actionHandler === 'function') return true
+  const carrier: unknown = command
+  if (typeof carrier === 'object' && carrier !== null && '_actionHandler' in carrier
+    && typeof carrier._actionHandler === 'function') return true
   return command.commands.some(hasAction)
 }
 

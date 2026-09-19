@@ -15,6 +15,8 @@ import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-sub
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { LitertImport, ResolvedLitertServerConfig } from './config.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Timeout code carried by an elapsed `litert-lm` budget. */
 export const LITERT_TIMEOUT_CODE = 'LITERT_TIMEOUT'
 
@@ -113,13 +115,26 @@ function exitDetail(run: CompletedRun): string {
 }
 
 /**
- * Render one rejection reason for a diagnostic. The probe is caller-supplied,
- * so its rejection carries no type this package can rely on.
- * @param reason - the value the probe rejected with.
- * @returns text naming the reason.
+ * Human text for a rejected health probe.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
  */
-function failureText(reason: unknown): string {
-  return reason instanceof Error ? reason.message : JSON.stringify(reason)
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /**
@@ -242,13 +257,13 @@ export class LitertServer {
     const { server } = this.spec
     const url = `${this.spec.baseURL}/models`
     let exit: CompletedRun | undefined
-    let startFailure: unknown
+    let startFailure: Thrown | undefined
     handle.done.then(
       (outcome) => { exit = { ...outcome, ...this.collectedOutput(handle) } },
-      (failure: unknown) => { startFailure = failure },
+      (error: Thrown) => { startFailure = error },
     )
     using budget = deadline(signal, server.startupTimeoutMs, LITERT_TIMEOUT_CODE)
-    let lastProbeFailure: unknown
+    let lastProbeFailure: Thrown | undefined
     while (!budget.signal.aborted) {
       if (startFailure !== undefined) {
         throw new Error(`llm-litert: ${server.command} serve could not be started`, { cause: startFailure })
@@ -262,8 +277,8 @@ export class LitertServer {
       // its model, so it advances the loop; the last one is quoted only if the
       // budget then elapses, which is where the wait actually fails.
       const healthy = await this.collaborators.probe(url, budget.signal)
-        .then(answer => answer, (failure: unknown) => {
-          lastProbeFailure = failure
+        .then(answer => answer, (reason: Thrown) => {
+          lastProbeFailure = reason
           return false
         })
       if (healthy) return
@@ -274,7 +289,7 @@ export class LitertServer {
     if (cause === undefined) {
       throw new Error(`llm-litert: ${server.command} serve startup was cancelled`, { cause: budget.signal.reason })
     }
-    const detail = lastProbeFailure === undefined ? '' : `; last probe failed: ${failureText(lastProbeFailure)}`
+    const detail = lastProbeFailure === undefined ? '' : `; last probe failed: ${thrownMessage(lastProbeFailure)}`
     throw new Error(
       `llm-litert: ${server.command} serve did not answer GET ${url} within`
       + ` ${server.startupTimeoutMs}ms${detail}`,
@@ -290,10 +305,10 @@ export class LitertServer {
   ): Promise<CompletedRun> {
     using budget = deadline(signal, timeoutMs, LITERT_TIMEOUT_CODE)
     const handle = this.collaborators.spawn(this.spawnSpec(argv, budget.signal))
-    const outcome = await handle.done.then(settled => settled, (failure: unknown) => {
+    const outcome = await handle.done.then(settled => settled, (error: Thrown) => {
       throw new Error(
         `llm-litert: ${this.spec.server.command} ${argv[0] ?? ''} could not be started`,
-        { cause: failure },
+        { cause: error },
       )
     })
     const collected = this.collectedOutput(handle)

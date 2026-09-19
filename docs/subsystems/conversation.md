@@ -212,13 +212,13 @@ export function apply(ctx: ClientContext): void {
 
 `match(event)` is an identity extractor, not a fold: it receives only the current `SessionEventLike` and returns the Definition-local id and lifecycle role. After a match, the assembler locates the Context by `(kind, id)` and calls `start` once for a standard event or `update` for a standard or packed event. Both functions return the State that the engine adopts; returning a new immutable value is preferred, but a function that mutates and returns the same object has the same adoption semantics.
 
-`buildLocationData(context, scope)` optionally publishes Definition-owned data onto an engine-owned Turn or Step. Use declaration merging to give each key a precise value type. Another Node in the same Location can consume that value through its constrained slot hook, such as `useTurnData(key)`, without receiving the Session or scanning `snapshot.chat.nodes`.
+`buildLocationData(context, scope)` optionally publishes Definition-owned data onto an engine-owned Turn or Step. Use declaration merging to give each key a precise published value type. Another Node in the same Location can consume that value through its constrained slot hook, such as `useTurnData(key)`, which returns unknown for the consumer to claim, without receiving the Session or scanning `snapshot.chat.nodes`.
 
 `target` and `buildViewNode(context)` declare one target-owned rendering contribution and must appear together. Preserve `context.key` as the React-facing identity, choose `anchorSeq` from durable ordering evidence, and return only renderer-ready data. Once a target Node has been published, keep returning the same key; use `visibility: 'hidden'` when it must temporarily leave the visible flow rather than withdrawing it with `null`.
 
 ## Predecessor reads
 
-Some Definitions need the latest earlier State of another business kind. `start` receives a `ConversationContextReader`; call `reader.previous<State>(kind)` there instead of accepting a Context collection or scanning events. The reader returns the nearest started Context before the current start `seq` as read-only data.
+Some Definitions need the latest earlier State of another business kind. `start` receives a `ConversationContextReader`; call `reader.previous(kind)` there instead of accepting a Context collection or scanning events. The reader returns the nearest started Context before the current start `seq` as read-only data, and the consumer claims `state`.
 
 The assembler records that dependency. If an older prepend later supplies a nearer predecessor, closes a previously unknown window gap, or revises the predecessor State, it reruns the dependent Context from `start` and replays its updates in ascending `seq`. The queried Definition remains responsible for writing useful State; the reader exposes no business-specific query methods and grants no mutation authority over another Context.
 

@@ -26,6 +26,8 @@ import type { SessionLineageNode, SessionQueryEngine } from '@deepseek-ai/dsh-se
 import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence, SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Valid fflate DEFLATE levels accepted by session-log export. */
 export type SessionLogCompressionLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
@@ -214,6 +216,7 @@ export function sessionLogZipFilename(sessionId: string): string {
  * @param sessionId - the root session id.
  * @param includeDescendants - whether to include every subagent descendant.
  * @param signal - optional cancellation forwarded to lineage, persistence, and attachment reads.
+ * @yields the export entries in zip order.
  * @returns the export entries in zip order.
  */
 export async function* sessionLogZipEntries(
@@ -422,25 +425,23 @@ export function streamSessionLogZip(
       })
       zip = archive
       production = (async () => {
-        try {
-          for await (const entry of sessionLogZipEntries(deps, root, sessionId, includeDescendants, producerSignal)) {
-            const deflate = new ZipDeflate(entry.path, { level: compressionLevel })
-            archive.add(deflate)
-            if ('content' in entry) {
-              await pushArtifactChunks(deflate, entry.content, controller, capacity, producerSignal)
-            } else {
-              await pushBinaryChunks(deflate, entry.data, controller, capacity, producerSignal)
-            }
+        for await (const entry of sessionLogZipEntries(deps, root, sessionId, includeDescendants, producerSignal)) {
+          const deflate = new ZipDeflate(entry.path, { level: compressionLevel })
+          archive.add(deflate)
+          if ('content' in entry) {
+            await pushArtifactChunks(deflate, entry.content, controller, capacity, producerSignal)
+          } else {
+            await pushBinaryChunks(deflate, entry.data, controller, capacity, producerSignal)
           }
-          archive.end()
-        } catch (error) {
-          // A mid-stream failure (missing descendant, cancellation, read
-          // error) must fail the download rather than ship a truncated archive.
-          /* v8 ignore next -- typed backends reject with Error, and DOMException is one in Node */
-          terminateZip()
-          controller.error(error instanceof Error ? error : new Error(String(error)))
         }
-      })()
+        archive.end()
+      })().then(undefined, (error: Thrown) => {
+        // A mid-stream failure (missing descendant, cancellation, read
+        // error) must fail the download rather than ship a truncated archive.
+        /* v8 ignore next -- typed backends reject with Error, and DOMException is one in Node */
+        terminateZip()
+        controller.error(error instanceof Error ? error : new Error(String(error)))
+      })
     },
     pull() {
       capacity.pulled()

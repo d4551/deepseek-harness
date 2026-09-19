@@ -22,7 +22,9 @@ afterEach(async () => {
 const SYSTEM = 'You are a coding assistant. Use the write tool to create files, the read tool to inspect '
   + 'them, and the edit tool for literal replacements. Read a file before editing it. Keep replies terse.'
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('fs tools with-key smoke', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] fs-tools.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('fs tools with-key smoke', () => {
   it('creates, reads, then edits a file — verified on disk', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-fs-e2e-'))
     ctx = await fsHarness(workdir, SYSTEM)

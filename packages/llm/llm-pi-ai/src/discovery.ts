@@ -27,6 +27,8 @@ import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-a
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Protocols whose model listing this module can read: the two that speak
  * OpenAI's `GET /models` shape with bearer auth. Azure is absent despite its
@@ -116,7 +118,7 @@ async function readBounded(response: Response, url: string): Promise<string> {
     }
   } finally {
     /* v8 ignore next 4 -- cancel() after a completed or abandoned read settles without rejecting; unobserved best-effort cleanup. */
-    await reader.cancel().catch(() => {
+    await reader.cancel().then(undefined, (_error: Thrown) => {
       // Cancel after a drained read, or after this function walked away from
       // an oversized one, is cleanup; the reply is already decided either way.
     })
@@ -239,46 +241,48 @@ export async function discoverModels(
   // relies on the provider's own ambient discovery is meant to be asked.
   const supplied = request.apiKey ?? await storedApiKey?.()
   const apiKey = supplied === undefined ? undefined : usableProbeKey(supplied)
-  let response: Response
-  try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        accept: 'application/json',
-        ...apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` },
-        ...attributionHeaders(),
-      },
-      ...request.signal === undefined ? {} : { signal: request.signal },
-    })
-  } catch (error: unknown) {
-    if (request.signal?.aborted) {
-      throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
-    }
-    throw new LlmError(`could not reach ${url}`, 'DISCOVERY_FAILED', { cause: error })
-  }
-  if (!response.ok) {
-    throw new LlmError(
-      `${url} answered ${response.status}${response.status === 401 || response.status === 403 ? '; check the API key' : ''}`,
-      'DISCOVERY_FAILED',
-    )
-  }
-  let text: string
-  try {
-    text = await readBounded(response, url)
-  } catch (error: unknown) {
-    // Cancellation during the body read rejects with the abort reason, which
-    // may be any value; the caller gets the same coded failure it would have
-    // for a cancellation before the request went out.
-    if (request.signal?.aborted) {
-      throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
-    }
-    throw error
-  }
-  let body: unknown
-  try {
-    body = JSON.parse(text)
-  } catch (error: unknown) {
-    throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
-  }
-  return readListing(body)
+  return fetch(url, {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      ...apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` },
+      ...attributionHeaders(),
+    },
+    ...request.signal === undefined ? {} : { signal: request.signal },
+  }).then(
+    (response) => {
+      if (!response.ok) {
+        throw new LlmError(
+          `${url} answered ${response.status}${response.status === 401 || response.status === 403 ? '; check the API key' : ''}`,
+          'DISCOVERY_FAILED',
+        )
+      }
+      return readBounded(response, url).then(
+        (text) => {
+          let body: unknown
+          try {
+            body = JSON.parse(text)
+          } catch (error) {
+            throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
+          }
+          return readListing(body)
+        },
+        (error: Thrown) => {
+          // Cancellation during the body read rejects with the abort reason, which
+          // may be any value; the caller gets the same coded failure it would have
+          // for a cancellation before the request went out.
+          if (request.signal?.aborted) {
+            throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
+          }
+          throw error
+        },
+      )
+    },
+    (error: Thrown) => {
+      if (request.signal?.aborted) {
+        throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
+      }
+      throw new LlmError(`could not reach ${url}`, 'DISCOVERY_FAILED', { cause: error })
+    },
+  )
 }

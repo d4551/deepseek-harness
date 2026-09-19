@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { assertSessionEventObject, Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { scanLog } from '@deepseek-ai/dsh-session-persistence-jsonl/src/format.ts'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent/src/descriptor.ts'
 import {
@@ -26,10 +26,20 @@ function filesUnder(root: string): string[] {
   return files.sort()
 }
 
-function readSession(id: string): ReturnType<typeof scanLog> {
-  return scanLog(readFileSync(
+function sessionEvents(records: readonly object[]): SessionEvent[] {
+  const events: SessionEvent[] = []
+  for (const record of records) {
+    assertSessionEventObject(record)
+    events.push(record)
+  }
+  return events
+}
+
+function readSession(id: string): { meta: ReturnType<typeof scanLog>['meta']; events: SessionEvent[] } {
+  const scanned = scanLog(readFileSync(
     join(VFS_EXAMPLE_ROOT, 'home/sessions/--dsh-workspace--', id, 'session.jsonl'),
   ))
+  return { meta: scanned.meta, events: sessionEvents(scanned.events) }
 }
 
 function textOf(event: SessionEvent): string {
@@ -47,7 +57,7 @@ describe('WebWorker preview VFS example', () => {
     const expected = buildVfsExampleFiles()
     expect(filesUnder(VFS_EXAMPLE_ROOT)).toEqual([...expected.keys()].sort())
     for (const [path, content] of expected) {
-      expect(readFileSync(join(VFS_EXAMPLE_ROOT, path), 'utf8'), path).toBe(content)
+      expect({ path, bytes: readFileSync(join(VFS_EXAMPLE_ROOT, path), 'utf8') }).toEqual({ path, bytes: content })
     }
   })
 

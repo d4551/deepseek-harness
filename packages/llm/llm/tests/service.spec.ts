@@ -383,9 +383,7 @@ describe('LlmRuntime', () => {
         return {
           [Symbol.asyncIterator](): AsyncIterator<StreamChunk> {
             return {
-              // Third-party adapters can reject with arbitrary values.
-              // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-              next: () => Promise.reject('plain provider failure'),
+              next: async () => { throw 'plain provider failure' },
             }
           },
         }
@@ -435,9 +433,15 @@ describe('LlmRuntime', () => {
     const middlewareCtx = new Context()
     await middlewareCtx.plugin(LlmRuntime)
     middlewareCtx.llm.registerAdapter(['test'], new ScriptedAdapter(SCRIPT))
-    middlewareCtx.on('llm/stream', () => (async function* () {
-      throw middlewareFailure
-    })())
+    middlewareCtx.on('llm/stream', () => ({
+      [Symbol.asyncIterator](): AsyncIterator<StreamChunk> {
+        return {
+          next: async (): Promise<IteratorResult<StreamChunk>> => {
+            throw middlewareFailure
+          },
+        }
+      },
+    }))
     await expect(collect(middlewareCtx.llm.stream({
       provider: 'test',
       model: 'test',
@@ -1154,10 +1158,12 @@ describe('LlmRuntime', () => {
       messages: [createMessage({
         role: 'assistant',
         content: [{ type: 'text', text: 'old response' }],
-        source: {
+        source: ({
           kind: 'model',
-          ...{ provider: 'historical', model: 'old-model', replayState },
-        },
+          provider: 'historical',
+          model: 'old-model',
+          replayState,
+        }),
       })],
     })) { /* drain */ }
 
@@ -1179,10 +1185,12 @@ describe('LlmRuntime', () => {
       messages: [createMessage({
         role: 'assistant',
         content: [{ type: 'text', text: 'old response' }],
-        source: {
+        source: ({
           kind: 'model',
-          ...{ provider: 'historical', model: 'old-model', replayState: { private: 'state' } },
-        },
+          provider: 'historical',
+          model: 'old-model',
+          replayState: { private: 'state' },
+        }),
       })],
     })) { /* drain */ }
 
@@ -1280,14 +1288,12 @@ describe('LlmRuntime', () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
-    try {
-      ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))
-      expect.fail('expected error')
-    } catch (error: unknown) {
-      expect(error).toBeInstanceOf(LlmError)
-      expect((error as LlmError).message).toContain('already registered')
-      expect((error as LlmError).code).toBe('DUPLICATE_ADAPTER')
-    }
+    expect(() => ctx.llm.registerAdapter(['m1'], new ScriptedAdapter(SCRIPT))).toThrow(
+      expect.objectContaining({
+        code: 'DUPLICATE_ADAPTER',
+        message: expect.stringContaining('already registered'),
+      }),
+    )
   })
 
   it('rejects empty and internally duplicated provider registrations atomically', async () => {

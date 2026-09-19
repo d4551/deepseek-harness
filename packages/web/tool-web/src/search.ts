@@ -12,6 +12,8 @@ import type { WebSearchResult, WebSearchSource } from '@deepseek-ai/dsh-web'
 import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { EXTERNAL_WEB_CONTENT_NOTICE } from './trust.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /**
  * Default upper bound on returned sources (the `searchMaxResults` config).
  * The consumer owns the returned-context limit; providers and models do not.
@@ -234,23 +236,24 @@ async function runSearchQueries(
   maxResults: number,
   signal: AbortSignal,
 ): Promise<WebSearchResult> {
-  if (queries.length === 1) {
-    return ctx.web.search({ query: queries[0] as string, maxResults }, signal)
+  const [firstQuery] = queries
+  if (queries.length === 1 && firstQuery !== undefined) {
+    return ctx.web.search({ query: firstQuery, maxResults }, signal)
   }
   const controller = new AbortController()
   const batchSignal = AbortSignal.any([signal, controller.signal])
-  let firstFailure: { error: unknown } | undefined
+  let firstFailure: { error: Thrown } | undefined
   const results: WebSearchResult[] = []
-  const searches = queries.map(async (query, index) => {
-    try {
-      results[index] = await ctx.web.search({ query, maxResults }, batchSignal)
-    } catch (error) {
-      if (firstFailure === undefined) firstFailure = { error }
-      controller.abort(error)
-      throw error
-    }
-  })
-  await Promise.allSettled(searches)
+  const searches = queries.map((query, index) =>
+    ctx.web.search({ query, maxResults }, batchSignal).then(
+      (result) => { results[index] = result },
+      (error: Thrown) => {
+        if (firstFailure === undefined) firstFailure = { error }
+        controller.abort(error)
+      },
+    ),
+  )
+  await Promise.all(searches)
   if (firstFailure !== undefined) throw firstFailure.error
   return mergeSearchResults(queries, results, maxResults)
 }

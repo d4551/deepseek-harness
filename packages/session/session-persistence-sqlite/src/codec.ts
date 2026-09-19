@@ -10,9 +10,11 @@
 
 import {
   buildChunkRow,
+  chunkRowLength,
   decodeChunkStorageRecord,
   expandChunkRow,
   malformedChunkRow,
+  materializeChunkRow,
   scanChunkRuns,
   validateChunkRowShape,
 } from '@deepseek-ai/dsh-session/chunk-run-codec'
@@ -44,27 +46,28 @@ function emitBoundedRun(out: StorageRecord[], kind: DeltaChunkKind, completeRun:
       continue
     }
     high -= 1
-    let accepted = 0
     let acceptedRow: ChunkRow | undefined
     while (low <= high) {
       const middle = Math.floor((low + high) / 2)
       const candidate = buildChunkRow(kind, completeRun.slice(offset, offset + middle))
       if (packedDataBytes(candidate) <= MAX_PACKED_DATA_BYTES) {
-        accepted = middle
         acceptedRow = candidate
         low = middle + 1
       } else {
         high = middle - 1
       }
     }
-    if (accepted === 0) {
-      out.push(completeRun[offset] as DeltaChunkEvent)
+    if (acceptedRow === undefined) {
+      const first = completeRun.at(offset)
+      if (first === undefined) {
+        throw new TypeError('bounded encoder offset left the run')
+      }
+      out.push(first)
       offset += 1
       continue
     }
-    /* v8 ignore next -- accepted is set only with its same-branch candidate. */
-    out.push(acceptedRow ?? malformedChunkRow(kind, 'bounded encoder lost its accepted row'))
-    offset += accepted
+    out.push(acceptedRow)
+    offset += chunkRowLength(acceptedRow)
   }
   out.push(...completeRun.slice(offset))
 }
@@ -91,15 +94,15 @@ function validateRow(
   if ((serializedBytes ?? Buffer.byteLength(JSON.stringify(data))) > MAX_PACKED_DATA_BYTES) {
     malformedChunkRow(tag, `data exceeds ${MAX_PACKED_DATA_BYTES} UTF-8 bytes`)
   }
-  return value as unknown as ChunkRow
+  return materializeChunkRow(value, tag, { data, payloadKey, payload })
 }
 
 /**
  * Decode one scalar or packed schema-19 record.
  * @param value - parsed physical-record value.
- * @returns the represented logical events.
+ * @returns the represented logical records.
  */
-export function decodeStorageRecord(value: unknown): SessionEvent[] {
+export function decodeStorageRecord(value: unknown): unknown[] {
   return decodeChunkStorageRecord(value, validateRow)
 }
 
@@ -120,5 +123,9 @@ export function decodeSerializedChunkRow(
 ): SessionEvent[] {
   const bytes = Buffer.byteLength(serializedData)
   if (bytes > MAX_PACKED_DATA_BYTES) malformedChunkRow(tag, `data exceeds ${MAX_PACKED_DATA_BYTES} UTF-8 bytes`)
-  return expandChunkRow(validateRow({ type: tag, seq0, time0, data: JSON.parse(serializedData) as unknown }, tag, bytes))
+  const parsed: unknown = JSON.parse(serializedData)
+  if (typeof parsed !== 'object' || parsed === null) {
+    malformedChunkRow(tag, 'data must be an object')
+  }
+  return expandChunkRow(validateRow({ type: tag, seq0, time0, data: parsed }, tag, bytes))
 }

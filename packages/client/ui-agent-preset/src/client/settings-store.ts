@@ -12,18 +12,37 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { AgentPresetRoster } from '@deepseek-ai/dsh-agent-presets/types'
 import type { SettingsDescribeFace, SettingsWireFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** The agent-preset settings namespace on the host wire. */
 export const AGENT_PRESET_SETTINGS_NS = 'agent-presets'
 
 /**
- * Human text for a rejected wire call. A transport failure rejects with an
- * Error; a host or a runtime can reject with anything, and the surface still
- * has to say something.
- * @param error - the rejection value.
+ * Human text for a rejected wire call.
+ * @param reason - the Thrown the transport or host rejected with.
  * @returns the message to show.
  */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+export function messageOf(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+function refusalMessage(error: object): string {
+  const message = Reflect.get(error, 'message')
+  return typeof message === 'string' ? message : messageOf(error)
 }
 
 /**
@@ -40,24 +59,19 @@ export async function writeDefaultPreset(
   api: SettingsWireFace,
   id: string,
 ): Promise<string | undefined> {
-  let response
-  try {
-    response = await api.settings.update(
-      AGENT_PRESET_SETTINGS_NS,
-      { default: id },
-      undefined,
-    )
-  } catch (error) {
-    // The transport rejected rather than answering; the caller must be able to
-    // say so instead of the row silently snapping back.
-    return messageOf(error)
-  }
-  return response.ok ? undefined : response.error.message
+  return api.settings.update(
+    AGENT_PRESET_SETTINGS_NS,
+    { default: id },
+    undefined,
+  ).then(
+    response => response.ok ? undefined : refusalMessage(response.error),
+    (reason: Thrown) => messageOf(reason),
+  )
 }
 
 /** One selectable preset. */
 export interface AgentPresetOption {
-  /** Preset id, written to Settings and the label's fallback. */
+  /** Preset id, written to Settings and used as the label when the preset published none. */
   id: string
   /** Whether the preset ships with the deployment or was authored locally. */
   trust: 'system' | 'user'
@@ -86,17 +100,14 @@ const EMPTY_ROSTER: AgentPresetRoster = { presets: [], authorable: false }
  * @returns the roster, or the message to show in its place.
  */
 export async function readRoster(remote: { agentPresets: Pick<ClientRemote['agentPresets'], 'list'> }): Promise<RosterRead> {
-  try {
-    const result = await remote.agentPresets.list()
-    if (result.ok) return { ok: true, value: result.value }
-    // Agent presets are optional: without that service every session uses the
-    // Host composition, so callers receive the same empty roster as a mounted
-    // service with no configured roots.
-    if (result.error.code === 'invocation-unavailable') return { ok: true, value: EMPTY_ROSTER }
-    return { ok: false, error: result.error.message }
-  } catch (error) {
-    return { ok: false, error: messageOf(error) }
-  }
+  return remote.agentPresets.list().then(
+    (result) => {
+      if (result.ok) return { ok: true, value: result.value }
+      if (result.error.code === 'invocation-unavailable') return { ok: true, value: EMPTY_ROSTER }
+      return { ok: false, error: refusalMessage(result.error) }
+    },
+    (reason: Thrown): RosterRead => ({ ok: false, error: messageOf(reason) }),
+  )
 }
 
 /**

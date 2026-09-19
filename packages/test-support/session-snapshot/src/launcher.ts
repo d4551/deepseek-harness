@@ -42,6 +42,8 @@ import { resolveExampleLaunch } from '@deepseek-ai/dsh-loader-smoke'
 
 const EXIT_MARKER_GRACE_MS = 250
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Loader fields needed while rebasing authored relative module names. */
 interface ProfilePatchEntry {
   name: string
@@ -156,7 +158,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
   // `spawned` is public and close() also awaits it, but a caller may ignore both.
   // Keep that misuse from turning the already-observed child error into an
   // unhandled promise rejection.
-  spawned.catch(() => undefined)
+  spawned.catch((_error: Thrown) => undefined)
 
   const stderrChunks: string[] = []
   child.stderr.setEncoding('utf8')
@@ -188,8 +190,8 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     Readable.toWeb(passthrough) as ReadableStream<Uint8Array>,
   )
   const inFlightClientCallbacks = new Set<Promise<unknown>>()
-  const trackClientCallback = <T>(callback: () => T | PromiseLike<T>): Promise<T> => {
-    const pending = Promise.resolve().then(callback)
+  const trackClientCallback = <T>(work: () => T | PromiseLike<T>): Promise<T> => {
+    const pending = Promise.resolve().then(work)
     inFlightClientCallbacks.add(pending)
     const untrack = (): void => { inFlightClientCallbacks.delete(pending) }
     pending.then(untrack, untrack)
@@ -208,7 +210,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
           let matches: boolean
           try {
             matches = waiter.match(params.update)
-          } catch (error: unknown) {
+          } catch (error) {
             updateWaiters.splice(index, 1)
             waiter.reject(error)
             continue
@@ -250,7 +252,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     // them. Once `closed` settles no new callbacks can start, but callbacks
     // already in flight still belong to this launch's teardown boundary.
     while (inFlightClientCallbacks.size > 0) {
-      await Promise.allSettled([...inFlightClientCallbacks])
+      await Promise.allSettled(inFlightClientCallbacks)
     }
   })
   // A caller may await a pending update without calling close(). Make natural
@@ -272,7 +274,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     async close(signal?: NodeJS.Signals): Promise<void> {
       try {
         await spawned
-      } catch (error: unknown) {
+      } catch (error) {
         await drained
         closeUpdateStream()
         throw error

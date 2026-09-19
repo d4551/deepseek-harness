@@ -70,7 +70,9 @@ function text(result: { content: { type: string; text?: string }[] }): string {
   return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }
 
-describe.skipIf(!hasPwsh)('persistent pwsh through a real cordis.yml Loader composition', () => {
+const SKIP_WITHOUT_PWSH = !hasPwsh
+if (SKIP_WITHOUT_PWSH) console.info('[skip] pwsh-loader-composition.spec.ts: no usable pwsh on this host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH)('persistent pwsh through a real cordis.yml Loader composition', () => {
   it('preserves cwd and environment across calls', async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-persistent-pwsh-loader-')))
     const configPath = join(root, 'cordis.yml')

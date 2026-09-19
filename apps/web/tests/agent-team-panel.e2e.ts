@@ -372,6 +372,8 @@ describe.each(COLOR_SCHEMES)('web e2e: Agent Teams panel (%s)', (colorScheme) =>
 
 })
 
-it.skipIf(MODE === 'record')('keeps the Agent Team fixture inventory closed', async () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] agent-team-panel.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+it.skipIf(SKIP_IN_RECORD_MODE)('keeps the Agent Team fixture inventory closed', async () => {
   await assertFixtureInventory(SNAPSHOT_DIR, ['task.expected.md'])
 })

@@ -74,6 +74,16 @@ export interface InputTriggerCrumb {
   readonly current?: boolean
 }
 
+/**
+ * Failure answer from a synchronous source hook. Hooks return this object
+ * instead of throwing so the pipeline can record the message and continue
+ * with remaining sources and session controllers.
+ */
+export interface SyncHookFault {
+  readonly hookFailed: true
+  readonly message: string
+}
+
 /** What a source needs to decide the header of the open menu. */
 export interface HeaderRequest {
   /** Text between the trigger char and the caret, live-filtered. */
@@ -164,9 +174,13 @@ export interface InputTriggerSource {
    * into one are the same outcome.
    * @param session - stable session projection.
    * @param req - the live query and how the menu reached it.
-   * @returns the crumbs to render, or undefined for no header.
+   * @returns the crumbs to render, undefined for no header, or
+   * {@link SyncHookFault} when this request cannot publish crumbs.
    */
-  header?(session: ClientSessionContext, req: HeaderRequest): readonly InputTriggerCrumb[] | undefined
+  header?(
+    session: ClientSessionContext,
+    req: HeaderRequest,
+  ): readonly InputTriggerCrumb[] | undefined | SyncHookFault
   /** Every pick lands here; claim/insert outcomes are executed by the pipeline via the scoped input events. */
   onPick(pick: InputTriggerPick): PickOutcome
   /** Synchronous space-time adjudication over hot state only. `token` is the just-completed leading token (e.g. '/goal'). */
@@ -191,16 +205,18 @@ export interface InputTriggerSource {
    * Scope-birth prewarm hook (fire-and-forget): the per-session controller
    * calls it once when the session scope comes alive so sources can fetch
    * their backing data before the first interaction.
+   * @returns undefined when prewarm started, or {@link SyncHookFault} when it cannot.
    */
-  warm?(session: ClientSessionContext): void
+  warm?(session: ClientSessionContext): SyncHookFault | undefined
   /**
    * Synchronous hot-snapshot name roll for plain-text reference decoration.
    * Implementing IS the participation claim: the render side
    * scans the draft for `<trigger><name>` tokens and decorates exact matches.
    * `undefined` = backing data not warm yet — no decoration, never a fetch
    * (the render path must stay synchronous and side-effect free).
+   * {@link SyncHookFault} skips this source's roll and keeps sibling rolls.
    */
-  lexicon?(session: ClientSessionContext): readonly string[] | undefined
+  lexicon?(session: ClientSessionContext): readonly string[] | undefined | SyncHookFault
   /**
    * Subscribe to changes of this source's {@link InputTriggerSource.lexicon} answer
    * for one session (backing data settled, invalidated, or refreshed). The
@@ -208,9 +224,12 @@ export interface InputTriggerSource {
    * never changes after warm omits the hook.
    * @param session - stable session projection.
    * @param listener - invalidation callback.
-   * @returns unsubscribe.
+   * @returns unsubscribe, or {@link SyncHookFault} when this session cannot be watched.
    */
-  subscribeLexicon?(session: ClientSessionContext, listener: () => void): () => void
+  subscribeLexicon?(
+    session: ClientSessionContext,
+    listener: () => void,
+  ): (() => void) | SyncHookFault
   /** Reference codec; required for sources producing insert outcomes. */
   readonly codec?: ReferenceCodec
 }

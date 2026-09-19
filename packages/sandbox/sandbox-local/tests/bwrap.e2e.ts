@@ -50,7 +50,9 @@ function runConfined(sandbox: LocalSandboxProvider, command: string, policy: San
   return { result, confined }
 }
 
-describe.skipIf(!bwrapUsable)('sandbox-local: real bwrap confinement', () => {
+const SKIP_WITHOUT_BWRAP = !bwrapUsable
+if (SKIP_WITHOUT_BWRAP) console.info('[skip] bwrap.e2e.ts: bwrap or user namespaces are unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_BWRAP)('sandbox-local: real bwrap confinement', () => {
   it('the passing probe selects the bwrap rung naturally — first in the ladder, full enforcement, EROFS dialect', async () => {
     const workdir = await tempDir(tmpdir())
     const sandbox = await provider()

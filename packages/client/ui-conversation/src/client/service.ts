@@ -21,8 +21,8 @@ import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ComposerAttachment } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './contract/composer-blocks.ts'
-import type {
-  DraftAttachmentId, SessionInputResolver, SubmitImageAttachment, SubmitOutcome,
+import {
+  DraftAttachmentId, type SessionInputResolver, type SubmitImageAttachment, type SubmitOutcome,
 } from './contract/input.ts'
 import type { InputSubmitMode } from './contract/composer-submission.ts'
 
@@ -62,13 +62,63 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Whether every file's browser-declared MIME is a supported draft image type.
+   * @param files - browser files considered for draft intake.
+   */
+  acceptsImageFiles(files: readonly File[]): boolean
+  /**
+   * Create runtime-only draft images and their object URLs.
+   * @param files - browser files to register after MIME validation.
+   * @returns ordered draft descriptors.
+   */
+  createDraftImages(files: readonly File[]): readonly ComposerAttachment[]
+  /**
+   * Resolve ordered input-state ids to runtime-owned draft images.
+   * @param ids - draft attachment ids.
+   * @returns descriptors that remain live, in requested order.
+   */
+  draftImages(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[]
+  /**
+   * Release one browser-owned draft image and preview URL.
+   * @param id - draft attachment id.
+   */
+  releaseDraftImage(id: DraftAttachmentId): void
+  /**
+   * Release a set of browser-owned draft images.
+   * @param attachments - descriptors to release.
+   */
+  releaseDraftImages(attachments: readonly ComposerAttachment[]): void
+  /**
+   * Submit ordered draft images with text through one host admission.
+   * @param session - target session.
+   * @param text - serialized prompt text.
+   * @param imageIds - ordered draft-local attachment ids.
+   * @param mode - queue or steer delivery selected by composer policy.
+   * @param signal - optional cancellation for the complete Host admission.
+   * @returns the Host admission outcome; local attachment preparation failures reject.
+   */
+  sendSession(
+    session: SessionFace,
+    text: string,
+    imageIds: readonly DraftAttachmentId[],
+    mode: InputSubmitMode,
+    signal?: AbortSignal,
+  ): Promise<SubmitOutcome>
+  /**
+   * Serialize ordered draft images to command-submit wire payloads without
+   * sending or releasing them.
+   * @param imageIds - ordered draft-local attachment ids.
+   * @returns base64 payloads in id order.
+   */
+  serializeDraftImages(imageIds: readonly DraftAttachmentId[]): Promise<readonly SubmitImageAttachment[]>
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
 function browserDraftAttachment(file: File): ComposerAttachment {
   return {
     kind: 'image',
-    id: randomUUID() as DraftAttachmentId,
+    id: DraftAttachmentId(randomUUID()),
     previewUrl: URL.createObjectURL(file),
     file,
   }
@@ -120,8 +170,12 @@ function base64Of(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
-      const url = reader.result as string
-      resolve(url.slice(url.indexOf(',') + 1))
+      const result = reader.result
+      if (typeof result !== 'string' || result === '') {
+        reject(new Error('conversation: image read produced no data URL'))
+        return
+      }
+      resolve(result.slice(result.indexOf(',') + 1))
     }
     reader.onerror = () => {
       reject(reader.error ?? new Error('conversation: image read failed'))
@@ -230,19 +284,28 @@ export class ConversationController extends Service implements IConversation {
         finishRetirement?.(settlement)
       },
     })
-    let content: Parameters<SessionFace['prompt']>[0]
-    try {
-      await nextPaint()
-      const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
-      content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
-    } catch (error) {
-      submission.abandon()
-      throw error
+    let serialized = false
+    using _abandonUnserialized = {
+      [Symbol.dispose]: (): void => {
+        if (!serialized) submission.abandon()
+      },
     }
+    await nextPaint()
+    const uploaded = await this.serializeImages(attachments.map(attachment => attachment.file))
+    const content = [...uploaded, ...(text === '' ? [] : [{ type: 'text' as const, text }])]
+    serialized = true
     const result = await session.prompt(content, mode, signal, submission.requestId)
     if (!result.ok) return { kind: 'error' }
     if (retirement !== undefined && (await retirement).reason !== 'observed') return { kind: 'error' }
     return { kind: 'success' }
+  }
+
+  /**
+   * Whether every file's browser-declared MIME is a supported draft image type.
+   * @param files - browser files considered for draft intake.
+   */
+  acceptsImageFiles(files: readonly File[]): boolean {
+    return files.every(file => parseImageMediaType(file.type) !== undefined)
   }
 
   /**
@@ -398,7 +461,7 @@ export class ConversationController extends Service implements IConversation {
   }
 }
 
-function imageMediaType(value: string): ImageMediaType {
+function parseImageMediaType(value: string): ImageMediaType | undefined {
   switch (value) {
     case 'image/png':
     case 'image/jpeg':
@@ -406,8 +469,14 @@ function imageMediaType(value: string): ImageMediaType {
     case 'image/gif':
       return value
     default:
-      throw new UnsupportedImageMediaTypeError(value)
+      return undefined
   }
+}
+
+function imageMediaType(value: string): ImageMediaType {
+  const parsed = parseImageMediaType(value)
+  if (parsed === undefined) throw new UnsupportedImageMediaTypeError(value)
+  return parsed
 }
 
 function revokePreview(url: string): void {

@@ -203,7 +203,7 @@ A command was registered or unregistered. This is an unfiltered registry notific
  * Observer failures are contained and cannot veto the registry mutation.
  * @mode emit
  */
-'commands/change'(): void
+'commands/change'(): void | Promise<void>
 ```
 
 Source: [`packages/interaction/commands/src/types.ts`](../../packages/interaction/commands/src/types.ts)

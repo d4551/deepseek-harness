@@ -16,13 +16,14 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Translate as LocaleTranslate } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
-  ClientSessionContext, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
+  ClientSessionContext, InputTriggerCrumb, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import { formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
 import type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-reference/types'
@@ -42,8 +43,10 @@ export const inject = [
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-reference: dictionaries')
   const t = ctx.locale.bind(NS)
-  const connection = ctx.get('connection') as ConnectionHandle
-  const sessions = ctx.get('sessions') as ISessions
+  const connection = ctx.get('connection')
+  if (connection === undefined) throw new Error('ui-reference: connection service unavailable')
+  const sessions = ctx.get('sessions')
+  if (sessions === undefined) throw new Error('ui-reference: sessions service unavailable')
   const source: InputTriggerSource = {
     trigger: '@',
     name: 'reference',
@@ -119,7 +122,8 @@ export function apply(ctx: ClientContext): void {
       serialize: ref => Promise.resolve(ref),
     },
   }
-  const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
+  const inputTriggers = ctx.get('inputTriggers')
+  if (inputTriggers === undefined) throw new Error('ui-reference: inputTriggers service unavailable')
   ctx.effect(() => inputTriggers.registerSource(source), 'ui-reference: @ source')
 }
 
@@ -235,7 +239,23 @@ function sessionCandidate(
   }
 }
 
+function isFileKind(value: unknown): value is FileReferenceCandidate['kind'] {
+  return value === 'file' || value === 'directory'
+}
+
+function referenceCandidateValueOf(value: unknown): ReferenceCandidateValue | undefined {
+  if (value === undefined || value === null || typeof value !== 'object') return undefined
+  if (!('kind' in value) || !('label' in value) || !('mention' in value)) return undefined
+  if (typeof value.label !== 'string' || typeof value.mention !== 'string') return undefined
+  if (value.kind === 'session') {
+    return { kind: 'session', label: value.label, mention: value.mention }
+  }
+  if (value.kind !== 'file' || !('fileKind' in value) || !isFileKind(value.fileKind)) return undefined
+  return { kind: 'file', fileKind: value.fileKind, label: value.label, mention: value.mention }
+}
+
 function parseCandidate(value: string | undefined): ReferenceCandidateValue | undefined {
   if (value === undefined) return undefined
-  return JSON.parse(value) as ReferenceCandidateValue
+  const parsed: unknown = JSON.parse(value)
+  return referenceCandidateValueOf(parsed)
 }

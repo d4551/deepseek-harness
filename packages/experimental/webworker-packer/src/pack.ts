@@ -484,17 +484,22 @@ function sweepImage(
  * @param files - Image entries, mutated.
  * @returns The dropped entry names.
  */
-function dropExecutables(files: ImageFiles): string[] {
+function dropExecutables(files: ImageFiles): { files: ImageFiles; dropped: string[] } {
   const decoder = new TextDecoder()
   const dropped: string[] = []
+  const kept: ImageFiles = {}
   for (const [name, bytes] of Object.entries(files)) {
-    if (!/\.[cm]?js$/.test(name)) continue
-    if (decoder.decode(bytes.subarray(0, 2)) !== '#!') continue
+    if (!/\.[cm]?js$/.test(name)) {
+      kept[name] = bytes
+      continue
+    }
+    if (decoder.decode(bytes.subarray(0, 2)) !== '#!') {
+      kept[name] = bytes
+      continue
+    }
     dropped.push(name)
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- the image is a plain path map
-    delete files[name]
   }
-  return dropped
+  return { files: kept, dropped }
 }
 
 /**
@@ -608,10 +613,10 @@ export function packVfsImage(options: PackOptions): PackResult {
   files[CONFIG_PATH] = encoder.encode(options.config)
   for (const tree of configTrees) collectTree(tree.directory, files, tree.mount, relativePath => !excluded(relativePath))
 
-  const executables = dropExecutables(files)
+  const { files: packedFiles, dropped: executables } = dropExecutables(files)
   const rootPackages = [...packages.keys()].filter(name => options.workspaces.has(name))
   const { swept, transform, javascriptEntries, droppedJavascriptEntries, unresolvedExternalRequests } =
-    sweepImage(files, options, rootPackages, root)
+    sweepImage(packedFiles, options, rootPackages, root)
 
   swept[MANIFEST_PATH] = encoder.encode(`${JSON.stringify({
     root,

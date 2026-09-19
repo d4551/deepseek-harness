@@ -31,6 +31,7 @@
   gap: var(--dsw-space-section);
   width: min(380px, 100%);
   max-height: 100%;
+  margin: 0;
   padding: 0 0 var(--dsw-space-layout);
   overflow: hidden;
   border: var(--dsw-border-width) solid var(--dsw-alias-border-inverted);
@@ -38,6 +39,7 @@
   font: var(--dsw-font-body);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv3);
+  color: inherit;
 }
 
 .content {

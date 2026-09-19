@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import JsonlSessionPersistence, { probeReadablePath } from '../src/index.ts'
 import {
   encodeSegment, eventLines, logPath, projectDir, projectKey, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
 } from '../src/format.ts'
@@ -37,6 +37,14 @@ const dirs: string[] = []
 
 type MutableSessionHeader = { -readonly [K in keyof SessionHeader]: SessionHeader[K] }
 
+function storedType(event: object): unknown {
+  return Reflect.get(event, 'type')
+}
+
+function storedSeq(event: object): unknown {
+  return Reflect.get(event, 'seq')
+}
+
 /** Test-only mutable view used to verify that backends detach returned/caller metadata. */
 function mutableHeader(header: SessionHeader): MutableSessionHeader {
   return header
@@ -52,25 +60,7 @@ async function rewriteHeader(path: string, update: (header: Record<string, unkno
 }
 
 async function expectFlushError(promise: Promise<unknown>, message: RegExp): Promise<void> {
-  try {
-    await promise
-  } catch (error) {
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toMatch(message)
-    return
-  }
-  throw new Error('expected flush to reject')
-}
-
-async function expectFlushCode(promise: Promise<unknown>, codes: readonly string[]): Promise<void> {
-  try {
-    await promise
-  } catch (error) {
-    expect(error).toBeInstanceOf(Error)
-    expect(codes).toContain((error as NodeJS.ErrnoException).code)
-    return
-  }
-  throw new Error('expected flush to reject')
+  await expect(promise).rejects.toThrow(message)
 }
 
 async function freshRoot(): Promise<string> {
@@ -277,7 +267,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     // locate() is a pure target-path calculation: neither it nor create()
     // materializes a file before the first append.
     const dir = sessionDir(root, '/work', m.id)
-    await expect(stat(rawLogPath(root, '/work', m.id))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, '/work', m.id))).rejects.toThrow(/ENOENT/)
     expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
 
     await ctx.sessionPersistence.append(m.id, oneTurnLog())
@@ -319,7 +309,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     expect(raw!.content).toBe(await readFile(rawLogPath(root, '/work', m.id), 'utf8'))
     expect(raw!.content.split('\n')[0]).toBe(JSON.stringify(toHeaderLine(m)))
     const scanned = scanLog(Buffer.from(raw!.content))
-    expect(scanned.events.map(event => event.type)).toEqual(oneTurnLog().map(event => event.type))
+    expect(scanned.events.map(storedType)).toEqual(oneTurnLog().map(event => event.type))
   })
 
   it('readRaw is undefined for an absent session', async () => {
@@ -381,7 +371,8 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
           content: [{ type: 'text', text: 'hello' }],
           source: {
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
+            provider: 'mock',
+            model: 'mock',
           },
         }),
       }, surfaceOp: 'append', sourceEventSeqs: [2, 3] },
@@ -714,22 +705,25 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     const realRollback = backend.rollbackAppend.bind(backend)
     backend.rollbackAppend = () => Promise.reject(new Error('simulated rollback failure'))
 
-    try {
-      await ctx.sessionPersistence.append(m.id, [
-        { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
-      ] as SessionEvent[])
-      throw new Error('expected append to reject')
-    } catch (error) {
-      expect(error).toBeInstanceOf(AggregateError)
-      const aggregate = error as AggregateError
-      expect(aggregate.message).toContain(`failed to roll back append to "${path}"`)
-      expect(aggregate.errors).toHaveLength(2)
-      expect(aggregate.errors[0]).toMatchObject({ message: 'simulated append fsync failure' })
-      expect(aggregate.errors[1]).toMatchObject({ message: 'simulated rollback failure' })
-    } finally {
-      backend.rollbackAppend = realRollback
-      syncSpy.mockRestore()
+    using _restoreSpies = {
+      [Symbol.dispose]: (): void => {
+        backend.rollbackAppend = realRollback
+        syncSpy.mockRestore()
+      },
     }
+    const pending = ctx.sessionPersistence.append(m.id, [
+      { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
+    ] as SessionEvent[])
+    await expect(pending).rejects.toSatisfy(
+      (error: object | string | number | boolean | bigint | symbol | null | undefined) =>
+        error instanceof AggregateError
+        && error.message.includes(`failed to roll back append to "${path}"`)
+        && error.errors.length === 2
+        && error.errors[0] instanceof Error
+        && error.errors[0].message === 'simulated append fsync failure'
+        && error.errors[1] instanceof Error
+        && error.errors[1].message === 'simulated rollback failure',
+    )
   })
 
   it('load returns immutable meta without exposing backend pathing', async () => {
@@ -737,7 +731,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     await ctx.sessionPersistence.create(m)
     await ctx.sessionPersistence.append(m.id, oneTurnLog())
     const loaded = await ctx.sessionPersistence.load(m.id)
-    expect(() => { mutableHeader(loaded.meta).cwd = '/evil' }).toThrow()
+    expect(() => { mutableHeader(loaded.meta).cwd = '/evil' }).toThrow(/read only property/)
     await ctx.sessionPersistence.append(m.id, [
       { type: 'turn/start', seq: 6, time: 9, data: { turn: 2 } },
       { type: 'turn/end', seq: 7, time: 10, data: { turn: 2, reason: { kind: 'completed' } } },
@@ -895,7 +889,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
   })
 
   it('rejects a header-less / empty log', () => {
-    expect(() => scanLog(Buffer.from(''))).toThrow()
+    expect(() => scanLog(Buffer.from(''))).toThrow(/header-less/)
   })
 
   it('rejects a corrupt header line', () => {
@@ -977,7 +971,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     // No committed turn/end, so the gap is a tolerated crash boundary: scanLog PRESERVES the
     // contiguous prefix (turn/start seq 0) — real interrupted-turn work, not discarded — and
     // stops at the gap. `loadCore`, not this scanner, later closes the orphaned turn.
-    expect(scanLog(Buffer.from(log)).events.map(e => e.seq)).toEqual([0])
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0])
   })
 
   it('rejects a seq gap BEFORE a later committed turn/end (committed data damaged)', () => {
@@ -1024,7 +1018,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     ].join('\n') + '\n'
     // The contiguous prefix (turn/start seq 0) is preserved; the corrupt
     // fragment after it is the tolerated crash boundary.
-    expect(scanLog(Buffer.from(log)).events.map(e => e.seq)).toEqual([0])
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0])
   })
 
   it('tolerates a seq gap AFTER a turn/end (uncommitted tail)', () => {
@@ -1035,7 +1029,35 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
       JSON.stringify({ type: 'step/start', seq: 9, time: 3, data: { turn: 2, step: 1 } }), // gap in uncommitted tail
     ].join('\n') + '\n'
     const { events } = scanLog(Buffer.from(log))
-    expect(events.map(e => e.seq)).toEqual([0, 1]) // tail dropped
+    expect(events.map(storedSeq)).toEqual([0, 1]) // tail dropped
+  })
+
+  it.each([
+    ['missing', { type: 'step/start', time: 3, data: { turn: 2, step: 1 } }],
+    ['a string', { type: 'step/start', seq: '9', time: 3, data: { turn: 2, step: 1 } }],
+    ['fractional', { type: 'step/start', seq: 1.5, time: 3, data: { turn: 2, step: 1 } }],
+  ])('tolerates a %s seq after the last turn/end as an uncommitted tail', (_label, tail) => {
+    const log = [
+      JSON.stringify({ type: 'session', version: 0, id: 't-seq', createdAt: 1, delegationDepth: 0 }),
+      JSON.stringify({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } }),
+      JSON.stringify({ type: 'turn/end', seq: 1, time: 2, data: { turn: 1, reason: { kind: 'completed' } } }),
+      JSON.stringify(tail),
+    ].join('\n') + '\n'
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0, 1])
+  })
+
+  it.each([
+    ['missing', { type: 'step/start', time: 2, data: { turn: 1, step: 1 } }],
+    ['a string', { type: 'step/start', seq: '2', time: 2, data: { turn: 1, step: 1 } }],
+    ['fractional', { type: 'step/start', seq: 1.5, time: 2, data: { turn: 1, step: 1 } }],
+  ])('rejects a %s seq before a later committed turn/end', (_label, hole) => {
+    const log = [
+      JSON.stringify({ type: 'session', version: 0, id: 't-seq-committed', createdAt: 1, delegationDepth: 0 }),
+      JSON.stringify({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } }),
+      JSON.stringify(hole),
+      JSON.stringify({ type: 'turn/end', seq: 2, time: 3, data: { turn: 1, reason: { kind: 'completed' } } }),
+    ].join('\n') + '\n'
+    expect(() => scanLog(Buffer.from(log))).toThrow(/seq gap in committed region/)
   })
 })
 
@@ -1070,7 +1092,8 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
           content: [{ type: 'text', text: 't0t1t2t3t4' }],
           source: {
             kind: 'model',
-            ...{ provider: 'mock', model: 'mock' },
+            provider: 'mock',
+            model: 'mock',
           },
         }),
       }, surfaceOp: 'append', sourceEventSeqs: [2, 3, 4, 5, 6] },
@@ -1156,7 +1179,7 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
       JSON.stringify({ type: 'turn/end', seq: 4, time: 5, data: { turn: 1, reason: { kind: 'completed' } } }),
     ].join('\n') + '\n'
     const { events } = scanLog(Buffer.from(logText))
-    expect(events.map(e => e.seq)).toEqual([0, 1, 2, 3, 4])
+    expect(events.map(storedSeq)).toEqual([0, 1, 2, 3, 4])
     expect(events[2]).toEqual({ type: 'assistant/chunk', seq: 2, time: 3, data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'b' } } })
   })
 
@@ -1178,7 +1201,7 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
       JSON.stringify({ type: 'text-chunks', seq0: 2, time0: 2, data: { turn: 1, step: 1, index: 0, dt: [1, 1], texts: ['a', 'b', 'c'] } }),
     ].join('\n') + '\n'
     const scanned = scanLog(Buffer.from(logText))
-    expect(scanned.events.map(e => e.seq)).toEqual([0])
+    expect(scanned.events.map(storedSeq)).toEqual([0])
     // committedBytes stays on the line boundary BEFORE the dropped row.
     const headerAndTurn = logText.split('\n').slice(0, 2).join('\n') + '\n'
     expect(scanned.committedBytes).toBe(Buffer.byteLength(headerAndTurn, 'utf8'))
@@ -1228,7 +1251,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
     await ctx.sessionPersistence.append(SessionId('create-snap'), oneTurnLog())
     // The log materialized under the ORIGINAL cwd, not the mutated one.
     expect((await stat(rawLogPath(root, '/orig', SessionId('create-snap')))).isFile()).toBe(true)
-    await expect(stat(rawLogPath(root, '/mutated', SessionId('create-snap')))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, '/mutated', SessionId('create-snap')))).rejects.toThrow(/ENOENT/)
   })
 
   it('list discovers sessions across multiple project directories', async () => {
@@ -1433,7 +1456,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
     const inW = scanLog(await readFile(rawLogPath(root, '/w', SessionId('x'))))
     expect(inW.meta.cwd).toBe('/w')
     expect(inW.events).toHaveLength(6)
-    await expect(stat(rawLogPath(root, undefined, SessionId('x')))).rejects.toThrow()
+    await expect(stat(rawLogPath(root, undefined, SessionId('x')))).rejects.toThrow(/ENOENT/)
     await ctx2.fiber.dispose()
   })
 
@@ -1506,9 +1529,7 @@ describe('JsonlSessionPersistence: edge cases', () => {
   it('per-id lookup surfaces non-ENOENT storage errors', async () => {
     const blocker = join(root, 'not-a-directory')
     await writeFile(blocker, 'x')
-    const backend = ctx.sessionPersistence as unknown as { exists(path: string): Promise<boolean> }
-
-    await expect(backend.exists(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
+    await expect(probeReadablePath(join(blocker, 'child.jsonl'))).rejects.toThrow(/ENOTDIR/)
   })
 
   it('materialization surfaces a project-directory storage fault', async () => {
@@ -1522,7 +1543,10 @@ describe('JsonlSessionPersistence: edge cases', () => {
       s = inner.sessions.create(SessionId('exists-fault'), { meta: { cwd } })
       appendClosedTurn(s)
     }, { inject: ['sessions'] }))
-    await expectFlushCode(ctx2.sessions.flush(s), ['EEXIST', 'ENOTDIR'])
+    await expect(ctx2.sessions.flush(s)).rejects.toSatisfy(
+      (error: object | string | number | boolean | bigint | symbol | null | undefined) =>
+        error instanceof Error && ['EEXIST', 'ENOTDIR'].some(code => 'code' in error && error.code === code),
+    )
     await ctx2.fiber.dispose()
   })
 

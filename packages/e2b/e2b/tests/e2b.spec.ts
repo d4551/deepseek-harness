@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import type { Sandbox as SandboxType } from 'e2b'
 import E2BRuntime, {
   e2bControlEnvs,
   FileType,
@@ -12,23 +11,30 @@ import * as E2BInvariant from '../src/invariant.ts'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 
 const sdk = vi.hoisted(() => ({
-  create: vi.fn(),
+  create: vi.fn<(...args: unknown[]) => unknown>(),
 }))
 
 vi.mock('e2b', async (importOriginal) => {
   const actual = await importOriginal<typeof import('e2b')>()
-  // The mock replaces only the SDK's static factory surface and is never constructed.
-  // oxlint-disable-next-line typescript/no-extraneous-class -- The SDK contract is a class with a static factory.
-  class FakeSandbox {
-    static create(...args: unknown[]): unknown {
-      return sdk.create(...args)
-    }
+  function FakeSandbox(): never {
+    throw new Error('e2b tests construct sandboxes through Sandbox.create')
   }
+  FakeSandbox.create = (...args: unknown[]): unknown => sdk.create(...args)
   return { ...actual, Sandbox: FakeSandbox }
 })
 
+interface HostSandbox {
+  readonly sandboxId: string
+  readonly files: {
+    makeDir: ReturnType<typeof vi.fn>
+    getInfo: ReturnType<typeof vi.fn>
+  }
+  readonly commands: { run: Mock<RunCommand> }
+  readonly kill: ReturnType<typeof vi.fn>
+}
+
 interface SandboxFixture {
-  sandbox: SandboxType
+  sandbox: HostSandbox
   makeDir: ReturnType<typeof vi.fn>
   getInfo: ReturnType<typeof vi.fn>
   run: Mock<RunCommand>
@@ -41,16 +47,16 @@ type RunCommand = (
 ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
 
 function fakeSandbox(id = 'sandbox-1'): SandboxFixture {
-  const makeDir = vi.fn().mockResolvedValue(true)
-  const getInfo = vi.fn().mockResolvedValue({ type: FileType.DIR })
+  const makeDir = vi.fn<(path: string) => Promise<boolean>>().mockResolvedValue(true)
+  const getInfo = vi.fn<(path: string) => Promise<{ type: FileType }>>().mockResolvedValue({ type: FileType.DIR })
   const run = vi.fn<RunCommand>().mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' })
-  const kill = vi.fn().mockResolvedValue(undefined)
-  const sandbox = {
+  const kill = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+  const sandbox: HostSandbox = {
     sandboxId: id,
     files: { makeDir, getInfo },
     commands: { run },
     kill,
-  } as unknown as SandboxType
+  }
   return { sandbox, makeDir, getInfo, run, kill }
 }
 
@@ -102,7 +108,7 @@ describe('E2BRuntime', () => {
 
   it('rejects handle acquisition when disposal starts during setup', async () => {
     const fixture = fakeSandbox()
-    const opening = Promise.withResolvers<SandboxType>()
+    const opening = Promise.withResolvers<HostSandbox>()
     sdk.create.mockReturnValue(opening.promise)
     const ctx = new Context()
     const fiber = await ctx.plugin(E2BRuntime, { apiKey: 'test-key' })
@@ -249,6 +255,6 @@ describe('E2B helpers and invariant companion', () => {
     // Disposal releases it: the name registers again and yields its disposer.
     const reregistered = ctx.invariants.register('@deepseek-ai/dsh-e2b', () => {})
     expect(reregistered).toBeTypeOf('function')
-    reregistered()
+    await reregistered()
   })
 })

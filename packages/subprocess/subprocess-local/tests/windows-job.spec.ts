@@ -335,7 +335,9 @@ describe('the Windows Job that owns a spawned tree', () => {
     expect(attempt.status === null || typeof attempt.status === 'number').toBe(true)
   })
 
-  it.skipIf(process.platform === 'win32')('separates a taskkill that RAN from one that never started', () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] windows-job.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('separates a taskkill that RAN from one that never started', () => {
     // Windows runs its own taskkill for this arm; off Windows the binary does
     // not exist, so a stand-in on PATH is the only way to reach a report that
     // carries a status and no spawn error.

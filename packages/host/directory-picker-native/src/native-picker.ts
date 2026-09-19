@@ -3,6 +3,8 @@
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { pickWin32Directory } from './win32-dialog.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Testable command boundary; native implementations never invoke a shell. */
 export type DirectoryPickerRunner = NativeCommandRunner
 
@@ -19,23 +21,23 @@ function outputPath(stdout: string): string | null {
   return path === '' ? null : path
 }
 
-function errorCode(error: unknown): string | number | undefined {
+function errorCode(error: Thrown): string | number | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
-  const code = (error as { code?: unknown }).code
+  const { code } = error
   return typeof code === 'string' || typeof code === 'number' ? code : undefined
 }
 
-function errorStderr(error: unknown): string {
+function errorStderr(error: Thrown): string {
   if (typeof error !== 'object' || error === null || !('stderr' in error)) return ''
-  const stderr = (error as { stderr?: unknown }).stderr
+  const { stderr } = error
   return typeof stderr === 'string' ? stderr : ''
 }
 
-function isMissingCommand(error: unknown): boolean {
+function isMissingCommand(error: Thrown): boolean {
   return errorCode(error) === 'ENOENT'
 }
 
-function rethrowIfAborted(signal: AbortSignal, error: unknown): void {
+function rethrowIfAborted(signal: AbortSignal, error: Thrown): void {
   if (signal.aborted) throw error
 }
 
@@ -53,17 +55,17 @@ export async function pickNativeDirectory(
   const run = internals.run ?? runNativeCommand
 
   if (platform === 'darwin') {
-    try {
-      const result = await run('osascript', [
-        '-e', 'set selectedFolder to choose folder with prompt "Select Workspace Directory"',
-        '-e', 'POSIX path of selectedFolder',
-      ], signal)
-      return outputPath(result.stdout)
-    } catch (error: unknown) {
-      if (!signal.aborted && errorCode(error) === 1
-        && /(?:User canceled|-128)/i.test(errorStderr(error))) return null
-      throw error
-    }
+    return run('osascript', [
+      '-e', 'set selectedFolder to choose folder with prompt "Select Workspace Directory"',
+      '-e', 'POSIX path of selectedFolder',
+    ], signal).then(
+      result => outputPath(result.stdout),
+      (error: Thrown) => {
+        if (!signal.aborted && errorCode(error) === 1
+          && /(?:User canceled|-128)/i.test(errorStderr(error))) return null
+        throw error
+      },
+    )
   }
 
   if (platform === 'win32') {
@@ -77,30 +79,29 @@ export async function pickNativeDirectory(
   }
 
   if (platform === 'linux') {
-    try {
-      const result = await run('zenity', [
-        '--file-selection', '--directory', '--title=Select Workspace Directory',
-      ], signal)
-      return outputPath(result.stdout)
-    } catch (error: unknown) {
-      rethrowIfAborted(signal, error)
-      if (errorCode(error) === 1) return null
-      if (!isMissingCommand(error)) throw error
-    }
-
-    try {
-      const result = await run('kdialog', [
-        '--getexistingdirectory', '.', '--title', 'Select Workspace Directory',
-      ], signal)
-      return outputPath(result.stdout)
-    } catch (error: unknown) {
-      rethrowIfAborted(signal, error)
-      if (errorCode(error) === 1) return null
-      if (isMissingCommand(error)) {
-        throw new Error('no supported native directory picker found (install zenity or kdialog)')
-      }
-      throw error
-    }
+    return run('zenity', [
+      '--file-selection', '--directory', '--title=Select Workspace Directory',
+    ], signal).then(
+      result => outputPath(result.stdout),
+      (error: Thrown) => {
+        rethrowIfAborted(signal, error)
+        if (errorCode(error) === 1) return null
+        if (!isMissingCommand(error)) throw error
+        return run('kdialog', [
+          '--getexistingdirectory', '.', '--title', 'Select Workspace Directory',
+        ], signal).then(
+          result => outputPath(result.stdout),
+          (error: Thrown) => {
+            rethrowIfAborted(signal, error)
+            if (errorCode(error) === 1) return null
+            if (isMissingCommand(error)) {
+              throw new Error('no supported native directory picker found (install zenity or kdialog)')
+            }
+            throw error
+          },
+        )
+      },
+    )
   }
 
   throw new Error(`native directory picker is unsupported on ${platform}`)

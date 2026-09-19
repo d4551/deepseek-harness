@@ -185,7 +185,7 @@
   background: transparent;
   opacity: 0;
   pointer-events: none;
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 18px;
   color: var(--dsw-alias-label-primary);
   transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
@@ -342,7 +342,7 @@
 .searchStatus,
 .searchWarning {
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -417,7 +417,7 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -441,7 +441,7 @@
 .empty {
   padding: 16px 12px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
 }
 
 /* Rename dialog form (same figma dialog family as the create modals). */
@@ -454,7 +454,7 @@
   border-radius: 22px;
   outline: none;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   font-weight: 400;
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
@@ -475,7 +475,7 @@
 }
 
 .deleteStatus {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
 }

@@ -71,10 +71,25 @@ export type ConnectionGenerationSource = (
   ready: (host: ConnectionHostInfo) => void,
 ) => Promise<void>
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/** Handshake settlement before sinks run. */
+type Handshake =
+  | { readonly kind: 'ready'; readonly host: ConnectionHostInfo }
+  | { readonly kind: 'unavailable'; readonly reason: Thrown }
+
+function handshakeReady(host: ConnectionHostInfo): Handshake {
+  return { kind: 'ready', host }
+}
+
+function handshakeUnavailable(reason: Thrown): Handshake {
+  return { kind: 'unavailable', reason }
+}
+
 /**
  * Opens the registered generation source, reconnecting with exponential backoff on loss.
  * State (generation/attempt) is instance-private, never in the store.
- * Sink exceptions do not kill the generation loop.
+ * A sink throw aborts the current generation and fails the loop.
  */
 export class ConnectionController {
   private generation = 0
@@ -93,16 +108,20 @@ export class ConnectionController {
     this.config = { ...CONNECTION_DEFAULTS, ...config }
   }
 
-  /** Idempotent: begin the connect/pump/reconnect loop. */
-  start(): void {
-    if (this.run !== null) return
+  /**
+   * Idempotent: begin the connect/pump/reconnect loop.
+   * @returns settlement of this controller's loop; a sink throw rejects it.
+   */
+  start(): Promise<void> {
+    if (this.run !== null) return this.completion
     this.run = new AbortController()
     this.completion = Promise.allSettled([this.completion, this.loop(this.run.signal)]).then((results) => {
       const failures = results.filter(result => result.status === 'rejected')
       if (failures.length > 0) {
-        throw new AggregateError(failures.map((result): unknown => result.reason), 'connection loop failed')
+        throw new AggregateError(failures.map(result => result.reason), 'connection loop failed')
       }
     })
+    return this.completion
   }
 
   /** Abort immediately, then await every started generation, including retiring sources. */
@@ -131,11 +150,12 @@ export class ConnectionController {
 
   private async loop(run: AbortSignal): Promise<void> {
     const sources = new Set<Promise<void>>()
-    try {
-      await this.pump(run, sources)
-    } finally {
-      await Promise.all(sources)
+    await using _waitSources = {
+      async [Symbol.asyncDispose](): Promise<void> {
+        await Promise.all(sources)
+      },
     }
+    await this.pump(run, sources)
   }
 
   private async pump(run: AbortSignal, sources: Set<Promise<void>>): Promise<void> {
@@ -181,10 +201,10 @@ export class ConnectionController {
               rejectSourceLost(error)
               settle()
             },
-            (error: unknown) => {
-              const failure = error instanceof Error
-                ? error
-                : new Error('connection generation failed', { cause: error })
+            (reason: Thrown) => {
+              const failure = reason instanceof Error
+                ? reason
+                : new Error('connection generation failed', { cause: reason })
               if (!sourceReady) rejectReady(failure)
               rejectSourceLost(failure)
               settle()
@@ -193,21 +213,29 @@ export class ConnectionController {
         sources.add(task)
       })
 
-      try {
-        const host = await Promise.race([
-          waitForReady(ready, this.config.generationReadyTimeoutMs, ac.signal),
-          sourceLost,
-        ])
-        if (ac.signal.aborted) throw new Error('generation aborted during readiness handshake')
+      const handshake = await Promise.race([
+        waitForReady(ready, this.config.generationReadyTimeoutMs, ac.signal).then(
+          handshakeReady,
+          handshakeUnavailable,
+        ),
+        sourceLost.then(undefined, handshakeUnavailable),
+      ])
+      if (handshake.kind === 'ready' && !ac.signal.aborted) {
         this.attempt = 0
-        this.emitState('connected')
-        // A state sink may synchronously stop this controller.
-        if (this.isGenerationActive(ac)) {
-          this.callSink(() => { this.sinks.onConnected?.(host) })
+        let sinksSettled = false
+        using _abortIfSinkThrows = {
+          [Symbol.dispose]: (): void => {
+            if (sinksSettled) return
+            if (gen === this.generation && !ac.signal.aborted) ac.abort()
+          },
         }
-      } catch {
-        // Transport failure: treat as generation failure, fall through to the shared backoff.
-        if (!ac.signal.aborted) ac.abort()
+        this.emitState('connected')
+        if (this.isGenerationActive(ac)) {
+          this.sinks.onConnected?.(handshake.host)
+        }
+        sinksSettled = true
+      } else if (!ac.signal.aborted) {
+        ac.abort()
       }
 
       await failed
@@ -219,25 +247,16 @@ export class ConnectionController {
     }
   }
 
-  /** Deduplicated state emission (sink isolation applies). */
+  /** Deduplicated state emission. */
   private emitState(state: ConnectionState): void {
     if (this.lastState === state) return
     this.lastState = state
-    this.callSink(() => this.sinks.onStateChange?.(state))
-  }
-
-  /** Sink exception isolation: a business-layer throw is logged only, never affecting pump or reconnect semantics. */
-  private callSink(fn: () => void): void {
-    try {
-      fn()
-    } catch (error) {
-      console.error('[connection] connection sink threw:', error)
-    }
+    this.sinks.onStateChange?.(state)
   }
 }
 
 /** Await source readiness without letting a stalled carrier wedge startup forever. */
-async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
+export async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: AbortSignal): Promise<T> {
   const deadline = Promise.withResolvers<never>()
   const timeout = setTimeout(() => {
     deadline.reject(new Error(`connection generation was not ready within ${String(timeoutMs)}ms`))
@@ -247,10 +266,11 @@ async function waitForReady<T>(ready: Promise<T>, timeoutMs: number, signal: Abo
   }
   signal.addEventListener('abort', aborted, { once: true })
   if (signal.aborted) aborted()
-  try {
-    return await Promise.race([ready, deadline.promise])
-  } finally {
-    clearTimeout(timeout)
-    signal.removeEventListener('abort', aborted)
+  using _clearReadyWait = {
+    [Symbol.dispose]: (): void => {
+      clearTimeout(timeout)
+      signal.removeEventListener('abort', aborted)
+    },
   }
+  return await Promise.race([ready, deadline.promise])
 }

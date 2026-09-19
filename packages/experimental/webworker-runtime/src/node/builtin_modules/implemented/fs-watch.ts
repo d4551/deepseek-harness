@@ -7,6 +7,8 @@ import { requireActiveVfs } from '../../../storage/active.ts'
 import type { VfsBigIntStats, VfsMutation, VfsStats } from '../../../storage/types.ts'
 import { abortError } from './abort-error.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 type PathArg = string | URL | Uint8Array
 type WatchListener = (eventType: 'rename' | 'change', filename: string | Buffer | null) => void
 type WatchStats = VfsStats | VfsBigIntStats
@@ -346,7 +348,7 @@ export function watchAsync(
   type WatchEvent = { eventType: 'rename' | 'change'; filename: string | Buffer | null }
   type Waiting = {
     resolve(result: IteratorResult<WatchEvent>): void
-    reject(reason: unknown): void
+    reject(reason: Thrown): void
   }
   const queued: WatchEvent[] = []
   const waiting: Waiting[] = []
@@ -420,9 +422,9 @@ export function watchAsync(
     },
     throw(reason?: unknown): Promise<IteratorResult<WatchEvent>> {
       close()
-      // AsyncIterator.throw forwards the caller's exact reason, including non-Error values.
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors
-      return Promise.reject(reason)
+      return (async () => {
+        throw reason
+      })()
     },
   }
 }

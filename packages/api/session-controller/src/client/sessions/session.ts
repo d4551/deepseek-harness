@@ -40,6 +40,8 @@ import type { ProjectionsBaseline } from './projection-store.ts'
 import { resolvedClientTimeZone } from '../time-zone.ts'
 import { SessionQueueMirror } from './queue-mirror.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Messages requested per history page. */
 export const PAGE_MESSAGES = 50
 
@@ -224,51 +226,53 @@ export class Session implements SessionFace {
     if (this.blankBit) this.firstPromptPendingTurn = true
     this.notifier.markDirty()
     let result: ClientResult<{ accepted: true }>
-    try {
-      if (this.address === undefined) {
-        const clientTimeZone = resolvedClientTimeZone()
-        result = toSessionResult(await this.remote.session.prompt({
-          requestId: requestId ?? randomUUID() as SessionRequestId,
-          sessionId: this.sessionId,
-          mode,
-          content,
-          clientTimeZone,
-        }, signal))
-      } else if (this.address.mode === 'one-shot') {
-        result = {
-          ok: false,
-          error: {
-            code: 'subagent-not-resumable',
-            message: 'one-shot subagent conversations are read-only',
-            details: { childSessionId: this.address.childSessionId },
-          },
-        }
-      } else {
-        if (content.some(part => part.type === 'image')) {
-          result = {
-            ok: false,
-            error: {
-              code: 'attachment-error',
-              message: 'Image input is unavailable for subagent continuations.',
-              details: { reason: 'SUBAGENT_IMAGE_UNSUPPORTED' },
-            },
-          }
-        } else {
-          const routed = toSessionResult(await this.remote.subagents.prompt({
-            requestId: randomUUID() as SessionRequestId,
-            parentSessionId: this.address.parentSessionId,
-            childSessionId: this.address.childSessionId,
-            mode: this.address.mode,
-            content: content.flatMap(part => part.type === 'text'
-              ? [{ type: 'text' as const, text: part.text }]
-              : []),
-            clientTimeZone: resolvedClientTimeZone(),
-          }, signal))
-          result = routed.ok ? { ok: true, value: { accepted: true } } : routed
-        }
+    if (this.address === undefined) {
+      const clientTimeZone = resolvedClientTimeZone()
+      result = await this.remote.session.prompt({
+        requestId: requestId ?? randomUUID() as SessionRequestId,
+        sessionId: this.sessionId,
+        mode,
+        content,
+        clientTimeZone,
+      }, signal).then(
+        value => toSessionResult(value),
+        (error: Thrown) => transportResult<{ accepted: true }>(error),
+      )
+    } else if (this.address.mode === 'one-shot') {
+      result = {
+        ok: false,
+        error: {
+          code: 'subagent-not-resumable',
+          message: 'one-shot subagent conversations are read-only',
+          details: { childSessionId: this.address.childSessionId },
+        },
       }
-    } catch (error) {
-      result = transportResult(error)
+    } else if (content.some(part => part.type === 'image')) {
+      result = {
+        ok: false,
+        error: {
+          code: 'attachment-error',
+          message: 'Image input is unavailable for subagent continuations.',
+          details: { reason: 'SUBAGENT_IMAGE_UNSUPPORTED' },
+        },
+      }
+    } else {
+      result = await this.remote.subagents.prompt({
+        requestId: randomUUID() as SessionRequestId,
+        parentSessionId: this.address.parentSessionId,
+        childSessionId: this.address.childSessionId,
+        mode: this.address.mode,
+        content: content.flatMap(part => part.type === 'text'
+          ? [{ type: 'text' as const, text: part.text }]
+          : []),
+        clientTimeZone: resolvedClientTimeZone(),
+      }, signal).then(
+        (routed) => {
+          const mapped = toSessionResult(routed)
+          return mapped.ok ? { ok: true, value: { accepted: true } } : mapped
+        },
+        (error: Thrown) => transportResult<{ accepted: true }>(error),
+      )
     }
     if (!result.ok) {
       if (requestId !== undefined) this.retireFailedSubmission(requestId)
@@ -300,27 +304,28 @@ export class Session implements SessionFace {
   async readAttachment(
     attachmentId: AttachmentIdType,
   ): Promise<ClientResult<{ attachment: ImageAttachmentRef; data: Uint8Array }>> {
-    try {
-      const result = await this.remote.session.attachment({
-        sessionId: this.sessionId,
-        attachmentId,
-      })
-      if (!result.ok) return toSessionResult(result)
-      const binary = atob(result.value.data)
-      const data = Uint8Array.from(binary, char => char.charCodeAt(0))
-      return { ok: true, value: { attachment: result.value.attachment, data } }
-    } catch (error) {
-      return transportResult(error)
-    }
+    return await this.remote.session.attachment({
+      sessionId: this.sessionId,
+      attachmentId,
+    }).then(
+      (result) => {
+        if (!result.ok) return toSessionResult(result)
+        const binary = atob(result.value.data)
+        const data = Uint8Array.from(binary, char => char.charCodeAt(0))
+        return { ok: true, value: { attachment: result.value.attachment, data } }
+      },
+    ).then(undefined, (error: Thrown) => transportResult<{
+      attachment: ImageAttachmentRef
+      data: Uint8Array
+    }>(error))
   }
 
   /** Apply one operation to a still-pending queue occurrence. */
   async updateQueue(itemId: MessageId, action: QueueAction): Promise<ClientResult<{ accepted: true }>> {
-    try {
-      return toSessionResult(await this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action }))
-    } catch (error) {
-      return transportResult(error)
-    }
+    return await this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action }).then(
+      value => toSessionResult(value),
+      (error: Thrown) => transportResult<{ accepted: true }>(error),
+    )
   }
 
   /**
@@ -347,18 +352,19 @@ export class Session implements SessionFace {
       this.notifier.markDirty()
       return result
     }
-    let result: ClientResult<{ accepted: true }>
-    try {
-      result = address !== undefined
-        ? toSessionResult(await this.remote.subagents.interruptByParent(
-          address.childSessionId,
-          address.parentSessionId,
-          address.mode,
-        ))
-        : toSessionResult(await this.remote.session.cancel({ sessionId: this.sessionId }))
-    } catch (error) {
-      result = transportResult(error)
-    }
+    const result = address !== undefined
+      ? await this.remote.subagents.interruptByParent(
+        address.childSessionId,
+        address.parentSessionId,
+        address.mode,
+      ).then(
+        value => toSessionResult(value),
+        (error: Thrown) => transportResult<{ accepted: true }>(error),
+      )
+      : await this.remote.session.cancel({ sessionId: this.sessionId }).then(
+        value => toSessionResult(value),
+        (error: Thrown) => transportResult<{ accepted: true }>(error),
+      )
     if (!result.ok) {
       this.promptError = { op: 'stop', error: result.error }
       this.notifier.markDirty()
@@ -376,13 +382,14 @@ export class Session implements SessionFace {
    * @returns the rename result (normalized accepted title + title event seq).
    */
   async rename(title: string): Promise<ClientResult<{ title: string; seq: number }>> {
-    try {
-      const result = toSessionResult(await this.remote.session.rename({ sessionId: this.sessionId, title }))
-      if (result.ok) this.projections.apply('title', result.value.title, result.value.seq)
-      return result
-    } catch (error) {
-      return transportResult(error)
-    }
+    return await this.remote.session.rename({ sessionId: this.sessionId, title }).then(
+      (value) => {
+        const result = toSessionResult(value)
+        if (result.ok) this.projections.apply('title', result.value.title, result.value.seq)
+        return result
+      },
+      (error: Thrown) => transportResult<{ title: string; seq: number }>(error),
+    )
   }
 
   /**
@@ -418,11 +425,14 @@ export class Session implements SessionFace {
     this.loadingOlder = true
     this.notifier.markDirty()
     try {
-      await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
-    } catch (error) {
-      if (sessionStreamFailure(error) === undefined) {
-        console.error('[session-controller] loadOlder failed:', error)
-      }
+      await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES }).then(
+        undefined,
+        (error: Thrown) => {
+          if (sessionStreamFailure(error) === undefined) {
+            console.error('[session-controller] loadOlder failed:', error)
+          }
+        },
+      )
     } finally {
       this.loadingOlder = false
       this.notifier.markDirty()
@@ -517,8 +527,11 @@ export class Session implements SessionFace {
       && this.address?.mode === address?.mode
     this.address = address
     this.parentAvailable = parentAvailable
-    if (!same && this.openState !== 'cold') this.resync().then(undefined, console.error)
-    else this.notifier.markDirty()
+    if (!same && this.openState !== 'cold') {
+      this.resync().then(undefined, (error: Thrown) => { console.error(error) })
+    } else {
+      this.notifier.markDirty()
+    }
   }
 
   /**
@@ -568,9 +581,9 @@ export class Session implements SessionFace {
     // Unsettled echoes retire as failed so their owners can restore or
     // release browser resources; echoes already scheduled as observed keep
     // that settlement.
-    for (const requestId of [...this.submissionSettlements.keys()]) {
-      this.retireFailedSubmission(requestId)
-    }
+    const unsettled: SessionRequestId[] = []
+    for (const requestId of this.submissionSettlements.keys()) unsettled.push(requestId)
+    for (const requestId of unsettled) this.retireFailedSubmission(requestId)
     this.openGeneration++
     const events = this.events
     this.events = undefined
@@ -595,14 +608,18 @@ export class Session implements SessionFace {
     })
     this.events = events
     try {
-      await events.open({ maxMessages: PAGE_MESSAGES })
-      if (generation !== this.openGeneration || this.events !== events) return
-      this.openState = 'open'
-    } catch (error) {
-      if (generation !== this.openGeneration || this.events !== events) return
-      this.events = undefined
-      this.openState = 'error'
-      this.openError = openFailure(error)
+      await events.open({ maxMessages: PAGE_MESSAGES }).then(
+        () => {
+          if (generation !== this.openGeneration || this.events !== events) return
+          this.openState = 'open'
+        },
+        (error: Thrown) => {
+          if (generation !== this.openGeneration || this.events !== events) return
+          this.events = undefined
+          this.openState = 'error'
+          this.openError = openFailure(error)
+        },
+      )
     } finally {
       if (generation === this.openGeneration) this.notifier.markDirty()
     }
@@ -719,7 +736,7 @@ export class Session implements SessionFace {
     this.openPromise = null
     this.openState = 'error'
     this.openError = openFailure(error)
-    events.dispose().then(undefined, console.error)
+    events.dispose().then(undefined, (error: Thrown) => { console.error(error) })
     this.notifier.markDirty()
   }
 

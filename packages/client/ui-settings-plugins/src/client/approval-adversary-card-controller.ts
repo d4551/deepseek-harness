@@ -29,6 +29,42 @@ export interface ApprovalAdversarySettings {
   instructions?: string
 }
 
+/**
+ * Claim one wire section as the adversary card's durable fields.
+ * @param section - Host-served namespace value.
+ * @returns the claimed section, or undefined when a named field is the wrong kind.
+ */
+export function decodeApprovalAdversarySettings(section: unknown): ApprovalAdversarySettings | undefined {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  const enabled = Reflect.get(section, 'enabled')
+  const provider = Reflect.get(section, 'provider')
+  const model = Reflect.get(section, 'model')
+  const timeoutMs = Reflect.get(section, 'timeoutMs')
+  const maxOutputTokens = Reflect.get(section, 'maxOutputTokens')
+  const maxEvidenceChars = Reflect.get(section, 'maxEvidenceChars')
+  const instructions = Reflect.get(section, 'instructions')
+  if (enabled !== undefined && typeof enabled !== 'boolean') return undefined
+  if (provider !== undefined && typeof provider !== 'string') return undefined
+  if (model !== undefined && typeof model !== 'string') return undefined
+  if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs))) return undefined
+  if (maxOutputTokens !== undefined && (typeof maxOutputTokens !== 'number' || !Number.isFinite(maxOutputTokens))) {
+    return undefined
+  }
+  if (maxEvidenceChars !== undefined && (typeof maxEvidenceChars !== 'number' || !Number.isFinite(maxEvidenceChars))) {
+    return undefined
+  }
+  if (instructions !== undefined && typeof instructions !== 'string') return undefined
+  const claimed: ApprovalAdversarySettings = {}
+  if (enabled !== undefined) claimed.enabled = enabled
+  if (provider !== undefined) claimed.provider = provider
+  if (model !== undefined) claimed.model = model
+  if (timeoutMs !== undefined) claimed.timeoutMs = timeoutMs
+  if (maxOutputTokens !== undefined) claimed.maxOutputTokens = maxOutputTokens
+  if (maxEvidenceChars !== undefined) claimed.maxEvidenceChars = maxEvidenceChars
+  if (instructions !== undefined) claimed.instructions = instructions
+  return claimed
+}
+
 /** What the adversarial-review card renders. */
 export interface ApprovalAdversaryCardState extends CardShell {
   enabled: CardFieldState

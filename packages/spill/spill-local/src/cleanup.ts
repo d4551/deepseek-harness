@@ -5,6 +5,31 @@ import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { DEFAULT_ROOT_PREFIX, isErrno } from './store.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected filesystem operation.
+ * @param reason - the Thrown the reject arm received.
+ * @returns the message to report.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * A backend-generated default root name: `dsh-spill-` plus the 6-character
  * suffix `mkdtemp` appends. Discovery matches this
@@ -136,13 +161,14 @@ async function hasProtectedAncestorsWin32(path: string): Promise<boolean> {
  * @returns The trusted canonical root, or `undefined` when it is absent or unsafe.
  */
 async function resolveRoot(path: string, allowSymlink: boolean, warn: WarnFn): Promise<ResolvedRoot | undefined> {
-  let initial: Stats
-  try {
-    initial = await lstat(path)
-  } catch (error: unknown) {
-    if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to inspect root ${path}: ${String(error)}`)
-    return undefined
-  }
+  const initial = await lstat(path).then(
+    undefined,
+    (error: Thrown) => {
+      if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to inspect root ${path}: ${thrownMessage(error)}`)
+      return undefined
+    },
+  )
+  if (initial === undefined) return undefined
   if (initial.isSymbolicLink()) {
     if (!allowSymlink) return undefined
   } else if (!await isTrustedDirectory(path, initial)) {
@@ -150,22 +176,25 @@ async function resolveRoot(path: string, allowSymlink: boolean, warn: WarnFn): P
     return undefined
   }
 
-  let canonical: string
-  let stats: Stats
-  try {
-    canonical = await realpath(path)
-    stats = await lstat(canonical)
-  } catch (error: unknown) {
-    if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to resolve root ${path}: ${String(error)}`)
-    return undefined
-  }
-  let protectedAncestors = false
-  try {
-    protectedAncestors = await hasProtectedAncestors(canonical)
-  } catch (error: unknown) {
-    if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to inspect ancestors of root ${canonical}: ${String(error)}`)
-    return undefined
-  }
+  const resolved = await realpath(path).then(
+    canonical => lstat(canonical).then(stats => ({ canonical, stats })),
+  ).then(
+    undefined,
+    (error: Thrown) => {
+      if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to resolve root ${path}: ${thrownMessage(error)}`)
+      return undefined
+    },
+  )
+  if (resolved === undefined) return undefined
+  const { canonical, stats } = resolved
+  const protectedAncestors = await hasProtectedAncestors(canonical).then(
+    undefined,
+    (error: Thrown) => {
+      if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to inspect ancestors of root ${canonical}: ${thrownMessage(error)}`)
+      return undefined
+    },
+  )
+  if (protectedAncestors === undefined) return undefined
   if (!await isTrustedDirectory(canonical, stats) || !protectedAncestors) {
     warnSafely(warn, `spill-local: skipped unsafe root ${canonical}: expected a current-user-owned directory with protected write and ancestor permissions`)
     return undefined
@@ -211,13 +240,14 @@ export interface SweepOptions {
  * @param warn Sink for a non-ENOENT failure message.
  * @returns Resolves once the removal was attempted (never rejects).
  */
-async function unlinkIdempotent(path: string, warn: WarnFn): Promise<void> {
-  try {
-    await unlink(path)
-  } catch (error: unknown) {
-    if (isErrno(error, 'ENOENT')) return
-    warnSafely(warn, `spill-local: failed to delete ${path}: ${String(error)}`)
-  }
+function unlinkIdempotent(path: string, warn: WarnFn): Promise<void> {
+  return unlink(path).then(
+    undefined,
+    (error: Thrown) => {
+      if (isErrno(error, 'ENOENT')) return
+      warnSafely(warn, `spill-local: failed to delete ${path}: ${thrownMessage(error)}`)
+    },
+  )
 }
 
 /**
@@ -235,31 +265,33 @@ async function unlinkIdempotent(path: string, warn: WarnFn): Promise<void> {
  * @param warn Sink for contained filesystem failures.
  * @returns `true` when the directory scan completed and pruning can be attempted.
  */
-async function sweepSessionDir(dir: string, cutoffMs: number, warn: WarnFn): Promise<boolean> {
-  let names: string[]
-  try {
-    names = await readdir(dir)
-  } catch (error: unknown) {
-    warnSafely(warn, `spill-local: failed to read ${dir}: ${String(error)}`)
-    return false
-  }
-  for (const name of names) {
-    const path = join(dir, name)
-    let stats
-    try {
-      stats = await lstat(path)
-    } catch (error: unknown) {
-      if (isErrno(error, 'ENOENT')) continue
-      warnSafely(warn, `spill-local: failed to stat ${path}: ${String(error)}`)
-      continue
-    }
-    // Only regular files expire. Symlinks and other special entries are skipped
-    // (never followed) so the sweep cannot be redirected or delete a link.
-    if (!stats.isFile()) continue
-    if (stats.mtimeMs >= cutoffMs) continue
-    await unlinkIdempotent(path, warn)
-  }
-  return true
+function sweepSessionDir(dir: string, cutoffMs: number, warn: WarnFn): Promise<boolean> {
+  return readdir(dir).then(
+    async (names) => {
+      for (const name of names) {
+        const path = join(dir, name)
+        const stats = await lstat(path).then(
+          undefined,
+          (error: Thrown) => {
+            if (isErrno(error, 'ENOENT')) return undefined
+            warnSafely(warn, `spill-local: failed to stat ${path}: ${thrownMessage(error)}`)
+            return undefined
+          },
+        )
+        if (stats === undefined) continue
+        // Only regular files expire. Symlinks and other special entries are skipped
+        // (never followed) so the sweep cannot be redirected or delete a link.
+        if (!stats.isFile()) continue
+        if (stats.mtimeMs >= cutoffMs) continue
+        await unlinkIdempotent(path, warn)
+      }
+      return true
+    },
+    (error: Thrown) => {
+      warnSafely(warn, `spill-local: failed to read ${dir}: ${thrownMessage(error)}`)
+      return false
+    },
+  )
 }
 
 /**
@@ -286,56 +318,60 @@ export async function sweepSpillRoots(options: SweepOptions): Promise<void> {
     })
   }
   for (const root of roots.values()) {
-    let entries: string[]
-    try {
-      entries = await readdir(root.path)
-    } catch (error: unknown) {
-      // A root that does not exist yet (no spill ever written) is the common
-      // case, not an error: ENOENT is silent, anything else is reported.
-      if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to read root ${root.path}: ${String(error)}`)
-      continue
-    }
+    const entries = await readdir(root.path).then(
+      undefined,
+      (error: Thrown) => {
+        // A root that does not exist yet (no spill ever written) is the common
+        // case, not an error: ENOENT is silent, anything else is reported.
+        if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to read root ${root.path}: ${thrownMessage(error)}`)
+        return undefined
+      },
+    )
+    if (entries === undefined) continue
     for (const name of entries) {
       // Only the backend's own `session-<12 hex>` directories are swept; an
       // unrelated sibling (`session-backup`, a stray file) is left untouched and
       // blocks pruning the root.
       if (!SESSION_DIR_RE.test(name)) continue
       const dir = join(root.path, name)
-      let stats
-      try {
-        // lstat the session entry itself: a `session-*` SYMLINK must never be
-        // followed (readdir/unlink through it would delete files in a foreign
-        // target). Only a real directory is swept.
-        stats = await lstat(dir)
-      } catch (error: unknown) {
-        if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to stat ${dir}: ${String(error)}`)
-        continue
-      }
+      // lstat the session entry itself: a `session-*` SYMLINK must never be
+      // followed (readdir/unlink through it would delete files in a foreign
+      // target). Only a real directory is swept.
+      const stats = await lstat(dir).then(
+        undefined,
+        (error: Thrown) => {
+          if (!isErrno(error, 'ENOENT')) warnSafely(warn, `spill-local: failed to stat ${dir}: ${thrownMessage(error)}`)
+          return undefined
+        },
+      )
+      if (stats === undefined) continue
       if (!await isTrustedDirectory(dir, stats)) {
         warnSafely(warn, `spill-local: skipped unsafe session directory ${dir}`)
         continue
       }
       const scanned = await sweepSessionDir(dir, cutoffMs, warn)
       if (!scanned) continue
-      try {
-        await rmdir(dir)
-      } catch (error: unknown) {
-        if (!isErrno(error, 'ENOENT') && !isErrno(error, 'ENOTEMPTY')) {
-          warnSafely(warn, `spill-local: failed to prune ${dir}: ${String(error)}`)
-        }
-      }
+      await rmdir(dir).then(
+        undefined,
+        (error: Thrown) => {
+          if (!isErrno(error, 'ENOENT') && !isErrno(error, 'ENOTEMPTY')) {
+            warnSafely(warn, `spill-local: failed to prune ${dir}: ${thrownMessage(error)}`)
+          }
+        },
+      )
     }
     // A discovered prior-default root (one per past process) is removed once its
     // last session dir is gone — otherwise empty roots accumulate forever and
     // every future startup rescans them. The active root itself is never pruned.
     if (root.pruneWhenEmpty) {
-      try {
-        await rmdir(root.path)
-      } catch (error: unknown) {
-        if (!isErrno(error, 'ENOENT') && !isErrno(error, 'ENOTEMPTY')) {
-          warnSafely(warn, `spill-local: failed to prune root ${root.path}: ${String(error)}`)
-        }
-      }
+      await rmdir(root.path).then(
+        undefined,
+        (error: Thrown) => {
+          if (!isErrno(error, 'ENOENT') && !isErrno(error, 'ENOTEMPTY')) {
+            warnSafely(warn, `spill-local: failed to prune root ${root.path}: ${thrownMessage(error)}`)
+          }
+        },
+      )
     }
   }
 }
@@ -355,22 +391,23 @@ export async function sweepSpillRoots(options: SweepOptions): Promise<void> {
  * @param base The directory to scan; defaults to the OS tmpdir (a test seam).
  * @returns Absolute paths of the discovered default roots (possibly empty).
  */
-async function discoverDefaultRootRecords(warn: WarnFn, base: string): Promise<ResolvedRoot[]> {
-  let entries: string[]
-  try {
-    entries = await readdir(base)
-  } catch (error: unknown) {
-    warnSafely(warn, `spill-local: failed to scan ${base} for default roots: ${String(error)}`)
-    return []
-  }
-  const roots: ResolvedRoot[] = []
-  for (const name of entries) {
-    if (!DEFAULT_ROOT_RE.test(name)) continue
-    const path = join(base, name)
-    const resolved = await resolveRoot(path, false, warn)
-    if (resolved !== undefined) roots.push(resolved)
-  }
-  return roots
+function discoverDefaultRootRecords(warn: WarnFn, base: string): Promise<ResolvedRoot[]> {
+  return readdir(base).then(
+    async (entries) => {
+      const roots: ResolvedRoot[] = []
+      for (const name of entries) {
+        if (!DEFAULT_ROOT_RE.test(name)) continue
+        const path = join(base, name)
+        const resolved = await resolveRoot(path, false, warn)
+        if (resolved !== undefined) roots.push(resolved)
+      }
+      return roots
+    },
+    (error: Thrown) => {
+      warnSafely(warn, `spill-local: failed to scan ${base} for default roots: ${thrownMessage(error)}`)
+      return []
+    },
+  )
 }
 
 /**

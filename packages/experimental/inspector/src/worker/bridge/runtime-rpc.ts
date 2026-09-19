@@ -18,6 +18,8 @@ import { sendClientSessionClosed } from './session.ts'
 import type { InspectorSourceEvent, InspectorSourceRegistry } from './hub.ts'
 import type { RuntimeConsoleBackendEvent } from '../../shared/cdp/console.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** One connected projection of a Client realm into a synthetic CDP execution context. */
 export interface ClientRuntimeTarget {
   readonly contextId: number
@@ -109,19 +111,19 @@ export class ClientRuntimeRouter {
    * @param listener - Consumer of validated Client Console events.
    * @returns A disposer that disables this Console session.
    */
-  async subscribeConsole(
+  subscribeConsole(
     target: ClientRuntimeTarget,
     sessionId: ClientRuntimeSessionId,
     listener: (event: RuntimeConsoleBackendEvent<ClientRemoteObjectHandle>) => void,
   ): Promise<() => void> {
     const subscription = this.openConsole(target, sessionId, listener)
-    try {
-      await subscription.installed.promise
-    } catch (error) {
-      this.closeConsole(subscription)
-      throw error
-    }
-    return () => { this.closeConsole(subscription) }
+    return subscription.installed.promise.then(
+      () => () => { this.closeConsole(subscription) },
+      (error: Thrown) => {
+        this.closeConsole(subscription)
+        throw error
+      },
+    )
   }
 
   /**
@@ -176,7 +178,7 @@ export class ClientRuntimeRouter {
       if (pending.target !== target || pending.sessionId !== sessionId) continue
       this.rejectPending(requestId, new Error('DevTools Runtime session closed'))
     }
-    for (const subscription of [...this.consoleSubscriptions]) {
+    for (const subscription of Array.from(this.consoleSubscriptions)) {
       if (subscription.target === target && subscription.sessionId === sessionId) {
         this.abandonConsole(subscription, 'DevTools Runtime session closed')
       }
@@ -195,10 +197,10 @@ export class ClientRuntimeRouter {
     if (this.closed) return
     this.closed = true
     this.unsubscribeSources()
-    for (const requestId of [...this.pending.keys()]) {
+    for (const requestId of Array.from(this.pending.keys())) {
       this.rejectPending(requestId, new Error('Client Runtime router closed'))
     }
-    for (const subscription of [...this.consoleSubscriptions]) {
+    for (const subscription of Array.from(this.consoleSubscriptions)) {
       this.abandonConsole(subscription, 'Client Runtime router closed')
     }
     this.targetsBySource.clear()
@@ -302,7 +304,7 @@ export class ClientRuntimeRouter {
       if (pending.target !== target) continue
       this.rejectPending(requestId, new Error(`Client execution context closed: ${reason}`))
     }
-    for (const subscription of [...this.consoleSubscriptions]) {
+    for (const subscription of Array.from(this.consoleSubscriptions)) {
       if (subscription.target === target) {
         this.abandonConsole(subscription, `Client execution context closed: ${reason}`)
       }
@@ -323,7 +325,7 @@ export class ClientRuntimeRouter {
   private consoleEvent(source: InspectorSourceDescriptor, frame: ClientConsoleEventFrame): void {
     const target = this.targetsBySource.get(source.sourceId)
     if (target === undefined || target.source.generation !== source.generation) return
-    for (const subscription of [...this.consoleSubscriptions]) {
+    for (const subscription of Array.from(this.consoleSubscriptions)) {
       if (subscription.target !== target || subscription.sessionId !== frame.sessionId) continue
       try {
         subscription.listener(frame.event)
@@ -416,7 +418,7 @@ export class ClientRuntimeRouter {
   }
 
   private emit(event: ClientRuntimeTargetEvent): void {
-    for (const listener of [...this.listeners]) {
+    for (const listener of Array.from(this.listeners)) {
       try {
         listener(event)
       } catch {

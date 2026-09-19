@@ -1,13 +1,10 @@
+// @vitest-environment jsdom
 /**
- * @vitest-environment jsdom
- *
  * Plugin composition account: the dispatch family reaches the runner with its
  * envelope rpcId, the service face is provided for UI surfaces, a load failure
  * always reaches the console, and the fiber owns the runner's teardown. Plus the two plane-level companions: the
  * node half's empty apply and the invariant registration.
  */
-/* oxlint-disable typescript/no-unsafe-assignment -- Vitest asymmetric matchers are typed as any. */
-
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import InvariantService from '@deepseek-ai/dsh-invariants'
@@ -15,7 +12,9 @@ import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
-import type { DynamicCordisInvokeResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DynamicCordisInvokeResult, DynamicCordisRunResolution } from '@deepseek-ai/dsh-api-remotes/client'
+import type { StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { DynamicCordisRenderFailure } from '../src/client/runtime.ts'
 // Type-only: resolves the `ctx.remote.$on` surface.
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -42,7 +41,7 @@ interface Bench {
     pluginRunId: CordisDynamicPluginRunId
   } }
   /** Resolutions the host received. */
-  resolved: { requestId: string; resolution: unknown }[]
+  resolved: { requestId: string; resolution: DynamicCordisRunResolution }[]
   /** What the namespace received. */
   invoked: { pluginId: CordisDynamicPluginId; pluginRunId: CordisDynamicPluginRunId; method: string; args: unknown }[]
   /** Answer of the next invoke call. */
@@ -54,7 +53,7 @@ interface Bench {
     agentId: string
     pluginId: CordisDynamicPluginId
     pluginRunId: CordisDynamicPluginRunId
-    failure: unknown
+    failure: DynamicCordisRenderFailure
   }[]
   /** Whether the namespace refuses the next render-failure report. */
   reportRefused: { current: boolean }
@@ -65,10 +64,12 @@ interface Bench {
    * this from ui-renderer's boundary through the render host; a test has no React
    * tree, so it stands in for that caller on the same core seam.
    */
-  crash: (slot: string, entry: unknown, abdicate: boolean, error: unknown) => void
+  crash: (slot: string, entry: StoredEntry, abdicate: boolean, error: Error) => void
   dispose: () => Promise<void>
   settle: () => Promise<void>
 }
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Mount the browser half over a module table and a loader standing on real fibers. */
 async function boot(): Promise<Bench> {
@@ -86,7 +87,13 @@ async function boot(): Promise<Bench> {
       const fiber = ctx.plugin(factories.get(options.name)?.() as Parameters<Context['plugin']>[0])
       // The runner reads activation failure through fiber.await(); terminate this
       // handle too, or a failing package also lands as an unhandled rejection.
-      Promise.resolve(fiber).catch(() => {})
+      Promise.resolve(fiber).then(
+        () => undefined,
+        (reason: Thrown) => {
+          if (reason instanceof Error) return
+          throw reason
+        },
+      )
       fibers.set(entryId, { fiber })
       return Promise.resolve(entryId)
     },
@@ -108,7 +115,7 @@ async function boot(): Promise<Bench> {
     packageId: PACKAGE,
     pluginRunId: RUN,
   } }
-  const resolved: { requestId: string; resolution: unknown }[] = []
+  const resolved: { requestId: string; resolution: DynamicCordisRunResolution }[] = []
   const renderFailures: Bench['renderFailures'] = []
   const reportRefused = { current: false }
   // Every generated Remote method resolves to a RemoteResult: the carrier folds
@@ -127,17 +134,17 @@ async function boot(): Promise<Bench> {
       agentId: string,
       pluginId: CordisDynamicPluginId,
       pluginRunId: CordisDynamicPluginRunId,
-      failure: unknown,
+      failure: DynamicCordisRenderFailure,
     ) => {
       renderFailures.push({ agentId, pluginId, pluginRunId, failure })
       return reportRefused.current ? Promise.reject(new Error('stream gone')) : answered(undefined)
     },
     getClientCode: () => answered(source.current),
-    resolveRequestRun: (requestId: string, resolution: unknown) => {
+    resolveRequestRun: (requestId: string, resolution: DynamicCordisRunResolution) => {
       resolved.push({ requestId, resolution })
       return answered({ accepted: true })
     },
-    invoke: (
+    invoke: async (
       pluginId: CordisDynamicPluginId,
       pluginRunId: CordisDynamicPluginRunId,
       method: string,
@@ -145,8 +152,9 @@ async function boot(): Promise<Bench> {
     ) => {
       invoked.push({ pluginId, pluginRunId, method, args })
       const refusal = invokeThrow.current
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is a case under test
-      if (refusal !== undefined) return Promise.reject(refusal)
+      if (refusal !== undefined) {
+        throw refusal
+      }
       return answered(invokeResult.current)
     },
   }
@@ -155,8 +163,8 @@ async function boot(): Promise<Bench> {
   // stub owes (api-gateway covers isolation and disposal on the real one).
   const listeners = new Map<string, ((...args: never[]) => void)[]>()
   const forward = (event: string, payload: object): void => {
-    for (const listener of [...listeners.get(event) ?? []]) {
-      (listener as (...args: readonly unknown[]) => void)(payload)
+    for (const listener of Array.from(listeners.get(event) ?? [])) {
+      Reflect.apply(listener, undefined, [payload])
     }
   }
   const remote = {
@@ -186,10 +194,7 @@ async function boot(): Promise<Bench> {
     reportRefused,
     forward,
     crash: (slot, entry, abdicate, error) => {
-      const core = (ctx.slots as unknown as {
-        _core: { reportEntryError(key: string, entry: unknown, error: unknown, info: { abdicate: boolean }): void }
-      })._core
-      core.reportEntryError(slot, entry, error, { abdicate })
+      ctx.slots.reportEntryError(slot, entry, error, { abdicate })
     },
     dispose: async () => { await fiber.dispose() },
     settle: async () => { await new Promise((resolve) => { setTimeout(resolve, 0) }) },
@@ -294,24 +299,26 @@ describe('browser half', () => {
     }
     await bench.ctx.dynamicCordisRunner.startUserRun(USER_RUN)
     const [entry] = bench.ctx.slots.entries('root')
+    if (entry === undefined) throw new Error('root has no registration')
     bench.crash('root', entry, true, new Error('Cannot read properties of undefined'))
-    expect(bench.renderFailures).toEqual([{
-      agentId: AGENT,
-      pluginId: PLUGIN,
-      pluginRunId: RUN,
-      failure: {
-        slot: 'root',
-        message: 'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
-        stack: expect.any(String),
-        abdicated: true,
-      },
-    }])
+    expect(bench.renderFailures).toHaveLength(1)
+    const recorded = bench.renderFailures[0]
+    if (recorded === undefined) throw new Error('missing render failure report')
+    expect(recorded.agentId).toBe(AGENT)
+    expect(recorded.pluginId).toBe(PLUGIN)
+    expect(recorded.pluginRunId).toBe(RUN)
+    expect(recorded.failure.slot).toBe('root')
+    expect(recorded.failure.message).toBe(
+      'your entry in slot "root" crashed while React rendered it: Cannot read properties of undefined',
+    )
+    expect(typeof recorded.failure.stack).toBe('string')
+    expect(recorded.failure.abdicated).toBe(true)
     // The same observation also reaches the page's own surface, so a row can show
     // it without reading the host back — in its own shape: the host is sent the
     // model-facing line, and the page keeps the crash text on its own so the
     // panel can put a translated label in front of it instead of that framing.
     expect(bench.ctx.dynamicCordisRunner.renderFailures.getSnapshot().get(PLUGIN)).toEqual({
-      ...bench.renderFailures[0]?.failure ?? {},
+      ...recorded.failure,
       cause: 'Cannot read properties of undefined',
     })
     // A report the host refuses is logged and dropped: one crash must not become

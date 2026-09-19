@@ -10,6 +10,8 @@ import type { DirectoryPickerBrowseCapability } from '@deepseek-ai/dsh-host-dire
 import BrowseDirectoryPicker, { boundedInsert, fullyQualified, raceAbort } from '../src/index.ts'
 import type { ListingCandidate } from '../src/index.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 let root: string
 let capability: DirectoryPickerBrowseCapability
 let dispose: () => Promise<void>
@@ -105,7 +107,7 @@ describe('BrowseDirectoryPicker', () => {
     expect(complete.entries.map(entry => entry.name)).toContain('linked')
     // A live signal changes nothing about ordinary failures.
     const missing = join(root, 'no-such-dir')
-    const failure = await capability.list(missing, live.signal).catch((error: unknown) => error)
+    const failure = await capability.list(missing, live.signal).catch((error: Thrown) => error)
     expect(failure).toBeInstanceOf(DirectoryPickerError)
     expect((failure as DirectoryPickerError).code).toBe('directory-unreadable')
   })
@@ -170,7 +172,7 @@ describe('BrowseDirectoryPicker', () => {
 
   it('throws directory-unreadable for a missing target', async () => {
     const missing = join(root, 'no-such-dir')
-    const failure = await capability.list(missing).catch((error: unknown) => error)
+    const failure = await capability.list(missing).catch((error: Thrown) => error)
     expect(failure).toBeInstanceOf(DirectoryPickerError)
     expect((failure as DirectoryPickerError).code).toBe('directory-unreadable')
     expect((failure as DirectoryPickerError).path).toBe(missing)
@@ -196,11 +198,11 @@ describe('BrowseDirectoryPicker', () => {
 
   it('rejects non-absolute paths instead of rebasing them under the process cwd', async () => {
     for (const relative of ['', 'projects', './projects', '..']) {
-      const listFailure = await capability.list(relative).catch((error: unknown) => error)
+      const listFailure = await capability.list(relative).catch((error: Thrown) => error)
       expect(listFailure).toBeInstanceOf(DirectoryPickerError)
       expect((listFailure as DirectoryPickerError).code).toBe('directory-unreadable')
       expect((listFailure as DirectoryPickerError).path).toBe(relative)
-      const createFailure = await capability.createDirectory(relative, 'child').catch((error: unknown) => error)
+      const createFailure = await capability.createDirectory(relative, 'child').catch((error: Thrown) => error)
       expect(createFailure).toBeInstanceOf(DirectoryPickerError)
       expect((createFailure as DirectoryPickerError).code).toBe('directory-create-failed')
       expect((createFailure as DirectoryPickerError).path).toBe(relative)
@@ -215,19 +217,19 @@ describe('BrowseDirectoryPicker', () => {
   })
 
   it('refuses an existing child with directory-exists', async () => {
-    const failure = await capability.createDirectory(root, 'projects').catch((error: unknown) => error)
+    const failure = await capability.createDirectory(root, 'projects').catch((error: Thrown) => error)
     expect(failure).toBeInstanceOf(DirectoryPickerError)
     expect((failure as DirectoryPickerError).code).toBe('directory-exists')
   })
 
   it('refuses non-segment names and other filesystem failures with directory-create-failed', async () => {
     for (const name of ['', '  ', '.', '..', 'a/b', 'a\\b']) {
-      const failure = await capability.createDirectory(root, name).catch((error: unknown) => error)
+      const failure = await capability.createDirectory(root, name).catch((error: Thrown) => error)
       expect(failure).toBeInstanceOf(DirectoryPickerError)
       expect((failure as DirectoryPickerError).code).toBe('directory-create-failed')
     }
     // Missing parent is a real failure, not a level to invent.
-    const missingParent = await capability.createDirectory(join(root, 'no-such-dir'), 'child').catch((error: unknown) => error)
+    const missingParent = await capability.createDirectory(join(root, 'no-such-dir'), 'child').catch((error: Thrown) => error)
     expect((missingParent as DirectoryPickerError).code).toBe('directory-create-failed')
   })
 })

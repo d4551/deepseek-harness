@@ -30,7 +30,8 @@ import type { SessionEvent } from './types.ts'
  */
 export function effectiveWorkspaceRoots(events: readonly SessionEvent[]): readonly string[] {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (event.type === 'workspace/roots') return event.data.roots
   }
   return []

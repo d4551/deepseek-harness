@@ -139,7 +139,7 @@ function parseRecord(line: string): GrepMatch | undefined {
   let parsed: unknown
   try {
     parsed = JSON.parse(line)
-  } catch (error: unknown) {
+  } catch (error) {
     throw malformedRecord('a line is not JSON', error)
   }
   if (typeof parsed !== 'object' || parsed === null) throw malformedRecord('a record is not an object')

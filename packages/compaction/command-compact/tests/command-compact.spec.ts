@@ -46,17 +46,18 @@ class StubCompactionEngine extends CompactionEngine {
     return Promise.resolve(RESULT)
   }
 
-  override compactNow(
+  override async compactNow(
     agent: ManualCompactAgentContext,
     signal: AbortSignal,
     sourceCommandId?: Parameters<CompactionEngine['compactNow']>[2],
   ): Promise<CompactionResult | null> {
     this.calls.push({ agent, signal })
-    if (this.operation !== undefined) return this.operation()
-    return this.failure === undefined
-      ? Promise.resolve(this.result === null ? null : this.appendResult(agent, this.result, sourceCommandId))
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- exercise arbitrary backend rejection values.
-      : Promise.reject(this.failure)
+    if (this.operation !== undefined) return await this.operation()
+    if (this.failure === undefined) {
+      if (this.result === null) return null
+      return this.appendResult(agent, this.result, sourceCommandId)
+    }
+    throw this.failure
   }
 
   private appendResult(

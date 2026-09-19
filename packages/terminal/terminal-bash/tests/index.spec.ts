@@ -176,6 +176,57 @@ describe('BashTerminalBackend startup rollback', () => {
     initialization.resolve(undefined)
   })
 
+  it('preserves a leftover non-Error abort reason when cancellation wins startup', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
+    const initialization = Promise.withResolvers<undefined>()
+    const initializationStarted = Promise.withResolvers<undefined>()
+    const close = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const session = {
+      initialize: () => {
+        initializationStarted.resolve(undefined)
+        return initialization.promise
+      },
+      close,
+    } as unknown as LocalPtySession
+    const backend = new BashTerminalBackend(ctx, config(), async () => terminalHandle(), () => session)
+    const controller = new AbortController()
+
+    const spawning = backend.spawn(spec(agent(ctx), controller.signal))
+    await initializationStarted.promise
+    const claimedAbort = spawning.then(undefined, _error => undefined)
+    controller.abort('startup abort string')
+
+    await expect(spawning).rejects.toBe('startup abort string')
+    await claimedAbort
+    expect(close).toHaveBeenCalledWith('PTY startup failed')
+    initialization.resolve(undefined)
+  })
+
+  it('rejects leftover undefined initialize refuse instead of publishing the session', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
+    const refusedClose = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const initializeStarted = Promise.withResolvers<undefined>()
+    const refused = {
+      initialize: () => {
+        initializeStarted.resolve(undefined)
+        return Promise.reject(undefined)
+      },
+      close: refusedClose,
+    } as unknown as LocalPtySession
+    const refuseBackend = new BashTerminalBackend(ctx, config(), async () => terminalHandle(), () => refused)
+    const controller = new AbortController()
+    const spawning = refuseBackend.spawn(spec(agent(ctx), controller.signal))
+    const claimed = spawning.then(undefined, _error => undefined)
+    await initializeStarted.promise
+    await Promise.resolve()
+    controller.abort(new Error('later abort must not replace the first leftover refuse'))
+    await expect(spawning).rejects.toBeUndefined()
+    await claimed
+    expect(refusedClose).toHaveBeenCalledWith('PTY startup failed')
+  })
+
   it('wraps confined argv, scrubs the environment, and returns initialized sessions', async () => {
     const ctx = new Context()
     await ctx.plugin(RecordingSandbox)
@@ -478,10 +529,10 @@ describe('BashTerminalBackend startup rollback', () => {
       const spawning = backend.spawn(spec(agent(ctx)))
       await vi.advanceTimersByTimeAsync(0)
       expect(sends).toBe(2)
-      const rejected = expect(spawning).rejects.toThrow('did not reach readiness before startup timeout')
+      const claimedDeadline = spawning.then(undefined, _error => undefined)
       await vi.advanceTimersByTimeAsync(100)
-
-      await rejected
+      await expect(spawning).rejects.toThrow('did not reach readiness before startup timeout')
+      await claimedDeadline
       expect(cancellations).toBe(1)
       expect(closes).toBe(1)
     } finally {

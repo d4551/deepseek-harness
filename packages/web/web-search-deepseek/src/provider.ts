@@ -16,12 +16,39 @@ import type {
 import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import type {} from '@deepseek-ai/dsh-session'
 import type {
-  AnthropicError,
   AnthropicResponse,
   ContentBlock,
   TextBlock,
   WebSearchToolResultBlock,
 } from './types.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected search, parse, or credential operation.
+ * @param reason - a claim-boundary reject value.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) {
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /** Stable id this provider registers under. */
 export const DEEPSEEK_PROVIDER_ID = 'deepseek-official'
@@ -214,56 +241,56 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
       body,
     })
     throwIfSearchAborted(signal)
-    let response: Response
-    try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          // Official DeepSeek expects `x-api-key`; an Anthropic-compatible proxy
-          // may expect `Authorization: Bearer` — send both so either resolves.
-          'x-api-key': apiKey,
-          'authorization': `Bearer ${apiKey}`,
-          'anthropic-version': options.apiVersion,
-          'content-type': 'application/json',
-          'accept': 'application/json',
-          'user-agent': WEB_USER_AGENT,
-        },
-        body: JSON.stringify(body),
-        ...signal !== undefined ? { signal } : {},
-      })
-    } catch (error: unknown) {
-      if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-      throw new WebError(`DeepSeek search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
-
-    if (!response.ok) {
-      const status = response.status
-      let message = `DeepSeek API error (HTTP ${status})`
-      try {
-        const parsed = await response.json() as AnthropicError
-        const detail = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.message
-        if (detail !== undefined && detail.length > 0) message = detail
-      } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+    return fetch(endpoint, {
+      method: 'POST',
+      redirect: 'error',
+      headers: {
+        // Official DeepSeek expects `x-api-key`; an Anthropic-compatible proxy
+        // may expect `Authorization: Bearer` — send both so either resolves.
+        'x-api-key': apiKey,
+        'authorization': `Bearer ${apiKey}`,
+        'anthropic-version': options.apiVersion,
+        'content-type': 'application/json',
+        'accept': 'application/json',
+        'user-agent': WEB_USER_AGENT,
+      },
+      body: JSON.stringify(body),
+      ...signal !== undefined ? { signal } : {},
+    }).then(
+      (response) => {
+        if (!response.ok) {
+          const status = response.status
+          const statusMessage = `DeepSeek API error (HTTP ${status})`
+          return response.json().then(
+            (parsed: unknown) => {
+              const message = anthropicErrorMessage(parsed, statusMessage)
+              throw new WebError(message, 'WEB_PROVIDER_ERROR')
+            },
+            (error: Thrown) => {
+              // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
+              // into a generic HTTP-error message — cancellation is not a provider
+              // error (the seam's cancellation contract).
+              if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
+              throw new WebError(statusMessage, 'WEB_PROVIDER_ERROR')
+            },
+          )
+        }
+        return response.json().then((payload: unknown) => {
+          if (!isAnthropicResponse(payload)) {
+            throw new TypeError('DeepSeek response body is not an object')
+          }
+          return mapAnthropicResponse(payload)
+        }).then(undefined, (error: Thrown) => {
+          if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
+          if (error instanceof WebError) throw error
+          throw new WebError(`DeepSeek returned an unprocessable response body: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+        })
+      },
+      (error: Thrown) => {
         if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
-      }
-      throw new WebError(message, 'WEB_PROVIDER_ERROR')
-    }
-
-    try {
-      const payload = await response.json() as AnthropicResponse
-      return mapAnthropicResponse(payload)
-    } catch (error: unknown) {
-      if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-      if (error instanceof WebError) throw error
-      throw new WebError(`DeepSeek returned an unprocessable response body: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
-    }
+        throw new WebError(`DeepSeek search request failed: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      },
+    )
   }
 
   /**
@@ -275,24 +302,25 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
   private async apiKey(options: DeepSeekSearchProviderOptions, signal?: AbortSignal): Promise<string> {
     throwIfSearchAborted(signal)
     if (options.apiKey !== undefined && options.apiKey.length > 0) return options.apiKey
-    let resolved: string | undefined
-    try {
-      resolved = await abortable(options.resolveApiKey?.() ?? Promise.resolve(undefined), signal)
-    } catch (error: unknown) {
-      if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-      throw new WebError(
-        `DeepSeek search credential resolution failed: ${String(error)}`,
-        'WEB_PROVIDER_ERROR',
-        { cause: error },
-      )
-    }
-    if (resolved !== undefined && resolved.length > 0) return resolved
-    const ref = options.apiKeyEnv ?? 'DEEPSEEK_API_KEY'
-    throw new WebError(
-      `DeepSeek search has no API key for "${ref}"; store it through the credentials service`
-      + ' (the web Models page writes it), export it in the launching environment, or set a literal'
-      + ' "apiKey" in the web-search-deepseek config',
-      'WEB_PROVIDER_CREDENTIAL_MISSING',
+    return await abortable(options.resolveApiKey?.() ?? Promise.resolve(undefined), signal).then(
+      (resolved) => {
+        if (resolved !== undefined && resolved.length > 0) return resolved
+        const ref = options.apiKeyEnv ?? 'DEEPSEEK_API_KEY'
+        throw new WebError(
+          `DeepSeek search has no API key for "${ref}"; store it through the credentials service`
+          + ' (the web Models page writes it), export it in the launching environment, or set a literal'
+          + ' "apiKey" in the web-search-deepseek config',
+          'WEB_PROVIDER_CREDENTIAL_MISSING',
+        )
+      },
+      (error: Thrown) => {
+        if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
+        throw new WebError(
+          `DeepSeek search credential resolution failed: ${thrownMessage(error)}`,
+          'WEB_PROVIDER_ERROR',
+          { cause: error },
+        )
+      },
     )
   }
 }
@@ -313,9 +341,9 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
         signal.removeEventListener('abort', onAbort)
         resolve(value)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         signal.removeEventListener('abort', onAbort)
-        reject(new Error(String(error).replace(/^Error: /u, ''), { cause: error }))
+        reject(new Error(thrownMessage(error).replace(/^Error: /u, ''), { cause: error }))
       },
     )
   })
@@ -327,15 +355,34 @@ function throwIfSearchAborted(signal?: AbortSignal): void {
 }
 
 /** Build the provider's stable cancellation error while retaining the caller's reason. */
-function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
+function searchAborted(signal?: AbortSignal, fallback?: Thrown): WebError {
   return new WebError('DeepSeek search aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
 }
 
 /** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
-function isAbortError(error: unknown): boolean {
+function isAbortError(error: Thrown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
+}
+
+/** Whether a JSON value can be read as an Anthropic Messages envelope. */
+function isAnthropicResponse(value: unknown): value is AnthropicResponse {
+  return typeof value === 'object' && value !== null
+}
+
+/** Provider error text from an error envelope, or the HTTP status line. */
+function anthropicErrorMessage(parsed: unknown, statusMessage: string): string {
+  if (typeof parsed !== 'object' || parsed === null) return statusMessage
+  const errorField = 'error' in parsed ? parsed.error : undefined
+  const messageField = 'message' in parsed && typeof parsed.message === 'string' ? parsed.message : undefined
+  const detail = typeof errorField === 'string'
+    ? errorField
+    : typeof errorField === 'object' && errorField !== null && 'message' in errorField
+      && typeof errorField.message === 'string'
+      ? errorField.message
+      : messageField
+  return detail !== undefined && detail.length > 0 ? detail : statusMessage
 }
 
 /** True for DeepSeek request limits that can be sent to the Messages API. */

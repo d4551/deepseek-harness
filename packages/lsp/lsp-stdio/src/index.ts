@@ -40,6 +40,8 @@ export {
 export { LspInstance } from './instance.ts'
 export { LspConnection } from './connection.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Cordis plugin name for loader diagnostics. */
 export const name = 'lsp-stdio'
 
@@ -111,9 +113,11 @@ export const Config: z<Config> = z.object({
 
 /** Propagate teardown failures only after every sibling has settled. */
 function throwTeardownFailures(results: readonly PromiseSettledResult<void>[], message: string): void {
-  const failures: unknown[] = []
+  const failures: Thrown[] = []
   for (const result of results) {
-    if (result.status === 'rejected') failures.push(result.reason)
+    if (result.status !== 'rejected') continue
+    const reason: Thrown = result.reason
+    failures.push(reason)
   }
   if (failures.length === 1) throw failures[0]
   if (failures.length > 1) throw new AggregateError(failures, message)
@@ -161,11 +165,14 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       )
     })
     try {
-      return await Promise.all(lookups)
-    } catch (error: unknown) {
-      setupAbort.abort(error)
-      await Promise.allSettled(lookups)
-      throw error
+      return await Promise.all(lookups).then(undefined, (error: Thrown) => {
+        setupAbort.abort(error)
+        return Promise.all(
+          lookups.map(lookup => lookup.then(() => undefined, (_error: Thrown) => undefined)),
+        ).then(() => {
+          throw error
+        })
+      })
     } finally {
       stopSetupCancellation()
     }
@@ -258,7 +265,7 @@ class LocalLspProvider implements LspProvider {
     this.assertActive(signal)
     const querySignal = this.querySignal(signal)
     const workspaceResult = canonicalizeWorkspace(this.fs, request.workspaceRoot, querySignal)
-    const workspaceLookup = workspaceResult.then(() => undefined, () => undefined)
+    const workspaceLookup = workspaceResult.then(() => undefined, (_error: Thrown) => undefined)
     this.workspaceLookups.add(workspaceLookup)
     let workspace: HostWorkspace
     try {
@@ -307,7 +314,7 @@ class LocalLspProvider implements LspProvider {
     const retire = (): void => {
       if (this.queues.get(workspace) === tail) this.queues.delete(workspace)
     }
-    const tail = previous.then(() => result).then(retire, retire)
+    const tail = previous.then(() => result).then(retire, (_error: Thrown) => { retire() })
     this.queues.set(workspace, tail)
     return result
   }

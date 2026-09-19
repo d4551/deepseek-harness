@@ -28,6 +28,14 @@ afterEach(cleanup)
 
 type FrameProps = PropsRenderSlots<'trt.panel' | 'trt.chat' | 'trt.rows'>
 
+/** Invoke one erased store action by name. */
+function invokeStoreAction(actions: object, name: string, param: string): void {
+  if (!Object.hasOwn(actions, name)) throw new Error(`store action ${name} is missing`)
+  const action = Reflect.get(actions, name)
+  if (typeof action !== 'function') throw new Error(`store action ${name} is not a function`)
+  Reflect.apply(action, actions, [param])
+}
+
 /** Root frame declaring all three suite slots (render sites for each kind). */
 function Frame({ renderSlot, SessionProvider }: FrameProps) {
   return (
@@ -123,7 +131,7 @@ describe('sessions', () => {
 
   it('mints REAL-tag scopes lazily and resolves them through the production scopeOf; bindings expose the behavior face', async () => {
     const runtime = await runtimeWithFrame()
-    const prompt = vi.fn()
+    const prompt = vi.fn<(...args: never[]) => void>()
     await runtime.sessions.add({ id: 's1', session: { prompt } })
 
     expect(runtime.sessions.scope('ghost')).toBeUndefined()
@@ -234,7 +242,7 @@ describe('stores', () => {
     expect(() => runtime.storeOf('trt.panel')).toThrow(/no registration/)
     const store = runtime.storeOf('trt.chat', 's1')
     await runtime.flush()
-    ;(store.actions['setNote'] as (note: string) => void)('hello')
+    invokeStoreAction(store.actions, 'setNote', 'hello')
     await runtime.flush()
     expect(view.container.textContent).toContain('note:hello')
     expect(runtime.storeOf('trt.chat', 's1')).toBe(store) // cached per scope key
@@ -265,7 +273,7 @@ describe('stores', () => {
     await runtime.sessions.add({ id: 's1' })
 
     const doomed = runtime.storeOf('trt.chat', 's1')
-    ;(doomed.actions['setNote'] as (note: string) => void)('buried')
+    invokeStoreAction(doomed.actions, 'setNote', 'buried')
     expect(localStorage.getItem('trt.store.s1')).not.toBeNull()
 
     await runtime.sessions.remove('s1')
@@ -313,7 +321,7 @@ describe('workspaces', () => {
 describe('feature mount and disposal', () => {
   it('mounts a plugin on a real fiber; dispose() cascades entries, declared children, and services', async () => {
     const runtime = await runtimeWithFrame()
-    runtime.ctx.provide('layout', { openDetails: vi.fn() })
+    runtime.ctx.provide('layout', { openDetails: vi.fn<() => void>() })
     const feature = await runtime.mount({
       inject: ['slots', 'layout'],
       apply: (ctx: typeof runtime.ctx) => {
@@ -493,7 +501,7 @@ describe('workspaces action face', () => {
     ws.stub('create', () => Promise.resolve({ workspaceId: 'ws-x', title: 'X', path: '/x', sessionIds: [] } as never))
     ws.stub('rename', () => Promise.resolve({ workspaceId: 'w1', title: 'S', path: '/s', sessionIds: [] } as never))
     ws.stub('delete', () => Promise.resolve())
-    const insertBefore = vi.fn(() => Promise.resolve())
+    const insertBefore = vi.fn<() => Promise<void>>(() => Promise.resolve())
     ws.stub('insertBefore', insertBefore)
     ws.stub('insertSessionBefore', () => Promise.resolve({ workspaceId: 'w1', title: '', path: '', sessionIds: [] } as never))
     ws.stub('archiveSession', () => Promise.resolve())

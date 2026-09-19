@@ -25,6 +25,31 @@ import type { SubagentDescendantListEntry, SubagentListEntry } from './control-t
 import { SubagentError } from './error.ts'
 import type { SubagentIdentityProjection } from './projection-types.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected listing worker.
+ * @param reason - the Thrown the worker rejected with.
+ * @returns the Error string, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return String(reason)
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 export type { SubagentListEntry } from './control-types.ts'
 export type { SubagentDescendantListEntry } from './control-types.ts'
 
@@ -156,7 +181,7 @@ async function prepareListing(
   let records: Awaited<ReturnType<SessionQueryEngine['listSessions']>>
   try {
     records = await query.listSessions(signal)
-  } catch (error: unknown) {
+  } catch (error) {
     assertListingNotCancelled(signal)
     throw error
   }
@@ -216,17 +241,25 @@ async function resolveCandidateRows(
   // Cold candidates came from the query corpus and are resolved concurrently.
   if (coldReads.length > 0) {
     const queue = [...coldReads]
-    await Promise.all(Array.from(
+    const workerOutcomes = await Promise.all(Array.from(
       { length: Math.min(COLD_READ_CONCURRENCY, queue.length) },
-      async () => {
+      () => (async () => {
         for (let job = queue.shift(); job !== undefined; job = queue.shift()) {
           rows[job.index] = await resolveColdIdentity(
             query, cache, job.header,
             subagentParents.has(job.header.id), signal,
           )
         }
-      },
+      })().then(
+        () => undefined,
+        (error: Thrown) => error,
+      ),
     ))
+    const workerFailure = workerOutcomes.find(outcome => outcome !== undefined)
+    if (workerFailure instanceof Error) throw workerFailure
+    if (workerFailure !== undefined) {
+      throw new Error(thrownMessage(workerFailure), { cause: workerFailure })
+    }
   }
   assertListingNotCancelled(signal)
   return rows
@@ -253,9 +286,8 @@ function descendantCandidates(
     .reverse()
   const visited = new Set<SessionId>([rootSessionId])
   while (stack.length > 0) {
-    // The length guard proves one frame exists.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const position = stack.pop()!
+    const position = stack.pop()
+    if (position === undefined) throw new Error('list-children: empty stack')
     const id = position.record.header.id
     if (visited.has(id)) continue
     visited.add(id)
@@ -315,10 +347,8 @@ async function resolveColdIdentity(
   assertListingNotCancelled(signal)
   let observation: SessionObservation
   try {
-    observation = await query.observeSession(childId, {
-      ...(signal === undefined ? {} : { signal }),
-    })
-  } catch (error: unknown) {
+    observation = await query.observeSession(childId, (signal === undefined ? {} : { signal }))
+  } catch (error) {
     // Per-child isolation: durable corruption is stable; absence and backend
     // failures remain retryable. Either way, the listing itself still succeeds.
     assertListingNotCancelled(signal)

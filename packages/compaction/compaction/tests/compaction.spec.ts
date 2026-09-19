@@ -6,6 +6,7 @@ import {
   CompactionEngine,
   compactCheckpointSource,
   isCompactCheckpointSource,
+  readCompactCheckpointSource,
 } from '@deepseek-ai/dsh-compaction'
 import type { CompactionResult, CompactionTrigger } from '@deepseek-ai/dsh-compaction'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -147,6 +148,10 @@ describe('CompactionEngine seam', () => {
       .toEqual(compactCheckpointSource(result.compactionId))
     expect(isCompactCheckpointSource({ kind: 'plugin', plugin: 'other' })).toBe(false)
     expect(isCompactCheckpointSource({ kind: 'user' })).toBe(false)
+    expect(isCompactCheckpointSource({ kind: 'plugin', plugin: 'compact' })).toBe(false)
+    expect(readCompactCheckpointSource({ kind: 'plugin', plugin: 'compact' })).toBeUndefined()
+    expect(readCompactCheckpointSource(compactCheckpointSource(result.compactionId)))
+      .toEqual(compactCheckpointSource(result.compactionId))
     expect(session.events.filter(e => e.type.startsWith('compaction/')).map(e => e.type))
       .toEqual(['compaction/start', 'compaction/summary', 'compaction/end'])
   })

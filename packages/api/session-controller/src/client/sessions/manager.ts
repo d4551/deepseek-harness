@@ -11,6 +11,7 @@ import type {
   SessionControlFrame,
   SessionQueuedItem,
   SessionError,
+  SessionListValue,
   SessionSummary,
   SessionJob as JobView,
 } from '../../types.ts'
@@ -28,6 +29,8 @@ import { Notifier } from './notifier.ts'
 import { ProjectionValueStore } from './projection-store.ts'
 import { Session } from './session.ts'
 import type { SessionRemotes } from './remotes.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /**
  * List arrival lifecycle, orthogonal to the pull-activity `state` axis:
@@ -276,9 +279,12 @@ export class SessionManager {
     this.catalogInflight.clear()
     this.listInflight = null
     this.listMutations = null
-    const failures: unknown[] = []
+    const failures: Thrown[] = []
     for (const result of [...results, ...refreshResults.flat()]) {
-      if (result.status === 'rejected') failures.push(result.reason)
+      if (result.status === 'rejected') {
+        const reason: Thrown = result.reason
+        failures.push(reason)
+      }
     }
     if (failures.length > 0) throw new AggregateError(failures, 'Session manager disposal failed')
   }
@@ -288,7 +294,10 @@ export class SessionManager {
     this.sessionDisposals.add(disposal)
     const [result] = await Promise.allSettled([disposal])
     this.sessionDisposals.delete(disposal)
-    if (result.status === 'rejected') throw result.reason
+    if (result.status === 'rejected') {
+      const reason: Thrown = result.reason
+      throw reason
+    }
   }
 
   /** Track each request until settlement so disposal joins all owned work. */
@@ -297,9 +306,9 @@ export class SessionManager {
     this.pendingRequests.add(request)
     const [outcome] = await request
     this.pendingRequests.delete(request)
-    return outcome.status === 'fulfilled'
-      ? toSessionResult(outcome.value)
-      : transportResult(outcome.reason)
+    if (outcome.status === 'fulfilled') return toSessionResult(outcome.value)
+    const reason: Thrown = outcome.reason
+    return transportResult(reason)
   }
 
   /**
@@ -399,12 +408,18 @@ export class SessionManager {
     this.notifier.markDirty()
     const operation = (async () => {
       const [outcome] = await Promise.allSettled([
-        Promise.try(() => this.remote.subagents.list(parentSessionId, this.lifetime.signal)),
+        new Promise<RemoteResult<SubagentCatalog>>((resolve) => {
+          resolve(this.remote.subagents.list(parentSessionId, this.lifetime.signal))
+        }),
       ])
       if (this.lifetime.signal.aborted) return
-      const result = outcome.status === 'fulfilled'
-        ? toSessionResult(outcome.value)
-        : transportResult<SubagentCatalog>(outcome.reason)
+      let result: ClientResult<SubagentCatalog>
+      if (outcome.status === 'fulfilled') {
+        result = toSessionResult(outcome.value)
+      } else {
+        const reason: Thrown = outcome.reason
+        result = transportResult(reason)
+      }
       if (result.ok) {
         const parentAvailable = this.catalogInflight.get(parentSessionId)?.parentAvailableOverride
           ?? result.value.parentAvailable
@@ -496,12 +511,18 @@ export class SessionManager {
     this.notifier.markDirty()
     const promise = (async () => {
       const [outcome] = await Promise.allSettled([
-        Promise.try(() => this.remote.session.list({}, this.lifetime.signal)),
+        new Promise<Awaited<ReturnType<SessionRemotes['session']['list']>>>((resolve) => {
+          resolve(this.remote.session.list({}, this.lifetime.signal))
+        }),
       ])
       if (this.lifetime.signal.aborted) return
-      const result = outcome.status === 'fulfilled'
-        ? toSessionResult(outcome.value)
-        : transportResult<{ items: SessionSummary[] }>(outcome.reason)
+      let result: ClientResult<SessionListValue>
+      if (outcome.status === 'fulfilled') {
+        result = toSessionResult(outcome.value)
+      } else {
+        const reason: Thrown = outcome.reason
+        result = transportResult(reason)
+      }
       if (result.ok) {
         const baseline: SessionSummary[] = this.listPhase === 'pending'
           ? [...result.value.items]

@@ -299,7 +299,11 @@ export function snapshotSubagentDescriptor(input: SubagentDescriptorInput): Suba
   if (snapshot === undefined) {
     throw new Error('subagent descriptor is not losslessly JSON-serializable')
   }
-  return snapshot
+  const parsed = parseSubagentDescriptor(snapshot)
+  if (parsed === undefined) {
+    throw new Error('subagent descriptor is not losslessly JSON-serializable')
+  }
+  return parsed
 }
 
 /**

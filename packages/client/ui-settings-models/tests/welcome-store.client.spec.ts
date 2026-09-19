@@ -1,26 +1,46 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
-import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
+import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import {
+  SettingsDescribeMirror, type SettingsRemote, type SettingsWireFace,
+} from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
-import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import {
+  decodeWelcomeSection, WelcomeNoticeStore, type WelcomeSection,
+} from '../src/client/welcome-store.ts'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
 } from '../src/onboarding-copy.ts'
-
-const schemaService = new SettingsSchemaService(new Context())
 
 /** The settings namespace answers over the Remote carrier, which has no envelope. */
 function ok<T>(value: T) {
   return { ok: true as const, value }
 }
 
-function namespace(value: unknown = {}, revision = 0) {
+function unusedSettingsMethod(name: string): never {
+  throw new Error(`${name} is unused in this spec`)
+}
+
+function welcomeWire(api: {
+  describe?: SettingsRemote['describe']
+  mutate?: SettingsRemote['mutate']
+}): SettingsWireFace {
+  return {
+    settings: {
+      describe: api.describe ?? (() => unusedSettingsMethod('describe')),
+      update: () => unusedSettingsMethod('update'),
+      replace: () => unusedSettingsMethod('replace'),
+      mutate: api.mutate ?? (() => unusedSettingsMethod('mutate')),
+    },
+  }
+}
+
+function namespace(value: JsonValue = {}, revision = 0): SettingsNamespaceView {
   return {
     ns: WELCOME_NOTICE_SETTINGS_NAMESPACE,
     schema: {},
     value,
-    applies: 'live' as const,
+    applies: 'live',
     secrets: [],
     revision,
   }
@@ -30,27 +50,46 @@ function acknowledgedNamespace(version: string, revision = 1) {
   return namespace({ [WELCOME_NOTICE_ACK_FIELD]: version }, revision)
 }
 
-/** The welcome store over a real mirror-derived scope and a fake wire. */
+/** The welcome store over a real mirror-derived scope and a claimed wire. */
 function buildWelcome(
-  api: { describe?: ReturnType<typeof vi.fn>; mutate?: ReturnType<typeof vi.fn> },
+  api: {
+    describe?: ReturnType<typeof vi.fn<SettingsRemote['describe']>>
+    mutate?: ReturnType<typeof vi.fn<SettingsRemote['mutate']>>
+  },
   persistence: 'host' | 'memory' = 'host',
 ) {
-  const wire = { settings: api } as never
+  const wire = welcomeWire(api)
   const mirror = new SettingsDescribeMirror(wire, persistence)
   const scope = new SettingsScopeController(
     wire,
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
     persistence,
-    schemaService,
   )
   return { mirror, controller: new WelcomeNoticeStore(scope) }
 }
 
+describe('decodeWelcomeSection', () => {
+  it('claims a JSON object and reads every other value as empty', () => {
+    expect(decodeWelcomeSection(null)).toEqual({})
+    expect(decodeWelcomeSection(true)).toEqual({})
+    expect(decodeWelcomeSection(1)).toEqual({})
+    expect(decodeWelcomeSection('x')).toEqual({})
+    expect(decodeWelcomeSection([])).toEqual({})
+    expect(decodeWelcomeSection([1])).toEqual({})
+    expect(decodeWelcomeSection(() => 0)).toEqual({})
+    expect(decodeWelcomeSection({ bad: () => 0 })).toEqual({})
+    expect(decodeWelcomeSection({ nested: { ok: true } })).toEqual({ nested: { ok: true } })
+    expect(decodeWelcomeSection({ [WELCOME_NOTICE_ACK_FIELD]: 1 })).toEqual({
+      [WELCOME_NOTICE_ACK_FIELD]: 1,
+    })
+  })
+})
+
 describe('WelcomeNoticeStore', () => {
   it('acknowledges in memory while Host settings persistence is disabled', async () => {
-    const describeCall = vi.fn()
-    const mutate = vi.fn()
+    const describeCall = vi.fn<SettingsRemote['describe']>()
+    const mutate = vi.fn<SettingsRemote['mutate']>()
     const { controller } = buildWelcome({ describe: describeCall, mutate }, 'memory')
 
     await controller.load()
@@ -69,7 +108,7 @@ describe('WelcomeNoticeStore', () => {
       ['older-copy', false],
       [WELCOME_NOTICE_VERSION, true],
     ] as const) {
-      const describeCall = vi.fn(() => Promise.resolve(ok({
+      const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
         writable: true,
         hasDocument: false,
         namespaces: [version === undefined ? namespace() : acknowledgedNamespace(version)],
@@ -82,10 +121,10 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('persists the owner version through one revision-fenced mutation', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [namespace({}, 3)],
     })))
-    const mutate = vi.fn(() => Promise.resolve(ok(acknowledgedNamespace(WELCOME_NOTICE_VERSION, 4))))
+    const mutate = vi.fn<SettingsRemote['mutate']>(() => Promise.resolve(ok(acknowledgedNamespace(WELCOME_NOTICE_VERSION, 4))))
     const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
     await mirror.load()
     await controller.load()
@@ -101,7 +140,7 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('keeps the notice pending while the settings read has not answered', async () => {
-    const describeCall = vi.fn(() => Promise.reject(new Error('offline')))
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.reject(new Error('offline')))
     const { mirror, controller } = buildWelcome({ describe: describeCall })
     await mirror.load()
     await controller.load()
@@ -110,10 +149,10 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('reports a failed or refused persistence attempt after its recovery read', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [namespace()],
     })))
-    const mutate = vi.fn(() => Promise.reject(new Error('disk full')))
+    const mutate = vi.fn<SettingsRemote['mutate']>(() => Promise.reject(new Error('disk full')))
     const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
     await mirror.load()
     await controller.load()
@@ -128,7 +167,7 @@ describe('WelcomeNoticeStore', () => {
   })
 
   it('reports a missing namespace as an error instead of a silent skip', async () => {
-    const describeCall = vi.fn(() => Promise.resolve(ok({
+    const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [],
     })))
     const { mirror, controller } = buildWelcome({ describe: describeCall })
@@ -142,7 +181,7 @@ describe('WelcomeNoticeStore', () => {
 
   it('reads malformed durable values as unacknowledged', async () => {
     for (const value of [null, 42, { [WELCOME_NOTICE_ACK_FIELD]: 42 }]) {
-      const describeCall = vi.fn(() => Promise.resolve(ok({
+      const describeCall = vi.fn<SettingsRemote['describe']>(() => Promise.resolve(ok({
         writable: true, hasDocument: false, namespaces: [namespace(value)],
       })))
       const { mirror, controller } = buildWelcome({ describe: describeCall })
@@ -152,8 +191,63 @@ describe('WelcomeNoticeStore', () => {
     }
   })
 
+  it('rethrows a rejected Host write', async () => {
+    const failure = new Error('offline')
+    const scope: SettingsScope<WelcomeSection> = {
+      getSnapshot: () => ({
+        status: 'ready',
+        value: {},
+        base: undefined,
+        user: undefined,
+        revision: 1,
+        writable: true,
+        secrets: [],
+        applies: 'live',
+        mode: 'host',
+      }),
+      subscribe: () => () => {},
+      mutate: () => Promise.resolve(),
+      set: () => Promise.reject(failure),
+      unset: () => Promise.resolve(),
+    }
+    const controller = new WelcomeNoticeStore(scope)
+    await controller.load()
+    await expect(controller.acknowledge()).rejects.toBe(failure)
+  })
+
+  it('stops following the scope when disposed', async () => {
+    let listeners = 0
+    const scope: SettingsScope<WelcomeSection> = {
+      getSnapshot: () => ({
+        status: 'ready',
+        value: {},
+        base: undefined,
+        user: undefined,
+        revision: 1,
+        writable: true,
+        secrets: [],
+        applies: 'live',
+        mode: 'host',
+      }),
+      subscribe: () => {
+        listeners += 1
+        return () => { listeners -= 1 }
+      },
+      mutate: () => Promise.resolve(),
+      set: () => Promise.resolve(),
+      unset: () => Promise.resolve(),
+    }
+    const controller = new WelcomeNoticeStore(scope)
+    await controller.load()
+    expect(listeners).toBe(1)
+    controller.dispose()
+    expect(listeners).toBe(0)
+    controller.dispose()
+    expect(listeners).toBe(0)
+  })
+
   it('follows a later document change without an own read', async () => {
-    const describeCall = vi.fn()
+    const describeCall = vi.fn<SettingsRemote['describe']>()
       .mockResolvedValueOnce(ok({ writable: true, hasDocument: false, namespaces: [namespace()] }))
       .mockResolvedValueOnce(ok({
         writable: true, hasDocument: false,

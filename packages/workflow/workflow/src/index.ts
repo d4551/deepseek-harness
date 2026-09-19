@@ -5,6 +5,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { observeListenerInvocation, renderListenerFailure } from '@deepseek-ai/dsh-agent'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type {
   WorkflowAgentEndInfo,
@@ -65,7 +66,7 @@ declare module '@deepseek-ai/cordis' {
      * @param agent - the call's sequence number, label, phase, and child id.
      * @mode emit
      */
-    'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void
+    'workflow/agent-start'(info: WorkflowRunInfo, agent: WorkflowAgentInfo): void | Promise<void>
     /**
      * One `agent()` call settled (clean result, child failure, or run
      * cancellation). Paired with {@link Events['workflow/agent-start']} by
@@ -174,29 +175,16 @@ export abstract class WorkflowEngine extends Service {
    */
   protected emitWorkflowEvent(name: WorkflowEventName, ...args: unknown[]): void {
     for (const callback of this.ctx.events.dispatch('emit', [name, ...args])) {
-      try {
-        const returned: unknown = (callback as (...payload: unknown[]) => unknown)(...args)
-        Promise.resolve(returned).catch((error: unknown) => {
-          this.ctx.logger.warn(`workflow: ${name} listener rejected: ${renderListenerError(error)}`)
-        })
-      } catch (error: unknown) {
-        this.ctx.logger.warn(`workflow: ${name} listener threw: ${renderListenerError(error)}`)
-      }
+      observeListenerInvocation(
+        () => callback(...args),
+        (reason) => {
+          this.ctx.logger.warn(`workflow: ${name} listener threw: ${renderListenerFailure(reason)}`)
+        },
+        (reason) => {
+          this.ctx.logger.warn(`workflow: ${name} listener rejected: ${renderListenerFailure(reason)}`)
+        },
+      )
     }
-  }
-}
-
-/**
- * Render any thrown value without violating listener containment.
- * @param error - any thrown value.
- * @returns `String(error)`, or a fixed label when even coercion throws.
- */
-function renderListenerError(error: unknown): string {
-  try {
-    return String(error)
-  } catch {
-    // String coercion itself may throw.
-    return '[unrenderable thrown value]'
   }
 }
 

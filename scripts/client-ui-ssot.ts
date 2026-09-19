@@ -39,6 +39,7 @@ export interface SsotFinding {
     | 'duplicated-rule'
     | 'deep-nesting'
     | 'utility-class-stack'
+    | 'typography'
   /** Why it fired. */
   detail: string
 }
@@ -58,6 +59,10 @@ const COLOR_PROP = new RegExp(
 const RAW_Z_INDEX = /z-index\s*:\s*(?!\s*var\(\s*--dsw-z-)([^;}]+)/gi
 const PAGE_SHELL = /(?:html|body|#root)\s*\{[^}]*display\s*:\s*grid/i
 const FRAME_GRID = /\.frame\s*\{[^}]*display\s*:\s*grid/i
+/** A `font-size` property whose value is a raw absolute length, not a `--dsw-*` / `--dsh-*` token. */
+const RAW_FONT_SIZE = /(?:^|[;{\s])font-size\s*:\s*(?!var\(\s*--d(?:sw|sh)-)(\d+(?:\.\d+)?(?:px|rem|pt|pc|in|cm|mm|vh|vw)\b[^;}]*)/gi
+/** A content-font token carrying a fallback length that hides a missing :root default. */
+const FONT_TOKEN_FALLBACK = /var\(\s*(--dsh-content-font-(?:size(?:-secondary)?|delta(?:-secondary)?))\s*,/g
 const FLOAT_LAYOUT = /float\s*:\s*(?:left|right)/i
 // `vertical-align` paints only inline-level and table-cell boxes. An
 // `inline-flex` chip in a text flow is inline-level, so it may align itself
@@ -539,6 +544,25 @@ export function scanUiSsot(files: readonly { file: string; content: string }[]):
           detail: `z-index: ${(stack[1] ?? '').trim()} is a raw stacking number; use a --dsw-z-* token`,
         })
       }
+      RAW_FONT_SIZE.lastIndex = 0
+      let type: RegExpExecArray | null
+      while ((type = RAW_FONT_SIZE.exec(css)) !== null) {
+        findings.push({
+          file: path,
+          kind: 'typography',
+          detail: `font-size: ${(type[1] ?? '').trim()} is a raw size; use --dsh-content-font-size* or --dsw-font-*-font-size`,
+        })
+      }
+    }
+
+    FONT_TOKEN_FALLBACK.lastIndex = 0
+    let fallback: RegExpExecArray | null
+    while ((fallback = FONT_TOKEN_FALLBACK.exec(css)) !== null) {
+      findings.push({
+        file: path,
+        kind: 'typography',
+        detail: `${fallback[1]} carries a fallback length; set the default on :root and read the token with no comma`,
+      })
     }
 
     if (path.endsWith('.css') && !path.includes('ui-layout/') && PAGE_SHELL.test(css)) {
@@ -807,6 +831,7 @@ export function loadUiSsotCorpus(root: string = ROOT): { file: string; content: 
     // answer to the same SSOT — a typo'd token is as broken there as anywhere.
     'packages/extensions/*/src/**/*.{css,tsx,html}',
     'packages/experimental/*/src/**/*.{css,tsx,html}',
+    'packages/*/*/src/client/**/*.{css,tsx,html}',
     'apps/web/src/**/*.{ts,tsx,css,html,js}',
     'apps/web/index.html',
   ], relativePath => relativePath.includes('node_modules/') || relativePath.includes('/tests/') || relativePath.includes('/lib/'))

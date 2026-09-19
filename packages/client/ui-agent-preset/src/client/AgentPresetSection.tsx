@@ -19,6 +19,7 @@ import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { draftBlocker, type AgentPresetSectionState } from './section-store.ts'
 import { messageOf } from './settings-store.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'
 import css from './AgentPresetSection.module.css'
 
@@ -76,7 +77,9 @@ interface CopyDialogProps {
 
 function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
   const [submissionError, setSubmissionError] = useState<string | null>(null)
-  const reportSubmissionError = (reason: unknown) => { setSubmissionError(messageOf(reason)) }
+  const reportSubmissionError = (reason: Thrown) => {
+    setSubmissionError(messageOf(reason))
+  }
   const draft = state.copy
   const blocker = draft === null ? undefined : draftBlocker(draft, state.rows)
   const message = draft === null ? null : draft.error ?? submissionError ?? (blocker === undefined ? null : t(blocker))
@@ -89,6 +92,7 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
       title={draft === null ? t('copyTitle') : `${t('copyTitle')} · ${t('copyOf')} ${sourceTitle}`}
       closeLabel={t('close')}
       description={t('copyIntro')}
+      initialFocus="field"
       className={css.dialog}
       footer={(
         <>
@@ -119,7 +123,6 @@ function CopyDialog({ state, t, actions }: CopyDialogProps): ReactNode {
               <span className={css.fieldLabel}>{t('presetId')}</span>
               <Input
                 value={draft.id}
-                autoFocus
                 spellCheck={false}
                 placeholder={t('presetIdPlaceholder')}
                 onChange={(event) => { actions.setCopyId(event.target.value) }}
@@ -150,7 +153,9 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
   const { useAgentPresetSection, t, load } = props
   const state = useAgentPresetSection(snapshot => snapshot)
   const [actionError, setActionError] = useState<string | null>(null)
-  const reportActionError = useCallback((reason: unknown) => { setActionError(messageOf(reason)) }, [])
+  const reportActionError = useCallback((reason: Thrown) => {
+    setActionError(messageOf(reason))
+  }, [])
   const viewedId = state.view?.id
   const viewedRow = viewedId === undefined ? undefined : state.rows.find(row => row.id === viewedId)
   const viewedTitle = state.view === null
@@ -206,7 +211,7 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
     <div className={css.section}>
       <h2 className={css.title}>{t('nav')}</h2>
       <p className={css.intro}>{t('sectionIntro')}</p>
-      {(state.status === 'idle' || state.status === 'loading') && <p role="status">{t('loading')}</p>}
+      {(state.status === 'idle' || state.status === 'loading') && <output>{t('loading')}</output>}
       {state.error === null ? null : <p className={css.error} role="alert">{state.error}</p>}
       {([['system', t('builtInGroup')], ['user', t('customGroup')]] as const).map(([trust, heading]) => {
         const group = state.rows
@@ -369,9 +374,10 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         title={state.view === null ? '' : `${t('view')} · ${viewedTitle}`}
         closeLabel={t('close')}
         description={t('composition')}
+        initialFocus="footer"
         className={css.dialog}
         footer={(
-          <Button variant="outline" autoFocus onClick={() => { props.closeView() }}>
+          <Button variant="outline" onClick={() => { props.closeView() }}>
             {t('close')}
           </Button>
         )}
@@ -386,12 +392,12 @@ export function AgentPresetSection(props: AgentPresetSectionProps): ReactNode {
         title={t('deleteTitle')}
         closeLabel={t('close')}
         description={t('deleteDescription')}
+        initialFocus={state.deleting ? 'dialog' : 'footer'}
         className={css.deleteDialog}
         footer={(
           <>
             <Button
               variant="outline"
-              autoFocus
               disabled={state.deleting}
               onClick={() => { props.confirmDelete(null) }}
             >

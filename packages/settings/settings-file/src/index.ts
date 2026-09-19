@@ -28,6 +28,8 @@ export interface Config {
   debounceMs?: number
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Document format derived from the configured file extension. */
 type SettingsFormat = 'yaml' | 'json'
 
@@ -84,7 +86,7 @@ function patchNode(document: Document, path: readonly string[], current: unknown
 
 /** Whether an exclusive file create found an existing document. */
 function isEEXIST(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST'
 }
 
 /** File-backed settings provider (`settings.yaml`/`.json`). */
@@ -135,14 +137,16 @@ export class FileSettingsProvider extends SettingsProvider {
     return this.queue.enqueue(async () => {
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
       await withFileLock(this.spec.filename, async () => {
-        try {
-          await writeFile(this.spec.filename, '', { flag: 'wx', mode: 0o600 })
-        } catch (error) {
-          if (isEEXIST(error)) return
-          throw error
-        }
-        this.text = ''
-        if (!this.queue.isClosed()) this.publish({})
+        await writeFile(this.spec.filename, '', { flag: 'wx', mode: 0o600 }).then(
+          () => {
+            this.text = ''
+            if (!this.queue.isClosed()) this.publish({})
+          },
+          (error: Thrown) => {
+            if (isEEXIST(error)) return
+            throw error
+          },
+        )
       })
       return this.spec.filename
     })

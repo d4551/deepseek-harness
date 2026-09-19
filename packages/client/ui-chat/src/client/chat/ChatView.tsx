@@ -115,9 +115,31 @@ function scrollPosition(list: HTMLElement, scrollport: HTMLElement): ChatScrollP
   }
 }
 
-/** Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback. */
-function openFailureMessage(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : String(error)
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Host/OS refusal text for the file-open dialog; empty throws keep a locale fallback.
+ * @param reason - the Thrown the host rejected with.
+ * @param fallback - localized copy when Thrown text is empty.
+ */
+function openFailureMessage(reason: Thrown, fallback: string): string {
+  let message: string
+  if (reason instanceof Error) message = reason.message
+  else {
+    switch (typeof reason) {
+      case 'string': message = reason; break
+      case 'number':
+      case 'boolean':
+      case 'bigint':
+      case 'symbol':
+      case 'function':
+        message = String(reason); break
+      case 'undefined':
+        message = 'undefined'; break
+      case 'object':
+        message = reason === null ? 'null' : Object.prototype.toString.call(reason)
+    }
+  }
   return message === '' ? fallback : message
 }
 
@@ -186,14 +208,14 @@ function TurnStatus({ startTime, t }: {
   // has clearly been running for a while.
   const showClock = elapsedMs >= 15_000
   return (
-    <div className={css.turnStatus} role="status" aria-live="polite">
+    <output className={css.turnStatus} aria-live="polite">
       {t('chat.deepDiving')}
       {showClock && (
         <span className={css.turnStatusClock} aria-hidden>
           {formatRunDuration(elapsedMs, t)}
         </span>
       )}
-    </div>
+    </output>
   )
 }
 
@@ -245,19 +267,22 @@ export function ChatView({
     const id = ++fileOpenRequest.current
     setFileOpenBusy(true)
     startFileOpen(async () => {
-      const [result] = await Promise.allSettled([openFile(path)])
+      const opened = await openFile(path).then(
+        () => true,
+        (reason: Thrown) => {
+          if (id !== fileOpenRequest.current) return false
+          setFileOpenError({
+            path,
+            message: openFailureMessage(
+              reason,
+              t(isFolderOpenPath(path) ? 'fileOpen.folderUnknown' : 'fileOpen.unknown'),
+            ),
+          })
+          return false
+        },
+      )
       if (id !== fileOpenRequest.current) return
-      if (result.status === 'fulfilled') {
-        setFileOpenError(null)
-      } else {
-        setFileOpenError({
-          path,
-          message: openFailureMessage(
-            result.reason,
-            t(isFolderOpenPath(path) ? 'fileOpen.folderUnknown' : 'fileOpen.unknown'),
-          ),
-        })
-      }
+      if (opened) setFileOpenError(null)
       setFileOpenBusy(false)
     })
   }, [openFile, startFileOpen, t])

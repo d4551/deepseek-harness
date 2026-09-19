@@ -7,7 +7,7 @@
  * composing this plugin out of cordis.yml removes both surfaces entirely;
  * the owning view renders an empty chain and inert prose at zero cost.
  */
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -39,7 +39,7 @@ export const inject = ['slots', 'locale', 'uiConversation', 'connection', 'remot
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const connection = ctx.get('connection') as ConnectionHandle
+  const connection = ctx.connection
   const workspacePathOpen = createSnapshotStore<boolean | undefined>(undefined)
   let requestedWorkspacePathOpen = false
   let capabilityRevision = 0

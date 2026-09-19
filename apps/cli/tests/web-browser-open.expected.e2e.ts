@@ -37,7 +37,9 @@ function normalizeLocalUrl(url: string): string {
     .replace(/token=[^&]+/u, 'token={{token}}')
 }
 
-describe.skipIf(!builtArtifactsExist)('dsh web browser-open assembled snapshot', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACTS = !builtArtifactsExist
+if (SKIP_WITHOUT_BUILT_ARTIFACTS) console.info('[skip] web-browser-open.expected.e2e.ts: built artifacts are absent; run the build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACTS)('dsh web browser-open assembled snapshot', () => {
   it('hands the reachable page to the default browser after the shipped tree settles', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-web-browser-open-snapshot-'))
     tempRoots.push(root)

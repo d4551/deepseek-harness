@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { RpcResponse } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { settingsSchema } from './settings-schema.client.ts'
-import { messageOf, ModelsSettingsStore } from '../src/client/store.ts'
+import { ModelsSettingsStore } from '../src/client/store.ts'
 
 let nextRpc = 0
 function ok<T>(value: T): RpcResponse<T> {
@@ -159,13 +159,16 @@ describe('ModelsSettingsStore', () => {
     })
   })
 
-  it('stringifies a non-Error credential transport rejection', async () => {
+  it('surfaces a non-Error credential transport rejection', async () => {
     const { face, mirror } = api({
       describeCredentials: async () => { throw 'credential transport refusal' },
     })
     const store = new ModelsSettingsStore(face, settingsSchema, mirror)
     await expect(store.load()).resolves.toBeUndefined()
-    expect(store.store.getSnapshot().credentialError).toBe('credential transport refusal')
+    expect(store.store.getSnapshot()).toMatchObject({
+      status: 'ready',
+      credentialError: 'credential transport refusal',
+    })
   })
 
   it('surfaces a directory failure and keeps the last good rows', async () => {
@@ -291,7 +294,7 @@ describe('edge joins', () => {
     await store.load()
     expect(store.store.getSnapshot()).toMatchObject({
       status: 'error',
-      error: 'settings are unavailable in this browser',
+      error: 'settings describe returned no view and no error',
     })
   })
 
@@ -314,12 +317,14 @@ describe('edge joins', () => {
     expect(store.store.getSnapshot().rows).toHaveLength(4)
   })
 
-  it('stringifies a non-Error load failure', async () => {
-    // The wire can surface non-Error throwables; the store must stringify them.
+  it('surfaces a non-Error directory load failure', async () => {
     const { face, mirror } = api({ providers: async () => { throw 'plain refusal' } })
     const store = new ModelsSettingsStore(face, settingsSchema, mirror)
-    await store.load()
-    expect(store.store.getSnapshot()).toMatchObject({ status: 'error', error: 'plain refusal' })
+    await expect(store.load()).resolves.toBeUndefined()
+    expect(store.store.getSnapshot()).toMatchObject({
+      status: 'error',
+      error: 'plain refusal',
+    })
   })
 
   it('drops a stale successful response after a newer load finished', async () => {
@@ -344,15 +349,5 @@ describe('edge joins', () => {
     await first
     // The stale empty directory never overwrote the newer join.
     expect(store.store.getSnapshot().rows).toHaveLength(4)
-  })
-})
-
-describe('messageOf', () => {
-  it('reads an Error message, and stringifies anything else a rejection may carry', () => {
-    // The wire layer rejects with an Error, but a host or a runtime can reject
-    // with any value, and the page still has to render something.
-    expect(messageOf(new Error('connection lost'))).toBe('connection lost')
-    expect(messageOf('the host refused')).toBe('the host refused')
-    expect(messageOf(undefined)).toBe('undefined')
   })
 })

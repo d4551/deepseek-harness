@@ -9,6 +9,7 @@ import type {
 import { RpcId } from '../src/client/api.ts'
 import { decodeStorageRecord } from '@deepseek-ai/dsh-session/chunk-rows'
 import type { ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
+import { assertSessionEventObject } from '@deepseek-ai/dsh-session/types'
 import {
   createFixtureConnectionRpc,
   createFixtureFaces,
@@ -47,9 +48,21 @@ interface FixturePage {
 }
 
 function historyEvents(records: readonly FixtureHistoryRecord[]): SessionEvent[] {
-  return records.flatMap(record => record.type === 'event'
-    ? [record.event]
-    : decodeStorageRecord(chunkRow(record.event)))
+  const events: SessionEvent[] = []
+  for (const record of records) {
+    if (record.type === 'event') {
+      events.push(record.event)
+      continue
+    }
+    for (const item of decodeStorageRecord(chunkRow(record.event))) {
+      if (typeof item !== 'object' || item === null) {
+        throw new TypeError('decoded history record must be an object')
+      }
+      assertSessionEventObject(item)
+      events.push(item)
+    }
+  }
+  return events
 }
 
 function chunkRow(event: FixtureChunkRowEvent): ChunkRow {
@@ -911,15 +924,32 @@ describe('createFixtureApi', () => {
     expect(first.value.approvals).toEqual([])
     expect(first.value.questions).toEqual([])
     const alpha = first.value.projections['fx-alpha']
-    expect(alpha?.asOfSeq).toBeGreaterThan(0)
-    expect(alpha?.values).toMatchObject({
+    if (alpha === undefined) throw new Error('fx-alpha control projection missing')
+    expect(alpha.asOfSeq).toBeGreaterThan(0)
+    expect(alpha.values).toMatchObject({
       title: 'Fixture 历史会话',
       plan: { active: false, pending: false },
       goal: null,
       imageLimits: { maxImagesPerMessage: 20, maxImageBytes: 5 * 1024 * 1024 },
     })
-    expect((alpha?.values['contextBreakdown'] as { messageTokens: number }).messageTokens).toBeGreaterThan(0)
-    expect((alpha?.values['sessionStats'] as { steps: number }).steps).toBeGreaterThan(0)
+    const contextBreakdown: unknown = alpha.values['contextBreakdown']
+    if (typeof contextBreakdown !== 'object' || contextBreakdown === null) {
+      throw new TypeError('fx-alpha contextBreakdown must be an object')
+    }
+    const messageTokens = Object.getOwnPropertyDescriptor(contextBreakdown, 'messageTokens')
+    if (messageTokens === undefined || typeof messageTokens.value !== 'number') {
+      throw new TypeError('fx-alpha contextBreakdown.messageTokens must be a number')
+    }
+    expect(messageTokens.value).toBeGreaterThan(0)
+    const sessionStats: unknown = alpha.values['sessionStats']
+    if (typeof sessionStats !== 'object' || sessionStats === null) {
+      throw new TypeError('fx-alpha sessionStats must be an object')
+    }
+    const steps = Object.getOwnPropertyDescriptor(sessionStats, 'steps')
+    if (steps === undefined || typeof steps.value !== 'number') {
+      throw new TypeError('fx-alpha sessionStats.steps must be a number')
+    }
+    expect(steps.value).toBeGreaterThan(0)
     expect(second.value.projections['fx-alpha']).toEqual(alpha)
 
     const firstEvents = await readResidentRemoteEvents(api, 2)

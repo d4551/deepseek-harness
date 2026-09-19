@@ -1,4 +1,4 @@
-/** Session Controller adapter for React selector hooks and Slot scope data. */
+/** Session Controller bindings for React selector hooks and Slot scope data. */
 import { Service, type Context } from '@deepseek-ai/cordis'
 import type {
   ISessions,
@@ -7,7 +7,7 @@ import type {
   SessionSnapshot,
   UseProjection,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { notifySubscribers } from '@deepseek-ai/dsh-client-store'
 import { standardHookPropName } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -66,7 +66,7 @@ export interface DelegatablePendingInteraction<Outcome> {
    * @param reason - rejection received from `result`.
    * @returns whether `delegate` produced it.
    */
-  isDelegation: (reason: unknown) => boolean
+  isDelegation: (reason: Thrown) => boolean
 }
 
 /**
@@ -84,26 +84,26 @@ interface PendingInteractionEntry<T> {
   readonly delegate: () => Promise<void>
 }
 
-class PendingInteractionDomain<T extends SessionPendingInteractionBase> {
-  private readonly values = new Map<string, PendingInteractionEntry<T>>()
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+class PendingInteractionDomain {
+  private readonly values = new Map<string, PendingInteractionEntry<SessionPendingInteractionBase>>()
 
   constructor(
-    readonly precedence: (interaction: T) => number,
+    readonly precedence: (interaction: SessionPendingInteractionBase) => number,
     private readonly changed: () => void,
   ) {}
 
-  valuesSnapshot(): readonly T[] {
+  valuesSnapshot(): readonly SessionPendingInteractionBase[] {
     return [...this.values.values()].map(entry => entry.interaction)
   }
 
-  publish(interaction: T, delegate: () => Promise<void>): () => void {
+  publish(interaction: SessionPendingInteractionBase, delegate: () => Promise<void>): () => void {
     if (this.values.has(interaction.key)) {
       throw new Error(`ui-session: duplicate pending interaction key '${interaction.key}'`)
     }
     this.values.set(interaction.key, { interaction, delegate })
     this.changed()
-    // The settler removes exactly once, in its finally; a value already taken
-    // by teardown's release() is gone and must not republish the snapshot.
     return () => {
       if (!this.values.delete(interaction.key)) return
       this.changed()
@@ -147,7 +147,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Session Controller adapter and session-scoped source registry. */
+    /** Session Controller bindings and session-scoped source registry. */
     uiSession: UiSession
   }
 }
@@ -203,12 +203,10 @@ interface RuntimeSessionSourceDescriptor {
   resolve(binding: SessionBinding): RuntimeSessionSourceContribution
 }
 
-type RuntimePendingDomain = PendingInteractionDomain<SessionPendingInteractionBase>
-
 interface MaterializedBinding {
   readonly owner: SessionBinding
   readonly value: ScopedStandardSourceBinding
-  readonly release: () => void
+  readonly release: () => void | Promise<void>
 }
 
 const BUILTIN_SOURCE = {
@@ -226,7 +224,7 @@ const BUILTIN_SOURCE = {
   readonly ['sessionId']
 >
 
-/** Session-scoped source roster and renderer adapter. */
+/** Session-scoped source roster and renderer SlotScopeAdapter. */
 export class UiSession extends Service {
   private readonly descriptors: RuntimeSessionSourceDescriptor[] = [
     BUILTIN_SOURCE,
@@ -235,7 +233,7 @@ export class UiSession extends Service {
   private absent: StandardSourceBinding
   private currentBinding: StandardSourceBinding
   private readonly currentListeners = new Set<() => void>()
-  private readonly pendingDomains: RuntimePendingDomain[] = []
+  private readonly pendingDomains: PendingInteractionDomain[] = []
   private pendingSnapshot: ReadonlyMap<SessionId, SessionPendingInteractionBase> = new Map()
   private readonly pendingListeners = new Set<() => void>()
   /** Root source of pending UI interactions, independent from Controller snapshots. */
@@ -246,7 +244,7 @@ export class UiSession extends Service {
       return () => { this.pendingListeners.delete(listener) }
     },
   }
-  /** Renderer-facing adapter for `session` and `session-maybe` scopes. */
+  /** Renderer-facing SlotScopeAdapter for `session` and `session-maybe` scopes. */
   readonly adapter: SlotScopeAdapter
 
   /**
@@ -268,7 +266,7 @@ export class UiSession extends Service {
           return () => { this.currentListeners.delete(listener) }
         },
       },
-      resolve: key => this.resolve(key as SessionId),
+      resolve: key => this.resolve(SessionId(key)),
       renderArea: renderSessionArea,
     }
 
@@ -293,22 +291,23 @@ export class UiSession extends Service {
     const KeyedHooks extends SessionSourceRoster = undefined,
     const Props extends SessionSourceRoster = undefined,
   >(descriptor: SessionSourceDescriptor<Hooks, KeyedHooks, Props>): () => void {
-    const runtimeDescriptor = descriptor as unknown as RuntimeSessionSourceDescriptor
-    const dispose = this.ctx.effect(() => {
+    const runtimeDescriptor = runtimeDescriptorOf(descriptor)
+    return this.ctx.effect(() => {
       this.descriptors.push(runtimeDescriptor)
-      try {
-        this.rebuildBindings()
-      } catch (error) {
-        this.descriptors.pop()
-        throw error
+      let committed = false
+      using _rollbackProvide = {
+        [Symbol.dispose]: (): void => {
+          if (!committed) this.descriptors.pop()
+        },
       }
+      this.rebuildBindings()
+      committed = true
       return () => {
         const index = this.descriptors.indexOf(runtimeDescriptor)
         this.descriptors.splice(index, 1)
         this.rebuildBindings()
       }
     }, 'uiSession.provide()')
-    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
   }
 
   /**
@@ -323,18 +322,17 @@ export class UiSession extends Service {
    * @returns the domain's settler for one interaction at a time.
    */
   registerPendingInteraction<T extends SessionPendingInteractionBase>(
-    precedence: (interaction: T) => number,
+    precedence: (interaction: SessionPendingInteractionBase) => number,
   ): PendingInteractionSettler<T> {
     const domain = new PendingInteractionDomain(precedence, () => {
       this.publishPendingInteractions()
     })
-    const runtimeDomain = domain as unknown as RuntimePendingDomain
     this.ctx.effect(() => {
-      this.pendingDomains.push(runtimeDomain)
+      this.pendingDomains.push(domain)
       this.publishPendingInteractions()
       return async () => {
         const delegates = domain.release()
-        const index = this.pendingDomains.indexOf(runtimeDomain)
+        const index = this.pendingDomains.indexOf(domain)
         this.pendingDomains.splice(index, 1)
         this.publishPendingInteractions()
         await Promise.allSettled(delegates.map(delegate => Promise.resolve().then(delegate)))
@@ -346,34 +344,46 @@ export class UiSession extends Service {
         interaction.delegate()
         await completed.promise
       })
-      try {
-        try {
-          return await interaction.result
-        } catch (error) {
-          if (interaction.isDelegation(error)) return await delegated()
-          throw error
-        }
-      } finally {
-        remove()
-        completed.resolve()
+      using _settle = {
+        [Symbol.dispose]: (): void => {
+          remove()
+          completed.resolve()
+        },
       }
+      const outcome = await interaction.result.then(
+        value => ({ kind: 'answered' as const, value }),
+        (reason: Thrown) => (
+          interaction.isDelegation(reason)
+            ? { kind: 'delegated' as const }
+            : { kind: 'failed' as const, reason }
+        ),
+      )
+      if (outcome.kind === 'answered') return outcome.value
+      if (outcome.kind === 'delegated') return await delegated()
+      throw outcome.reason
     }
   }
 
   private rebuildBindings(): void {
     const absent = this.materializeAbsent()
     const bindings = new Map<SessionId, MaterializedBinding>()
-    try {
-      for (const [sessionId, cached] of this.bindings) {
-        bindings.set(sessionId, this.createMaterializedBinding(cached.owner))
-      }
-    } catch (error) {
-      for (const record of bindings.values()) record.release()
-      throw error
+    const created: MaterializedBinding[] = []
+    let committed = false
+    using _rollbackBindings = {
+      [Symbol.dispose]: (): void => {
+        if (committed) return
+        for (const record of created) record.release()
+      },
+    }
+    for (const [sessionId, cached] of this.bindings) {
+      const record = this.createMaterializedBinding(cached.owner)
+      created.push(record)
+      bindings.set(sessionId, record)
     }
     const previous = this.bindings
     this.absent = absent
     this.bindings = bindings
+    committed = true
     for (const record of previous.values()) record.release()
     this.publishCurrent()
   }
@@ -435,7 +445,7 @@ export class UiSession extends Service {
     const record: MaterializedBinding = {
       owner,
       value,
-      release: () => { Promise.resolve(releaseEffect()).catch(owner.ctx.logger().error) },
+      release: () => Promise.resolve(releaseEffect()),
     }
     return record
   }
@@ -474,6 +484,24 @@ export class UiSession extends Service {
       declareAbsent('prop', props, descriptor.props, finalProps)
     }
     return { key: undefined, hooks, keyedHooks, props }
+  }
+}
+
+function runtimeDescriptorOf(
+  descriptor: SessionSourceDescriptor,
+): RuntimeSessionSourceDescriptor {
+  return {
+    ...(descriptor.hooks === undefined ? {} : { hooks: descriptor.hooks }),
+    ...(descriptor.keyedHooks === undefined ? {} : { keyedHooks: descriptor.keyedHooks }),
+    ...(descriptor.props === undefined ? {} : { props: descriptor.props }),
+    resolve: (binding) => {
+      const contribution = descriptor.resolve(binding)
+      return {
+        ...(contribution.hooks === undefined ? {} : { hooks: contribution.hooks }),
+        ...(contribution.keyedHooks === undefined ? {} : { keyedHooks: contribution.keyedHooks }),
+        ...(contribution.props === undefined ? {} : { props: contribution.props }),
+      }
+    },
   }
 }
 
@@ -537,7 +565,7 @@ function claimStandardProp(kind: StandardMemberKind, name: string, finalProps: S
 export const inject = ['sessions', 'slots']
 
 /**
- * Install the Session root source and scoped adapter.
+ * Install the Session root source and scoped SlotScopeAdapter.
  * @param ctx - Client Cordis context.
  */
 export function apply(ctx: Context): void {

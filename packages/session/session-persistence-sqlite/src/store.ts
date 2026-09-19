@@ -37,6 +37,7 @@ import {
   type EventRow,
   type JournalMode,
   decodeEventRow,
+  decodeSessionKey,
   decodeSessionRow,
   decodeStoreIdentity,
   openDatabase,
@@ -116,7 +117,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       let storeId: string
       try {
         storeId = decodeStoreIdentity(row)
-      } catch (error: unknown) {
+      } catch (error) {
         throw new Error(`session database at "${this.databasePath}" has no valid store identity`, { cause: error })
       }
       if (this.databasePath === ':memory:') {
@@ -126,7 +127,7 @@ export class SqliteStore implements PersistenceBackend<number> {
         this.storeIdentity = `file:${identity.dev}:${identity.ino}:${identity.birthtimeNs}:store:${storeId}`
       }
       this.opened = true
-    } catch (error: unknown) {
+    } catch (error) {
       this.db.close()
       throw error
     }
@@ -168,7 +169,7 @@ export class SqliteStore implements PersistenceBackend<number> {
     signal?.throwIfAborted()
     if (snapshot === undefined) return undefined
     const { preserved } = scanRows(snapshot.eventRows, snapshot.base)
-    return { meta: rowToMeta(snapshot.row), events: preserved.filter(event => event.seq >= fromSeq) }
+    return { meta: rowToMeta(snapshot.row), events: preserved.filter(event => storedEventSeq(event) >= fromSeq) }
   }
 
   async appendBatch(
@@ -184,8 +185,9 @@ export class SqliteStore implements PersistenceBackend<number> {
       const sessionKey = isMaterialized ? this.sessionKey(meta.id) : this.writeRow(meta)
       const tailRows = this.tailRows(sessionKey)
       const currentLast = this.logicalLastEvent(meta.id, tailRows)
-      const expected = currentLast === undefined ? 0 : currentLast.seq + 1
-      const first = events[0] as SessionEvent
+      const expected = currentLast === undefined ? 0 : storedEventSeq(currentLast) + 1
+      const first = events[0]
+      if (first === undefined) return
       if (first.seq !== expected) {
         throw new Error(`session ${meta.id} append starts at seq ${first.seq}, stored next seq is ${expected}`)
       }
@@ -194,7 +196,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       for (const record of packChunkRuns(events)) this.insertRecord(insert, sessionKey, bindRecord(record))
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'append')
     }
   }
@@ -206,7 +208,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
       this.writeRow(meta)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       /* v8 ignore next -- validate/write failure uses the same transaction rollback path covered by append and repair. */
       this.rollback(error, 'materialize empty session')
     }
@@ -237,9 +239,8 @@ export class SqliteStore implements PersistenceBackend<number> {
         throw new Error(`session ${meta.id} repair omitted current torn tail at seq ${current.tornFrom}`)
       }
       if (closers.length > 0) {
-        const expected = current.preserved.at(-1)?.seq === undefined
-          ? 0
-          : (current.preserved.at(-1) as SessionEvent).seq + 1
+        const last = current.preserved.at(-1)
+        const expected = last === undefined ? 0 : storedEventSeq(last) + 1
         if (closers[0]?.seq !== expected) {
           throw new Error(`session ${meta.id} repair is stale: closer starts at seq ${closers[0]?.seq}, stored next seq is ${expected}`)
         }
@@ -248,7 +249,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       }
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'repair')
     }
   }
@@ -292,9 +293,9 @@ export class SqliteStore implements PersistenceBackend<number> {
   }
 
   private sessionKey(id: SessionId): number {
-    const row = this.db.prepare(sql('select-session-key')).get(id) as { id: number } | undefined
+    const row = this.db.prepare(sql('select-session-key')).get(id)
     if (row === undefined) throw new Error(`session ${id} metadata row is missing`)
-    return row.id
+    return decodeSessionKey(row)
   }
 
   private async observe(signal: AbortSignal | undefined): Promise<void> {
@@ -309,7 +310,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       const value = read()
       this.db.exec(sql('commit'))
       return value
-    } catch (error: unknown) {
+    } catch (error) {
       this.rollback(error, 'read')
     }
   }
@@ -321,7 +322,7 @@ export class SqliteStore implements PersistenceBackend<number> {
   private rollback(error: unknown, operation: string): never {
     try {
       this.db.exec(sql('rollback'))
-    } catch (rollbackError: unknown) {
+    } catch (rollbackError) {
       /* v8 ignore next -- requires SQLite to fail both an operation and its immediate rollback. */
       throw new AggregateError([error, rollbackError], `${this.name} ${operation} failed and rollback also failed`)
     }
@@ -337,8 +338,9 @@ export class SqliteStore implements PersistenceBackend<number> {
 
   private tailRows(sessionKey: number): EventRow[] {
     const tail = this.db.prepare(sql('select-tail-events')).all(sessionKey, 2).map(decodeEventRow).reverse()
-    if (tail.length === 0) return []
-    return this.physicalSpanFrom(sessionKey, (tail[0] as EventRow).seq).eventRows
+    const first = tail[0]
+    if (first === undefined) return []
+    return this.physicalSpanFrom(sessionKey, first.seq).eventRows
   }
 
   /** Select the bounded physical span that may represent `fromSeq`. */
@@ -354,7 +356,7 @@ export class SqliteStore implements PersistenceBackend<number> {
     for (const predecessor of packedPredecessors) {
       try {
         const last = decodeRow(predecessor).at(-1)
-        if (last !== undefined && last.seq >= fromSeq) base = Math.min(base, predecessor.seq)
+        if (last !== undefined && storedEventSeq(last) >= fromSeq) base = Math.min(base, predecessor.seq)
       } catch {
         // A malformed bounded predecessor may cover fromSeq; include it so the scanner fails closed.
         base = Math.min(base, predecessor.seq)
@@ -364,9 +366,10 @@ export class SqliteStore implements PersistenceBackend<number> {
     return { base, eventRows }
   }
 
-  private logicalLastEvent(id: SessionId, tailRows: readonly EventRow[]): SessionEvent | undefined {
-    if (tailRows.length === 0) return undefined
-    const { preserved, tornFrom } = scanRows(tailRows, (tailRows[0] as EventRow).seq)
+  private logicalLastEvent(id: SessionId, tailRows: readonly EventRow[]): object | undefined {
+    const first = tailRows[0]
+    if (first === undefined) return undefined
+    const { preserved, tornFrom } = scanRows(tailRows, first.seq)
     if (tornFrom !== undefined) throw new Error(`session ${id} has an invalid physical tail at seq ${tornFrom}`)
     return preserved.at(-1)
   }
@@ -400,9 +403,18 @@ export class SqliteStore implements PersistenceBackend<number> {
       meta.delegationDepth ?? null,
       meta.agentPreset ?? null,
       randomUUID(),
-    ) as { id: number }
-    return inserted.id
+    )
+    return decodeSessionKey(inserted)
   }
+}
+
+/** Read the sequence number carried by one decoded stored record. */
+function storedEventSeq(event: object): number {
+  const seq = Reflect.get(event, 'seq')
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq)) {
+    throw new TypeError('stored event seq must be a safe integer')
+  }
+  return seq
 }
 
 function sqliteRevision(storeIdentity: string, row: SessionRow): PersistenceRevision {
@@ -442,8 +454,8 @@ async function validateDatabaseFile(path: string): Promise<void> {
 async function validateDatabaseFileIfPresent(path: string): Promise<void> {
   try {
     await validateDatabaseFile(path)
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  } catch (error) {
+    if (typeof error !== 'object' || error === null || Reflect.get(error, 'code') !== 'ENOENT') throw error
   }
 }
 

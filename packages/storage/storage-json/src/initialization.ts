@@ -10,6 +10,13 @@ import { parse, serialize, serializeRecord } from './format.ts'
 import type { UnitState } from './format.ts'
 import { assertSafeKey } from './record-key.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/** Whether a claim-boundary value reports a missing path. */
+function isENOENT(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+}
+
 /** Unit-owned metadata; its presence survives deletion of every record. */
 export const INITIALIZATION_FILE = '.initialization.json'
 
@@ -95,41 +102,42 @@ async function publishSnapshot(state: UnitState, dir: string): Promise<void> {
 }
 
 /** Validate the complete source before an importing record or data document is published. */
-async function readOriginal(descriptor: KvUnitDescriptor, dir: string): Promise<UnitState | undefined> {
+function readOriginal(descriptor: KvUnitDescriptor, dir: string): Promise<UnitState | undefined> {
   const source = join(dirname(dir), `${descriptor.name}.json`)
-  let text: string
-  try {
-    text = await readFile(source, 'utf8')
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
-    return
-  }
-  let document: unknown
-  try {
-    document = JSON.parse(text)
-  } catch {
-    return
-  }
-  if (typeof document !== 'object' || document === null || !('unit' in document) || !('tables' in document)) return
-  const { unit, tables } = document
-  if (typeof unit !== 'object' || unit === null || !('name' in unit) || unit.name !== descriptor.name) return
-  if (typeof tables !== 'object' || tables === null) return
-  const state: UnitState = {
-    version: descriptor.version,
-    global: null,
-    tables: new Map(descriptor.tables.map(table => [table, new Map<string, unknown>()])),
-  }
-  for (const [table, input] of Object.entries(tables)) {
-    const target = state.tables.get(table)
-    if (target === undefined) continue
-    const records: unknown = input
-    if (typeof records !== 'object' || records === null || Array.isArray(records)) {
-      throw new StorageError('malformed-medium', `unit '${descriptor.name}': table '${table}' is not an object`)
-    }
-    for (const [key, value] of Object.entries(records)) {
-      assertSafeKey(descriptor.name, key)
-      target.set(key, value)
-    }
-  }
-  return state
+  return readFile(source, 'utf8').then(
+    (text) => {
+      let document: unknown
+      try {
+        document = JSON.parse(text)
+      } catch {
+        return undefined
+      }
+      if (typeof document !== 'object' || document === null || !('unit' in document) || !('tables' in document)) return undefined
+      const { unit, tables } = document
+      if (typeof unit !== 'object' || unit === null || !('name' in unit) || unit.name !== descriptor.name) return undefined
+      if (typeof tables !== 'object' || tables === null) return undefined
+      const state: UnitState = {
+        version: descriptor.version,
+        global: null,
+        tables: new Map(descriptor.tables.map(table => [table, new Map<string, unknown>()])),
+      }
+      for (const [table, input] of Object.entries(tables)) {
+        const target = state.tables.get(table)
+        if (target === undefined) continue
+        const records: unknown = input
+        if (typeof records !== 'object' || records === null || Array.isArray(records)) {
+          throw new StorageError('malformed-medium', `unit '${descriptor.name}': table '${table}' is not an object`)
+        }
+        for (const [key, value] of Object.entries(records)) {
+          assertSafeKey(descriptor.name, key)
+          target.set(key, value)
+        }
+      }
+      return state
+    },
+    (error: Thrown) => {
+      if (!isENOENT(error)) throw error
+      return undefined
+    },
+  )
 }

@@ -70,6 +70,17 @@ const INITIAL_VIEW: MessageFeedbackView = Object.freeze({
   error: null,
 })
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected list or mutation.
+ * @param reason - the Thrown the remote rejected with.
+ * @returns the message to show.
+ */
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 const OK: MessageFeedbackActionResult = Object.freeze({ ok: true })
 
 const DISPOSED: MessageFeedbackActionResult = Object.freeze({
@@ -109,6 +120,10 @@ export class MessageFeedbackController implements HostObservable<MessageFeedback
   private loadPromise: Promise<MessageFeedbackActionResult> | null = null
   private operationTail: Promise<void> = Promise.resolve()
   private disposed = false
+
+  private isDisposed(): boolean {
+    return this.disposed
+  }
 
   /**
    * @param remote - the messageFeedback Remote namespace.
@@ -287,29 +302,31 @@ export class MessageFeedbackController implements HostObservable<MessageFeedback
   }
 
   /** Fetch the whole sidecar and publish it as the seeded view. */
-  private async load(): Promise<MessageFeedbackActionResult> {
-    try {
-      const carried = await this.remote.list({ sessionId: this.sessionId })
-      if (this.disposed) return OK
-      if (!carried.ok) {
-        this.publish({ status: 'error', items: this.view.items, error: carried.error.message })
-        return carrierFailure(carried.error)
-      }
-      const result = carried.value
-      if (!result.ok) {
-        this.publish({ status: 'error', items: this.view.items, error: describe(result.error.code) })
-        return fail(result.error.code)
-      }
-      const items = new Map<MessageId, MessageFeedbackItem>()
-      for (const item of result.value.items) items.set(item.messageId, item)
-      this.publish({ status: 'ready', items, error: null })
-      return OK
-    } catch (error) {
-      if (this.disposed) return OK
-      const message = error instanceof Error ? error.message : String(error)
-      this.publish({ status: 'error', items: this.view.items, error: message })
-      return { ok: false, error: { code: 'transport', message } }
-    }
+  private load(): Promise<MessageFeedbackActionResult> {
+    return this.remote.list({ sessionId: this.sessionId }).then(
+      (carried) => {
+        if (this.disposed) return OK
+        if (!carried.ok) {
+          this.publish({ status: 'error', items: this.view.items, error: carried.error.message })
+          return carrierFailure(carried.error)
+        }
+        const result = carried.value
+        if (!result.ok) {
+          this.publish({ status: 'error', items: this.view.items, error: describe(result.error.code) })
+          return fail(result.error.code)
+        }
+        const items = new Map<MessageId, MessageFeedbackItem>()
+        for (const item of result.value.items) items.set(item.messageId, item)
+        this.publish({ status: 'ready', items, error: null })
+        return OK
+      },
+      (error: Thrown) => {
+        if (this.disposed) return OK
+        const message = thrownMessage(error)
+        this.publish({ status: 'error', items: this.view.items, error: message })
+        return { ok: false, error: { code: 'transport', message } }
+      },
+    )
   }
 
   /**
@@ -321,27 +338,20 @@ export class MessageFeedbackController implements HostObservable<MessageFeedback
     operation: () => Promise<MessageFeedbackActionResult>,
     options: { readonly seed?: boolean } = {},
   ): Promise<MessageFeedbackActionResult> {
-    const guarded = async (): Promise<MessageFeedbackActionResult> => {
-      if (this.disposed) return DISPOSED
-      if (options.seed !== false) {
-        const loaded = await this.ensure()
-        if (!loaded.ok) return loaded
-        // Disposal can land while the seeding read is in flight; without this
-        // second check the fiber would still reach the wire after unloading.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- dispose() can run during the await.
-        if (this.disposed) return DISPOSED
-      }
-      try {
-        return await operation()
-      } catch (error) {
-        return {
-          ok: false,
-          error: {
-            code: 'transport',
-            message: error instanceof Error ? error.message : String(error),
-          },
-        }
-      }
+    const claimTransport = (error: Thrown): MessageFeedbackActionResult => ({
+      ok: false,
+      error: { code: 'transport', message: thrownMessage(error) },
+    })
+    const guarded = (): Promise<MessageFeedbackActionResult> => {
+      if (this.disposed) return Promise.resolve(DISPOSED)
+      const started = options.seed !== false
+        ? this.ensure().then((loaded) => {
+          if (!loaded.ok) return loaded
+          if (this.isDisposed()) return DISPOSED
+          return operation()
+        })
+        : operation()
+      return started.then(undefined, claimTransport)
     }
     const result = this.operationTail.then(guarded, guarded)
     // `guarded` settles every carrier and business failure as a

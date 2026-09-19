@@ -9,7 +9,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConnectionHandle, JsonValue, SettingsNamespaceView, SettingsPathOpView,
+  JsonValue, SettingsNamespaceView, SettingsPathOpView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only, and deliberately NOT `@deepseek-ai/dsh-api-remotes/client`: this
@@ -28,11 +28,53 @@ import type {} from '@deepseek-ai/dsh-api-remotes/types'
 // never — the owning package's client-safe, type-only subpath supplies the
 // cordis `Events` entry (and with it the branded `SettingsNamespace`).
 import type {} from '@deepseek-ai/dsh-settings/types'
-import type { SettingsSchemaService } from './schema.ts'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './settings-contract.ts'
 import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
 
 type SettingsFace = SettingsWireFace
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function isThenable(value: object): value is PromiseLike<Thrown> {
+  return typeof Reflect.get(value, 'then') === 'function'
+}
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null) return true
+  if (typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
+
+function ownedSettingsPathOps(ops: readonly SettingsPathOpView[]): SettingsPathOpView[] {
+  return ops.map((op): SettingsPathOpView => {
+    if (op.op === 'unset') return { op: 'unset', path: [...op.path] }
+    return { op: 'set', path: [...op.path], value: structuredClone(op.value) }
+  })
+}
+
+function isSettingsNamespaceView(value: object): value is SettingsNamespaceView {
+  return 'ns' in value
+    && 'revision' in value
+    && 'schema' in value
+    && 'value' in value
+    && 'applies' in value
+    && 'secrets' in value
+}
+
+function mutateAnswer(value: Thrown):
+  | { ok: true; value: SettingsNamespaceView }
+  | { ok: false }
+  | undefined {
+  if (typeof value !== 'object' || value === null || !('ok' in value)) return undefined
+  const ok = Reflect.get(value, 'ok')
+  if (ok === false) return { ok: false }
+  if (ok !== true) return undefined
+  const view = 'value' in value ? Reflect.get(value, 'value') : undefined
+  if (typeof view !== 'object' || view === null || !isSettingsNamespaceView(view)) return undefined
+  return { ok: true, value: view }
+}
 
 /**
  * One namespace's derived view over the shared describe mirror, plus that
@@ -55,17 +97,15 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
 
   /**
    * @param api - settings wire face (writes only; reads ride the mirror).
-   * @param spec - namespace identity and optional narrowing decoder.
+   * @param spec - namespace identity and the decoder that claims the durable section.
    * @param mirror - the shared describe mirror this scope derives from.
    * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
-   * @param schema - settings-owned schema operations.
    */
   constructor(
     private readonly api: SettingsFace,
     private readonly spec: SettingsScopeSpec<T>,
     private readonly mirror: SettingsDescribeMirror,
     private readonly persistence: 'host' | 'memory',
-    private readonly schema: SettingsSchemaService,
   ) {
     this.store = createSnapshotStore<SettingsScopeSnapshot<T>>({
       status: persistence === 'host' ? 'loading' : 'unavailable',
@@ -106,7 +146,10 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the write and any latest-write recovery read.
    */
   set(field: string, value: unknown): Promise<void> {
-    return this.mutate([{ op: 'set', path: [field], value: value as JsonValue }])
+    if (!isJsonValue(value)) {
+      return Promise.reject(new TypeError('settings field value is not JSON'))
+    }
+    return this.mutate([{ op: 'set', path: [field], value }])
   }
 
   /**
@@ -126,27 +169,43 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the mutation and any latest-write recovery read.
    */
   mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<void> {
-    const ownedOps = structuredClone(ops) as SettingsPathOpView[]
+    const ownedOps = ownedSettingsPathOps(ops)
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
       const revision = expectedRevision ?? this.pendingRevision ?? this.getSnapshot().revision
-      let response: Awaited<ReturnType<SettingsFace['settings']['mutate']>>
-      try {
-        response = await this.api.settings.mutate(this.spec.namespace, ownedOps, revision)
-      } catch (_settingsWriteFailure) {
+      const mutate = this.api.settings.mutate
+      if (typeof mutate !== 'function') {
         await this.recover(generation)
         return
       }
-      if (!response.ok) {
+      let flight: Thrown | undefined
+      const response = await new Promise<Thrown>((resolve) => {
+        flight = mutate.call(this.api.settings, this.spec.namespace, ownedOps, revision)
+        resolve(flight)
+      }).then(
+        (value: Thrown) => ({ kind: 'answered' as const, value }),
+        (_reason: Thrown) => ({ kind: 'failed' as const }),
+      )
+      if (
+        response.kind === 'failed'
+        || typeof flight !== 'object'
+        || flight === null
+        || !isThenable(flight)
+      ) {
+        await this.recover(generation)
+        return
+      }
+      const answer = mutateAnswer(response.value)
+      if (answer === undefined || !answer.ok) {
         await this.recover(generation)
         return
       }
       if (this.disposed) return
       if (generation === this.writeGeneration) {
         this.pendingRevision = undefined
-        this.mirror.acceptView(response.value)
+        this.mirror.acceptView(answer.value)
       } else {
-        this.pendingRevision = response.value.revision
+        this.pendingRevision = answer.value.revision
       }
     })
   }
@@ -176,9 +235,13 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
       if (this.disposed) return
       await operation()
     })
-    // The returned task carries its own settlement to the caller; the queue
-    // tail is kept fulfilled so one failed subscriber cannot strand later operations.
-    this.tail = task.catch(() => {})
+    // Caller receives task settlement. The queue tail advances after reject so a later write is not stranded.
+    const completed = Promise.withResolvers<void>()
+    task.then(
+      () => { completed.resolve() },
+      (_reason: Thrown) => { completed.resolve() },
+    )
+    this.tail = completed.promise
     return task
   }
 
@@ -212,19 +275,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   }
 
   private decode(view: SettingsNamespaceView): T | undefined {
-    if (this.spec.decode !== undefined) return this.spec.decode(view.value)
-    // Sections are plain objects by construction; schemastery alone would
-    // resolve null or an array through object defaults instead of refusing.
-    if (typeof view.value !== 'object' || view.value === null || Array.isArray(view.value)) return undefined
-    let failure: string | undefined
-    try {
-      failure = this.schema.validate(this.schema.rehydrate(view.schema), view.value)
-    } catch (_malformedSchemaEnvelope) {
-      // A schema envelope this client cannot rehydrate vouches for no section;
-      // the value is treated exactly like a schema-invalid one.
-      return undefined
-    }
-    return failure === undefined ? view.value as T : undefined
+    return this.spec.decode(view.value)
   }
 }
 
@@ -243,26 +294,22 @@ declare module '@deepseek-ai/cordis' {
  */
 export class SettingsScopeBinder extends Service {
   private readonly mirror: SettingsDescribeMirror
-  private readonly schema: SettingsSchemaService
   private readonly wire: SettingsWireFace
 
   /**
    * @param ctx - the providing plugin's context.
-   * @param config - the shared describe mirror every bound scope derives from,
-   * the settings-owned schema operations, and the settings Remote namespace the
-   * bound scopes write through. The namespace is captured here rather than read
-   * inside {@link bind}, because a Service reads `ctx` as its *consumer's*
-   * fiber: reading it there would make every caller declare `remote.settings`
-   * in its own `inject`.
+   * @param config - the shared describe mirror every bound scope derives from
+   * and the settings Remote namespace the bound scopes write through. The
+   * namespace is captured here rather than read inside {@link bind}, because a
+   * Service reads `ctx` as its *consumer's* fiber: reading it there would make
+   * every caller declare `remote.settings` in its own `inject`.
    */
   constructor(ctx: Context, config: {
     mirror: SettingsDescribeMirror
-    schema: SettingsSchemaService
     wire: SettingsWireFace
   }) {
     super(ctx, 'settingsScope')
     this.mirror = config.mirror
-    this.schema = config.schema
     this.wire = config.wire
   }
 
@@ -289,13 +336,12 @@ export class SettingsScopeBinder extends Service {
    */
   bind<T>(spec: SettingsScopeSpec<T>): SettingsScope<T> {
     const ctx = this.ctx
-    const connection = ctx.get('connection') as ConnectionHandle
+    const connection = ctx.connection
     const controller = new SettingsScopeController<T>(
       this.wire,
       spec,
       this.mirror,
       connection.isLoopback ? 'host' : 'memory',
-      this.schema,
     )
     ctx.effect(() => {
       const initialRead = this.mirror.ensure()

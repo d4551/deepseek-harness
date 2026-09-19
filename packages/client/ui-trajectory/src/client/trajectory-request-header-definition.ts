@@ -1,17 +1,32 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConversationNodeDefinition, RequestPromptInspector,
+  ConversationNodeDefinition, ConversationPromptSnapshot, ConversationPromptSnapshotReader,
+  RequestPromptInspector,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 import type { TrajectoryRequestHeaderState } from './trajectory-contract.ts'
 
+function previousRequestHeaderPrompt(
+  value: unknown,
+  readPrompt: ConversationPromptSnapshotReader,
+): ConversationPromptSnapshot | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('trajectory-request-header predecessor State is not an object')
+  }
+  return readPrompt(Reflect.get(value, 'prompt'))
+}
+
 /**
  * Request-header fact Definition for the Trajectory target.
- * @param inspect - the shared prompt interpretation, supplied by the
- * uiConversation service (a client bundle cannot value-import it).
+ * @param inspect - request-header prompt interpretation.
+ * @param readPrompt - claim a stored prompt snapshot.
  * @returns the Trajectory request-header Definition.
  */
-function trajectoryRequestHeaderDefinition(inspect: RequestPromptInspector): ConversationNodeDefinition<TrajectoryRequestHeaderState> {
+function trajectoryRequestHeaderDefinition(
+  inspect: RequestPromptInspector,
+  readPrompt: ConversationPromptSnapshotReader,
+): ConversationNodeDefinition<TrajectoryRequestHeaderState> {
   return {
     kind: 'trajectory-request-header',
     target: 'trajectory',
@@ -22,8 +37,7 @@ function trajectoryRequestHeaderDefinition(inspect: RequestPromptInspector): Con
       if (match.event.type !== 'request/header') {
         throw new Error('trajectory-request-header start requires request/header')
       }
-      const previous = reader.previous<TrajectoryRequestHeaderState>('trajectory-request-header')
-        ?.state.prompt
+      const previous = previousRequestHeaderPrompt(reader.previous('trajectory-request-header')?.state, readPrompt)
       const { prompt, change } = inspect(previous, match.event)
       return {
         seq: match.event.seq,
@@ -51,5 +65,6 @@ function trajectoryRequestHeaderDefinition(inspect: RequestPromptInspector): Con
 export function registerTrajectoryRequestHeaderDefinition(ctx: Context): void {
   ctx.uiConversation.events.register(trajectoryRequestHeaderDefinition(
     (previous, event) => ctx.uiConversation.inspectRequestPrompt(previous, event),
+    value => ctx.uiConversation.requireConversationPromptSnapshot(value),
   ))
 }

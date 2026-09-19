@@ -13,8 +13,7 @@
  * Export discipline: packages/client/AGENTS.md.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
-// Type-only service merge for the connection lifecycle event.
+// Type-only service merge for ctx.connection.
 import type {} from '@deepseek-ai/dsh-client-connection/client'
 // Type-only pair supplying `$on` and its key face without dragging a build
 // artifact into the Host graph (rationale beside the same pair in
@@ -53,8 +52,8 @@ export const inject = ['connection', 'remote', 'remote.settings']
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
-  const schema = new SettingsSchemaService(ctx)
-  const connection = ctx.get('connection') as ConnectionHandle
+  new SettingsSchemaService(ctx)
+  const connection = ctx.connection
   // Captured once here, where `remote.settings` is declared in this plugin's
   // own `inject`; the binder hands the same face to every scope it binds.
   const wire = { settings: ctx.remote.settings }
@@ -77,5 +76,5 @@ export function apply(ctx: Context): void {
       await pending
     }
   }, 'ui-settings: describe mirror invalidations')
-  new SettingsScopeBinder(ctx, { mirror, schema, wire })
+  new SettingsScopeBinder(ctx, { mirror, wire })
 }

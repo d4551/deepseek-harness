@@ -25,9 +25,10 @@
      wider columns, and caps at 920px for line-length
      readability. A dragged user preference (--dsh-chat-user-width, published
      by the width handles) replaces the adaptive term wholesale. */
+  --dsh-conversation-column-width: 0px;
   --dsh-chat-content-width: var(
     --dsh-chat-user-width,
-    clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * 0.64), 920px)
+    clamp(680px, calc(var(--dsh-conversation-column-width) * 0.64), 920px)
   );
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
@@ -86,7 +87,7 @@
 .crumbSep {
   /* figma: "/" separators are 14px caption gray (75:7903), one tint lighter than crumb text. */
   color: var(--dsw-alias-label-caption);
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
 }
 
@@ -97,7 +98,7 @@
   border: none;
   border-radius: 12px;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--dsh-content-font-size);
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
   text-overflow: ellipsis;
@@ -106,7 +107,7 @@
 }
 
 .crumbSubagent {
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 
@@ -155,7 +156,7 @@
   padding: 0 0 11px;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   line-height: 16px;
   font-weight: 500;
   color: var(--dsw-alias-label-tertiary);

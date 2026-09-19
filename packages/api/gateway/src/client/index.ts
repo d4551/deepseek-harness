@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {
   ConnectionHandle,
 } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type {
   InvocationDescriptor,
   TypertClientEventListener,
@@ -88,6 +89,16 @@ interface LoaderReadiness {
   await(): Promise<unknown>
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function isLoaderReadiness(value: object): value is LoaderReadiness {
+  return typeof Reflect.get(value, 'await') === 'function'
+}
+
+function namedServiceOf(ctx: Context, name: string): unknown {
+  return ctx.get(name)
+}
+
 /** One descriptor's mounted variants, for the group disposer to unwind. */
 interface InstalledMethod {
   readonly descriptor: InvocationDescriptor
@@ -135,7 +146,7 @@ class ClientRemoteService extends Service implements ClientRemote {
   constructor(ctx: Context) {
     super(ctx, 'remote')
     this.ownerCtx = ctx
-    const connection = ctx.get('connection') as ConnectionHandle
+    const connection = ctx.connection
     this.connection = connection
     this.events = new ClientRemoteEvents(
       ctx,
@@ -150,10 +161,22 @@ class ClientRemoteService extends Service implements ClientRemote {
       loop = connection.start({
         onConnected: () => { this.ownerCtx.emit('connection/reset') },
       })
+      loop.settled.then(undefined, (_reason: Thrown) => undefined)
     }
-    const loader = ctx.get('loader') as LoaderReadiness | undefined
-    if (loader === undefined) start()
-    else loader.await().then(start, () => {})
+    const loaderValue = namedServiceOf(ctx, 'loader')
+    const loader = typeof loaderValue === 'object' && loaderValue !== null && isLoaderReadiness(loaderValue)
+      ? loaderValue
+      : undefined
+    if (loader === undefined) {
+      start()
+    } else {
+      new Promise<Thrown>((resolve) => {
+        resolve(loader.await())
+      }).then(
+        () => { start() },
+        (_reason: Thrown) => undefined,
+      )
+    }
     ctx.effect(() => async () => {
       disposed = true
       await loop?.stop()
@@ -188,11 +211,8 @@ class ClientRemoteService extends Service implements ClientRemote {
     endpoint: string,
     payload: unknown,
     signal: AbortSignal,
-    noConnection = `client api: ${endpoint} has no active Connection`,
   ): AsyncIterable<unknown> {
-    const connection = this.ownerCtx.get('connection') as ConnectionHandle | undefined
-    if (connection === undefined) throw new Error(noConnection)
-    const local = connection.rpc.open?.('/api', endpoint, payload, signal)
+    const local = this.connection.rpc.open?.('/api', endpoint, payload, signal)
     return local === undefined
       ? this.streams.open(endpoint, payload, signal)
       : normalizeConnectionStream(local)
@@ -405,8 +425,7 @@ class ClientRemoteService extends Service implements ClientRemote {
     const endpoint = endpointOf(descriptor)
     if (!token.active) return withdrawn(endpoint)
     const prepared = this.prepareInvocation(descriptor, projection, token, callerCtx, values, boundIdentity)
-    const connection = this.ownerCtx.get('connection') as ConnectionHandle | undefined
-    if (connection === undefined) throw new Error(`client api: ${endpoint} has no active Connection`)
+    const connection = this.connection
     try {
       const result = await connection.rpc.call('/api', endpoint, { args: prepared.args }, prepared.signal)
       if (!mountActive(token)) return withdrawn(endpoint)
@@ -707,7 +726,10 @@ type MarkedConnectionStreamFailure = Error & {
     | { readonly kind: 'carrier' }
 }
 
-/** Preserve Gateway error classes across a worker transport's separately bundled page half. */
+/**
+ * Preserve Gateway error classes across a worker transport's separately bundled page half.
+ * @yields frames from the connection stream
+ */
 async function *normalizeConnectionStream(source: AsyncIterable<unknown>): AsyncGenerator {
   try {
     yield * source

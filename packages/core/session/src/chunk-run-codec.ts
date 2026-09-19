@@ -122,8 +122,7 @@ function hasExactKeys(value: object, keys: readonly string[]): boolean {
  * type-trusted. Integer times keep gap encoding exact: a fractional time would
  * reconstruct through float subtraction/addition, which need not round-trip.
  */
-function classifyDeltaChunk(event: SessionEvent): DeltaChunkKind | undefined {
-  if (event.type !== 'assistant/chunk') return undefined
+function classifyDeltaChunk(event: DeltaChunkEvent): DeltaChunkKind | undefined {
   if (!hasExactKeys(event, ['type', 'seq', 'time', 'data'])) return undefined
   if (!Number.isSafeInteger(event.seq) || event.seq < 0 || !Number.isSafeInteger(event.time)) return undefined
   const data: unknown = event.data
@@ -151,14 +150,49 @@ function classifyDeltaChunk(event: SessionEvent): DeltaChunkKind | undefined {
   }
 }
 
+/** Classify a live or parsed event only when it is a whitelisted assistant delta chunk. */
+function classifiedDeltaChunk(event: SessionEvent): { kind: DeltaChunkKind; event: DeltaChunkEvent } | undefined {
+  if (event.type !== 'assistant/chunk') return undefined
+  const kind = classifyDeltaChunk(event)
+  if (kind === undefined) return undefined
+  return { kind, event }
+}
+
 /** The tool-call fields of a whitelisted delta chunk (only after {@link classifyDeltaChunk} returned `'tool-call-delta'`). */
 function toolCallOf(event: DeltaChunkEvent): { id: string; name?: string } {
-  return event.data.chunk as { id: string; name?: string }
+  const chunk = event.data.chunk
+  if (chunk.type !== 'tool-call-delta') {
+    throw new TypeError('toolCallOf requires a tool-call-delta chunk')
+  }
+  if (typeof chunk.name === 'string') return { id: chunk.id, name: chunk.name }
+  return { id: chunk.id }
 }
 
 /** The block index of a whitelisted delta chunk (not every {@link StreamChunk} variant carries one). */
 function indexOf(event: DeltaChunkEvent): number {
-  return (event.data.chunk as { index: number }).index
+  const chunk = event.data.chunk
+  if (chunk.type === 'usage' || chunk.type === 'finish') {
+    throw new TypeError('classified delta chunk is missing a numeric index')
+  }
+  return chunk.index
+}
+
+/** The text payload of a whitelisted text or reasoning delta. */
+function textOf(event: DeltaChunkEvent): string {
+  const chunk = event.data.chunk
+  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta') {
+    throw new TypeError('text run member is not a text or reasoning delta')
+  }
+  return chunk.text
+}
+
+/** The arguments fragment of a whitelisted tool-call delta. */
+function argumentsDeltaOf(event: DeltaChunkEvent): string {
+  const chunk = event.data.chunk
+  if (chunk.type !== 'tool-call-delta') {
+    throw new TypeError('tool-call run member is not a tool-call-delta')
+  }
+  return chunk.argumentsDelta
 }
 
 /** Whether `next` extends a run ending in `previous`; the caller already matched the run's kind. */
@@ -192,12 +226,24 @@ function chunkRunContinues(
  * @returns the packed row representing exactly those events.
  */
 export function buildChunkRow(kind: DeltaChunkKind, run: readonly DeltaChunkEvent[]): ChunkRow {
-  const first = run[0] as DeltaChunkEvent
+  const first = run[0]
+  if (first === undefined) {
+    throw new TypeError('buildChunkRow requires a non-empty run')
+  }
+  const dt: number[] = []
+  for (let index = 1; index < run.length; index++) {
+    const event = run.at(index)
+    const previous = run.at(index - 1)
+    if (event === undefined || previous === undefined) {
+      throw new TypeError('chunk run members are contiguous')
+    }
+    dt.push(event.time - previous.time)
+  }
   const base = {
     turn: first.data.turn,
     step: first.data.step,
     index: indexOf(first),
-    dt: run.slice(1).map((event, index) => event.time - (run[index] as DeltaChunkEvent).time),
+    dt,
   }
   const envelope = { seq0: first.seq, time0: first.time }
   if (kind === 'tool-call-delta') {
@@ -208,12 +254,12 @@ export function buildChunkRow(kind: DeltaChunkKind, run: readonly DeltaChunkEven
       data: {
         ...base,
         id: ToolCallId(call.id),
-        ...Object.hasOwn(call, 'name') ? { name: call.name as string } : {},
-        args: run.map(event => (event.data.chunk as { argumentsDelta: string }).argumentsDelta),
+        ...call.name === undefined ? {} : { name: call.name },
+        args: run.map(argumentsDeltaOf),
       },
     }
   }
-  const data = { ...base, texts: run.map(event => (event.data.chunk as { text: string }).text) }
+  const data = { ...base, texts: run.map(textOf) }
   return kind === 'text-delta'
     ? { type: 'text-chunks', ...envelope, data }
     : { type: 'reasoning-chunks', ...envelope, data }
@@ -243,21 +289,20 @@ export function scanChunkRuns(
     run = []
   }
   for (const event of events) {
-    const nextKind = classifyDeltaChunk(event)
-    if (nextKind === undefined) {
+    const classified = classifiedDeltaChunk(event)
+    if (classified === undefined) {
       flush()
       out.push(event)
       continue
     }
-    const delta = event as DeltaChunkEvent
     const previous = run.at(-1)
-    if (nextKind === kind && previous !== undefined && chunkRunContinues(previous, delta, nextKind)) {
-      run.push(delta)
+    if (classified.kind === kind && previous !== undefined && chunkRunContinues(previous, classified.event, classified.kind)) {
+      run.push(classified.event)
       continue
     }
     flush()
-    kind = nextKind
-    run = [delta]
+    kind = classified.kind
+    run = [classified.event]
   }
   flush()
   return out
@@ -281,10 +326,12 @@ function validateEnvelope(
   if (!hasExactKeys(value, ['type', 'seq0', 'time0', 'data'])) {
     malformedChunkRow(tag, 'envelope must be exactly {type, seq0, time0, data}')
   }
-  if (!Number.isSafeInteger(value.seq0) || (value.seq0 as number) < 0) {
+  const seq0 = value.seq0
+  const time0 = value.time0
+  if (typeof seq0 !== 'number' || !Number.isSafeInteger(seq0) || seq0 < 0) {
     malformedChunkRow(tag, 'seq0 must be a non-negative safe integer')
   }
-  if (!Number.isSafeInteger(value.time0)) {
+  if (typeof time0 !== 'number' || !Number.isSafeInteger(time0)) {
     malformedChunkRow(tag, 'time0 must be a safe integer')
   }
   const data = value.data
@@ -315,17 +362,31 @@ function validateRunData(
     malformedChunkRow(tag, 'turn/step/index must be numbers')
   }
   const payload = data[payloadKey]
-  if (!Array.isArray(payload) || payload.length === 0 || payload.some(member => typeof member !== 'string')) {
+  if (!Array.isArray(payload) || payload.length === 0) {
     malformedChunkRow(tag, `${payloadKey} must be a non-empty string array`)
   }
+  const members: string[] = []
+  for (const member of payload) {
+    if (typeof member !== 'string') {
+      malformedChunkRow(tag, `${payloadKey} must be a non-empty string array`)
+    }
+    members.push(member)
+  }
   const gaps = data.dt
-  if (!Array.isArray(gaps) || gaps.some(gap => !Number.isSafeInteger(gap))) {
+  if (!Array.isArray(gaps)) {
     malformedChunkRow(tag, 'dt must be an array of safe integers')
   }
-  if (gaps.length !== payload.length - 1) {
-    malformedChunkRow(tag, `dt length ${gaps.length} does not match ${payload.length} members`)
+  const dt: number[] = []
+  for (const gap of gaps) {
+    if (typeof gap !== 'number' || !Number.isSafeInteger(gap)) {
+      malformedChunkRow(tag, 'dt must be an array of safe integers')
+    }
+    dt.push(gap)
   }
-  return payload as string[]
+  if (dt.length !== members.length - 1) {
+    malformedChunkRow(tag, `dt length ${String(dt.length)} does not match ${String(members.length)} members`)
+  }
+  return members
 }
 
 /**
@@ -343,11 +404,23 @@ function assertReconstructs(
   data: Record<string, unknown>,
   memberCount: number,
 ): void {
-  if (memberCount - 1 > Number.MAX_SAFE_INTEGER - (value.seq0 as number)) {
+  const seq0 = value.seq0
+  const time0 = value.time0
+  if (typeof seq0 !== 'number' || typeof time0 !== 'number') {
+    malformedChunkRow(tag, 'seq0 and time0 must be numbers')
+  }
+  if (memberCount - 1 > Number.MAX_SAFE_INTEGER - seq0) {
     malformedChunkRow(tag, 'member seqs must stay safe integers')
   }
-  let time = value.time0 as number
-  for (const gap of data.dt as number[]) {
+  const gaps = data.dt
+  if (!Array.isArray(gaps)) {
+    malformedChunkRow(tag, 'dt must be an array of safe integers')
+  }
+  let time = time0
+  for (const gap of gaps) {
+    if (typeof gap !== 'number') {
+      malformedChunkRow(tag, 'dt must be an array of safe integers')
+    }
     time += gap
     if (!Number.isSafeInteger(time)) malformedChunkRow(tag, 'member times must stay safe integers')
   }
@@ -384,6 +457,87 @@ export function validateChunkRowShape(
 }
 
 /**
+ * Build a {@link ChunkRow} from a value that already passed
+ * {@link validateChunkRowShape}. Copies the validated fields; does not reuse
+ * the parsed object as a typed row.
+ * @param value - the parsed row-tagged object.
+ * @param tag - the row tag the value claimed.
+ * @param shape - the validated payload from {@link validateChunkRowShape}.
+ * @returns the constructed packed row.
+ */
+export function materializeChunkRow(
+  value: Record<string, unknown>,
+  tag: ChunkRow['type'],
+  shape: ChunkRowShape,
+): ChunkRow {
+  const seq0 = value.seq0
+  const time0 = value.time0
+  const turn = shape.data.turn
+  const step = shape.data.step
+  const index = shape.data.index
+  const gaps = shape.data.dt
+  if (typeof seq0 !== 'number' || typeof time0 !== 'number') {
+    malformedChunkRow(tag, 'seq0 and time0 must be numbers')
+  }
+  if (typeof turn !== 'number' || typeof step !== 'number' || typeof index !== 'number') {
+    malformedChunkRow(tag, 'turn/step/index must be numbers')
+  }
+  if (!Array.isArray(gaps)) {
+    malformedChunkRow(tag, 'dt must be an array of safe integers')
+  }
+  const dt: number[] = []
+  for (const gap of gaps) {
+    if (typeof gap !== 'number') {
+      malformedChunkRow(tag, 'dt must be an array of safe integers')
+    }
+    dt.push(gap)
+  }
+  if (tag === 'tool-call-chunks') {
+    const id = shape.data.id
+    if (typeof id !== 'string') {
+      malformedChunkRow(tag, 'id must be a string')
+    }
+    const data: ToolCallRunData = {
+      turn, step, index, dt, id: ToolCallId(id), args: shape.payload,
+    }
+    if (Object.hasOwn(shape.data, 'name')) {
+      const name = shape.data.name
+      if (typeof name !== 'string') {
+        malformedChunkRow(tag, 'name must be a string')
+      }
+      data.name = name
+    }
+    return { type: 'tool-call-chunks', seq0, time0, data }
+  }
+  return {
+    type: tag,
+    seq0,
+    time0,
+    data: { turn, step, index, dt, texts: shape.payload },
+  }
+}
+
+/** Reconstruct one member's stream chunk from a validated packed row. */
+function streamChunkFromRow(row: ChunkRow, member: string): StreamChunk {
+  switch (row.type) {
+    case 'text-chunks':
+      return { type: 'text-delta', index: row.data.index, text: member }
+    case 'reasoning-chunks':
+      return { type: 'reasoning-delta', index: row.data.index, text: member }
+    case 'tool-call-chunks': {
+      const name = Object.hasOwn(row.data, 'name') ? row.data.name : undefined
+      return {
+        type: 'tool-call-delta',
+        index: row.data.index,
+        id: row.data.id,
+        ...name === undefined ? {} : { name },
+        argumentsDelta: member,
+      }
+    }
+  }
+}
+
+/**
  * Expand a validated row back into its exact original events, in order.
  * @param row - a row that passed its format's validation.
  * @returns the events the row stores, in log order.
@@ -393,30 +547,18 @@ export function expandChunkRow(row: ChunkRow): SessionEvent[] {
   const events: SessionEvent[] = []
   let time = row.time0
   for (let index = 0; index < members.length; index++) {
-    if (index > 0) time += row.data.dt[index - 1] as number
-    let chunk: StreamChunk
-    switch (row.type) {
-      case 'text-chunks':
-        chunk = { type: 'text-delta', index: row.data.index, text: members[index] as string }
-        break
-      case 'reasoning-chunks':
-        chunk = { type: 'reasoning-delta', index: row.data.index, text: members[index] as string }
-        break
-      case 'tool-call-chunks':
-        chunk = {
-          type: 'tool-call-delta',
-          index: row.data.index,
-          id: row.data.id,
-          ...Object.hasOwn(row.data, 'name') ? { name: row.data.name as string } : {},
-          argumentsDelta: members[index] as string,
-        }
-        break
-      /* v8 ignore next 4 -- a validated row carries one of the three row tags */
-      default: {
-        const unreachable: never = row
-        throw new Error(`chunk-run-codec received unsupported row ${String(unreachable)}`)
+    if (index > 0) {
+      const gap = row.data.dt[index - 1]
+      if (gap === undefined) {
+        throw new Error(`chunk-run-codec row dt missing gap ${String(index - 1)}`)
       }
+      time += gap
     }
+    const member = members[index]
+    if (member === undefined) {
+      throw new Error(`chunk-run-codec row member ${String(index)} missing`)
+    }
+    const chunk = streamChunkFromRow(row, member)
     events.push({
       type: 'assistant/chunk',
       seq: row.seq0 + index,
@@ -431,21 +573,21 @@ export function expandChunkRow(row: ChunkRow): SessionEvent[] {
  * Decode one parsed record into the session event(s) it stores.
  * Chunk-row-tagged values validate through the caller's format rules and
  * expand (a malformed row throws — it is corrupt storage, and treating it as an
- * event would silently drop a whole run); every other value passes through as a
- * single event, unvalidated.
+ * event would silently drop a whole run); every other value passes through
+ * unvalidated.
  *
  * @param value - one stored record, already parsed.
  * @param validate - the format's row validation, which throws on a malformed row.
- * @returns the stored events, in log order.
+ * @returns the stored records, in log order.
  */
 export function decodeChunkStorageRecord(
   value: unknown,
   validate: (value: Record<string, unknown>, tag: ChunkRow['type']) => ChunkRow,
-): SessionEvent[] {
-  if (!isRecord(value)) return [value as SessionEvent]
+): unknown[] {
+  if (!isRecord(value)) return [value]
   const tag = value.type
   if (tag !== 'text-chunks' && tag !== 'reasoning-chunks' && tag !== 'tool-call-chunks') {
-    return [value as SessionEvent]
+    return [value]
   }
   return expandChunkRow(validate(value, tag))
 }

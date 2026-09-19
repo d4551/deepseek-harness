@@ -152,7 +152,9 @@ describe('synchronous cleanup on host exit', () => {
     if (diagnostic !== undefined) expect(outcome.stderr).toContain(diagnostic)
   })
 
-  it.skipIf(process.platform === 'win32')(
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] process-exit.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)(
     'removes a terminal root and descendant after direct exit',
     { timeout: 45_000 },
     async () => {

@@ -34,12 +34,24 @@ interface Recorded { ns: string; ops: unknown }
 /** A roster Remote answering a fixed set of rows, or refusing. */
 function fakeRoster(
   presets: { id: string; trust: 'system' | 'user'; isDefault: boolean }[],
-  options: { failList?: string; failListCode?: string; throwOnList?: boolean } = {},
+  options: {
+    failList?: string
+    failListCode?: string
+    throwOnList?: boolean | string
+    failListWithoutMessage?: boolean
+  } = {},
 ): Pick<ClientRemote, 'agentPresets'> {
   return {
     agentPresets: {
       list: () => {
         if (options.throwOnList === true) return Promise.reject(new Error('socket closed'))
+        if (typeof options.throwOnList === 'string') return Promise.reject(options.throwOnList)
+        if (options.failListWithoutMessage === true) {
+          return Promise.resolve({
+            ok: false as const,
+            error: { code: 'internal', details: {} },
+          })
+        }
         return Promise.resolve(options.failList === undefined
           ? { ok: true as const, value: { presets, authorable: true } }
           : {
@@ -58,7 +70,7 @@ function fakeApi(
     writes?: Recorded[]
     failWrite?: string
     failList?: string
-    failWriteWith?: Error
+    failWriteWith?: Error | string
     readOnly?: boolean
   } = {},
 ): FakeWire {
@@ -252,11 +264,9 @@ describe('the agent-preset settings controller', () => {
     expect(controller.store.getSnapshot().status).toBe('ready')
   })
 
-  it('reads an Error\'s message and stringifies anything else', () => {
-    // A transport rejects with an Error, but a host or a runtime can reject
-    // with anything and the surface still has to say something.
+  it('reads Thrown as surface copy', () => {
     expect(messageOf(new Error('boom'))).toBe('boom')
-    expect(messageOf({ code: 7 })).toBe('[object Object]')
+    expect(messageOf('plain refusal')).toBe('plain refusal')
   })
 
   it('reports a transport that rejects rather than answering', async () => {
@@ -282,6 +292,37 @@ describe('the agent-preset settings controller', () => {
     // The value snaps back because the host never took it; a picker still
     // showing "mine" would be claiming a default that does not exist.
     expect(controller.store.getSnapshot()).toMatchObject({ currentValue: 'standard', error: 'socket closed' })
+  })
+
+  it('reports a non-Error roster list refusal', async () => {
+    const controller = derivedController({
+      api: {} as SettingsWireFace,
+      remote: fakeRoster([], { throwOnList: 'plain refusal' }),
+    })
+    await controller.load()
+    expect(controller.store.getSnapshot()).toMatchObject({ status: 'error', error: 'plain refusal' })
+  })
+
+  it('claims a roster refusal envelope that carries no string message', async () => {
+    const controller = derivedController({
+      api: {} as SettingsWireFace,
+      remote: fakeRoster([], { failListWithoutMessage: true }),
+    })
+    await controller.load()
+    expect(controller.store.getSnapshot()).toMatchObject({
+      status: 'error',
+      error: '[object Object]',
+    })
+  })
+
+  it('reports a non-Error write refusal and keeps the old default showing', async () => {
+    const controller = derivedController(fakeApi([
+      { id: 'standard', trust: 'system', isDefault: true },
+      { id: 'mine', trust: 'user', isDefault: false },
+    ], { failWriteWith: 'plain refusal' }))
+    await controller.load()
+    await controller.select('mine')
+    expect(controller.store.getSnapshot()).toMatchObject({ currentValue: 'standard', error: 'plain refusal' })
   })
 })
 

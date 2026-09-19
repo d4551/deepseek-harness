@@ -14,6 +14,7 @@ import {
 } from '../contract/turn-process.ts'
 import { SYNTHETIC_SEQ_OFFSETS } from '@deepseek-ai/dsh-client-ui-projection'
 import { chatNode } from './common.ts'
+import { publishedAssistantStep, publishedTurnProcess } from './location-data.ts'
 import { toAssistantBlocks } from '@deepseek-ai/dsh-client-ui-projection'
 
 declare module '../contract/chat-nodes.ts' {
@@ -48,8 +49,10 @@ function isChunkRunEvent(event: ConversationEvent): event is ChunkRowEvent {
 }
 
 function eventTurn(event: ConversationEvent): number | undefined {
-  const data = event.data as unknown as { turn?: unknown }
-  return typeof data.turn === 'number' ? data.turn : undefined
+  const data: unknown = event.data
+  if (typeof data !== 'object' || data === null) return undefined
+  const turn: unknown = Reflect.get(data, 'turn')
+  return typeof turn === 'number' ? turn : undefined
 }
 
 function visibleAssistantEvent(event: ConversationEvent): boolean {
@@ -125,7 +128,7 @@ function isFinalAssistant(
 
 function latestAnswer(turn: TurnLocation): Readonly<FinalAssistantChatData> | null {
   const latestStep = turn.steps.at(-1)
-  const data: Readonly<AssistantChatData> | undefined = latestStep?.data.get('assistant-step')
+  const data = publishedAssistantStep(latestStep?.data.get('assistant-step'))
   if (!isFinalAssistant(data) || !hasAssistantReplyContent(data.blocks)) return null
   return data.blocks.some(block => block.kind === 'tool-call') ? null : data
 }
@@ -263,7 +266,7 @@ export const turnProcessDefinition: ConversationNodeDefinition<TurnProcessState>
   },
   buildViewNode: (context) => {
     const turn = turnLocation(context)
-    const signature = turn?.data.get('turn-process')
+    const signature = publishedTurnProcess(turn?.data.get('turn-process'))
     if (turn === undefined || signature === undefined) return null
     const data = decodeTurnProcess(signature)
     return chatNode(

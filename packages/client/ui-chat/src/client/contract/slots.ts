@@ -2,7 +2,7 @@
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { ISession, ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  ConversationTurnDataMap, MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
+  MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
   InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore, SlotHookFactory,
@@ -54,9 +54,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Hook constrained to business data published on the current Chat Node's Turn. */
-export type UseChatNodeTurnData = <Key extends Extract<keyof ConversationTurnDataMap, string>>(
-  key: Key,
-) => Readonly<ConversationTurnDataMap[Key]> | undefined
+export type UseChatNodeTurnData = (key: string) => unknown
 
 /** Slot-level Hook factory for keyed Chat renderers. */
 export interface ChatNodeTurnDataInjected {

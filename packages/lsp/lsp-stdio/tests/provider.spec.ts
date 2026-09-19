@@ -131,7 +131,9 @@ describe('lsp-stdio provider resolution', () => {
   })
 
   // Node's X_OK probe is an existence check on Windows, which has no executable mode bit.
-  it.skipIf(process.platform === 'win32')('rejects an absolute command that is not executable at load', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] provider.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('rejects an absolute command that is not executable at load', async () => {
     const notExe = join(root, 'not-exe.txt')
     await writeFile(notExe, 'plain text, not executable')
     const ctx = new Context()

@@ -27,6 +27,12 @@ import {
 } from './environment.ts'
 import { asError, commandOpts, delay, signalOpts, signalRemoteGroups } from './remote.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function ignoreRejection(_reason: Thrown): undefined {
+  return undefined
+}
+
 const TERMINAL_RUNNER_SOURCE = [
   '#!/bin/bash',
   'set -euo pipefail',
@@ -95,7 +101,7 @@ async function waitForBootstrapOutput(
 ): Promise<void> {
   signal?.throwIfAborted()
   // Whichever settles first wins: the boundary, an early exit, or the caller's abort.
-  const exitedEarly = (): never => {
+  const exitedEarly = (_reason?: Thrown): never => {
     throw new Error('subprocess-e2b: terminal exited before publishing its output boundary')
   }
   const aborted = Promise.withResolvers<never>()
@@ -130,34 +136,35 @@ async function terminalSessionId(
   return parsePositiveId(result.stdout, `subprocess-e2b: cannot resolve process session for terminal ${pid}`)
 }
 
-async function sessionProcessGroups(
+function sessionProcessGroups(
   sandbox: Sandbox,
   sessionId: number,
   envs: Record<string, string>,
 ): Promise<number[]> {
-  let result: CommandResult
-  try {
-    result = await sandbox.commands.run(
-      `set -o pipefail; ps -eo sid=,pgid=,stat= | awk '$1 == ${sessionId} && $3 !~ /^[ZXx]/ { print $2 }'`,
-      commandOpts(envs),
-    )
-  } catch (error: unknown) {
-    if (error instanceof SandboxNotFoundError) return []
-    throw error
-  }
-  const groups = new Set<number>()
-  for (const raw of result.stdout.trim().split(/\s+/)) {
-    if (raw.length === 0) continue
-    const group = parsePositiveId(
-      raw,
-      `subprocess-e2b: invalid process group ${JSON.stringify(raw)} in terminal session ${sessionId}`,
-    )
-    if (group <= 1) {
-      throw new Error(`subprocess-e2b: unsafe process group ${group} in terminal session ${sessionId}`)
-    }
-    groups.add(group)
-  }
-  return [...groups]
+  return sandbox.commands.run(
+    `set -o pipefail; ps -eo sid=,pgid=,stat= | awk '$1 == ${sessionId} && $3 !~ /^[ZXx]/ { print $2 }'`,
+    commandOpts(envs),
+  ).then(
+    (result) => {
+      const groups = new Set<number>()
+      for (const raw of result.stdout.trim().split(/\s+/)) {
+        if (raw.length === 0) continue
+        const group = parsePositiveId(
+          raw,
+          `subprocess-e2b: invalid process group ${JSON.stringify(raw)} in terminal session ${sessionId}`,
+        )
+        if (group <= 1) {
+          throw new Error(`subprocess-e2b: unsafe process group ${group} in terminal session ${sessionId}`)
+        }
+        groups.add(group)
+      }
+      return [...groups]
+    },
+    (error: Thrown) => {
+      if (error instanceof SandboxNotFoundError) return []
+      throw error
+    },
+  )
 }
 
 async function awaitSessionEmpty(
@@ -182,7 +189,7 @@ async function awaitSessionEmpty(
   }
 }
 
-async function rollbackUnpublishedTerminal(
+function rollbackUnpublishedTerminal(
   sandbox: Sandbox,
   handle: CommandHandle,
   completion: Promise<CommandResult>,
@@ -193,72 +200,94 @@ async function rollbackUnpublishedTerminal(
   let topLevelExited = false
   completion.then(
     () => { topLevelExited = true },
-    () => { topLevelExited = true },
+    (_reason: Thrown) => { topLevelExited = true },
   )
+  const hasTopLevelExited = (): boolean => topLevelExited
   const validPid = Number.isSafeInteger(handle.pid) && handle.pid > 1
   const attemptFailures: Error[] = []
   let sessionId: number | undefined
-  if (validPid) {
-    sessionId = handle.pid
-    try {
-      sessionId = await terminalSessionId(sandbox, handle.pid, envs)
-    } catch (_sessionLookupFailure) {
-      // E2B's PTY leader is also the provisional POSIX session leader, so its
-      // PID remains usable after the setup lookup itself fails or is canceled.
-    }
-    try {
-      let groups = await sessionProcessGroups(sandbox, sessionId, envs)
-      if (groups.length > 0) {
-        await signalRemoteGroups(sandbox, envs, groups, 'TERM')
-        groups = await awaitSessionEmpty(sandbox, sessionId, envs, graceMs, pollMs)
+  const proveAndDisconnect = (): Promise<void> => {
+    const proofFailures: Error[] = []
+    const finish = (): Promise<void> => {
+      if (!hasTopLevelExited()) {
+        proofFailures.push(new Error(`subprocess-e2b: terminal setup rollback failed; surviving pid: ${handle.pid}`))
       }
-      if (groups.length > 0) {
-        await awaitSessionEmpty(sandbox, sessionId, envs, graceMs, pollMs, true)
+      if (proofFailures.length > 0) {
+        throw new AggregateError(
+          [...attemptFailures, ...proofFailures],
+          'subprocess-e2b: terminal setup rollback did not reach quiescence',
+        )
       }
-    } catch (error: unknown) {
-      attemptFailures.push(asError(error))
+      return handle.disconnect().then(
+        () => undefined,
+        (error: Thrown) => {
+          if (!(error instanceof SandboxNotFoundError)) throw error
+        },
+      )
     }
-  }
-  // Completion can settle while any awaited provider cleanup above is running.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- Provider cleanup yields to completion.
-  if (!topLevelExited) {
-    try {
-      await handle.kill()
-    } catch (error: unknown) {
-      if (error instanceof SandboxNotFoundError) return
-      attemptFailures.push(asError(error))
-    }
-    await Promise.race([completion.catch(() => undefined), delay(graceMs)])
-  }
-  const proofFailures: Error[] = []
-  if (sessionId !== undefined) {
-    try {
-      const groups = await awaitSessionEmpty(sandbox, sessionId, envs, graceMs, pollMs, true)
-      if (groups.length > 0) {
-        proofFailures.push(new Error(
-          `subprocess-e2b: terminal setup rollback failed; surviving process groups: ${groups.join(', ')}`,
-        ))
-      }
-    } catch (error: unknown) {
-      proofFailures.push(asError(error))
-    }
-  }
-  // The bounded completion race above updates this callback-owned state.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- The callback mutates this after a race.
-  if (!topLevelExited) {
-    proofFailures.push(new Error(`subprocess-e2b: terminal setup rollback failed; surviving pid: ${handle.pid}`))
-  }
-  if (proofFailures.length > 0) {
-    throw new AggregateError(
-      [...attemptFailures, ...proofFailures],
-      'subprocess-e2b: terminal setup rollback did not reach quiescence',
+    if (sessionId === undefined) return finish()
+    return awaitSessionEmpty(sandbox, sessionId, envs, graceMs, pollMs, true).then(
+      (groups) => {
+        if (groups.length > 0) {
+          proofFailures.push(new Error(
+            `subprocess-e2b: terminal setup rollback failed; surviving process groups: ${groups.join(', ')}`,
+          ))
+        }
+        return finish()
+      },
+      (error: Thrown) => {
+        proofFailures.push(asError(error))
+        return finish()
+      },
     )
   }
-  try {
-    await handle.disconnect()
-  } catch (error: unknown) {
-    if (!(error instanceof SandboxNotFoundError)) throw error
+  const waitThenProve = (): Promise<void> =>
+    Promise.race([completion.then(undefined, ignoreRejection), delay(graceMs)]).then(proveAndDisconnect)
+  const killTopLevelIfNeeded = (): Promise<void> => {
+    if (hasTopLevelExited()) return proveAndDisconnect()
+    return handle.kill().then(
+      waitThenProve,
+      (error: Thrown) => {
+        if (error instanceof SandboxNotFoundError) return
+        attemptFailures.push(asError(error))
+        return waitThenProve()
+      },
+    )
   }
+  if (!validPid) return killTopLevelIfNeeded()
+  sessionId = handle.pid
+  const recordAttempt = (error: Thrown): void => {
+    attemptFailures.push(asError(error))
+  }
+  return terminalSessionId(sandbox, handle.pid, envs).then(
+    (id) => {
+      sessionId = id
+      return id
+    },
+    (_sessionLookupFailure: Thrown) => {
+      // E2B's PTY leader is also the provisional POSIX session leader, so its
+      // PID remains usable after the setup lookup itself fails or is canceled.
+      return handle.pid
+    },
+  ).then(id => sessionProcessGroups(sandbox, id, envs).then(
+    (initial) => {
+      if (initial.length === 0) return
+      return signalRemoteGroups(sandbox, envs, initial, 'TERM').then(
+        () => awaitSessionEmpty(sandbox, id, envs, graceMs, pollMs).then(
+          (groups) => {
+            if (groups.length === 0) return
+            return awaitSessionEmpty(sandbox, id, envs, graceMs, pollMs, true).then(
+              () => undefined,
+              recordAttempt,
+            )
+          },
+          recordAttempt,
+        ),
+        recordAttempt,
+      )
+    },
+    recordAttempt,
+  )).then(killTopLevelIfNeeded)
 }
 
 /** One E2B PTY and all process groups in its remote process session. */
@@ -326,7 +355,7 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
     this.operationController.abort(new Error('subprocess-e2b: terminal is terminating'))
     const cleanup = this.closeAfterOperations()
     this.cleanup = cleanup
-    cleanup.catch((_cleanupFailure: unknown) => {
+    cleanup.then(undefined, (_cleanupFailure: Thrown) => {
       this.cleanup = undefined
     })
     return cleanup
@@ -335,12 +364,11 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
   private async inspectForegroundOnce(
     signal: AbortSignal,
   ): Promise<SubprocessTerminalForeground | undefined> {
-    try {
-      const result = await this.sandbox.commands.run(
-        `ps -o tpgid= -p ${this.pid}`,
-        commandOpts(this.controlEnvs, signal),
-      )
-      return {
+    return this.sandbox.commands.run(
+      `ps -o tpgid= -p ${this.pid}`,
+      commandOpts(this.controlEnvs, signal),
+    ).then(
+      result => ({
         processGroupId: parsePositiveId(
           result.stdout,
           `subprocess-e2b: cannot resolve foreground process group for terminal ${this.pid}`,
@@ -348,11 +376,12 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
         // E2B exposes process-table commands but not the /proc memory access
         // needed to prove a specific syscall is waiting on fd 0.
         inputWaiting: false,
-      }
-    } catch (error: unknown) {
-      if (error instanceof CommandExitError && (error.exitCode === 1 || this.topLevelExited)) return undefined
-      throw error
-    }
+      }),
+      (error: Thrown) => {
+        if (error instanceof CommandExitError && (error.exitCode === 1 || this.topLevelExited)) return undefined
+        throw error
+      },
+    )
   }
 
   private trackOperation<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -363,7 +392,7 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
     this.operations.add(pending)
     pending.then(
       () => { this.operations.delete(pending) },
-      () => { this.operations.delete(pending) },
+      (_reason: Thrown) => { this.operations.delete(pending) },
     )
     return pending
   }
@@ -373,63 +402,80 @@ export class E2BTerminalHandle implements SubprocessTerminalHandle {
     await this.closeOnce()
   }
 
-  private async waitForCommand(): Promise<SubprocessOutcome> {
-    try {
-      const result = await this.completion
-      return { exitCode: result.exitCode, signal: null }
-    } catch (error: unknown) {
-      if (error instanceof CommandExitError) {
-        return this.terminationSignal === null
-          ? { exitCode: error.exitCode, signal: null }
-          : { exitCode: null, signal: this.terminationSignal }
-      }
-      this.output.destroy(error instanceof Error ? error : new Error(String(error)))
-      throw error
-    } finally {
+  private waitForCommand(): Promise<SubprocessOutcome> {
+    return this.completion.then(
+      result => ({ exitCode: result.exitCode, signal: null }),
+      (error: Thrown) => {
+        if (error instanceof CommandExitError) {
+          return this.terminationSignal === null
+            ? { exitCode: error.exitCode, signal: null }
+            : { exitCode: null, signal: this.terminationSignal }
+        }
+        this.output.destroy(asError(error))
+        throw error
+      },
+    ).finally(() => {
       this.topLevelExited = true
       if (!this.output.destroyed) this.output.end()
-    }
+    })
   }
 
-  private async closeOnce(): Promise<void> {
-    let groups = await sessionProcessGroups(this.sandbox, this.sessionId, this.controlEnvs)
-    if (groups.length > 0) {
-      this.terminationSignal = 'SIGTERM'
-      await signalRemoteGroups(this.sandbox, this.controlEnvs, groups, 'TERM')
-      groups = await awaitSessionEmpty(this.sandbox, this.sessionId, this.controlEnvs, this.graceMs, this.pollMs)
-    }
-    if (groups.length === 0 && !this.topLevelExited) {
-      await Promise.race([this.done.catch(() => undefined), delay(this.graceMs)])
-    }
-    if (groups.length > 0 || !this.topLevelExited) {
-      this.terminationSignal = 'SIGKILL'
+  private closeOnce(): Promise<void> {
+    const ignoreDone = (): Promise<unknown> =>
+      Promise.race([this.done.then(undefined, ignoreRejection), delay(this.graceMs)])
+    const disconnectAndRemove = (): Promise<void> =>
+      this.handle.disconnect().then(
+        () => undefined,
+        (error: Thrown) => {
+          if (!(error instanceof SandboxNotFoundError)) throw error
+        },
+      ).then(() => this.sandbox.files.remove(this.stateDir).then(
+        () => undefined,
+        (_adapterPrivateStateRemovalFailure: Thrown) => undefined,
+      ))
+    const prove = (groups: number[]): Promise<void> => {
+      if (groups.length > 0) {
+        throw new Error(`subprocess-e2b: terminal cleanup failed; surviving process groups: ${groups.join(', ')}`)
+      }
       if (!this.topLevelExited) {
-        try {
-          await this.handle.kill()
-        } catch (error: unknown) {
+        throw new Error(`subprocess-e2b: terminal cleanup failed; surviving pid: ${this.pid}`)
+      }
+      return disconnectAndRemove()
+    }
+    const afterForce = (groups: number[]): Promise<void> => {
+      if (!this.topLevelExited) return ignoreDone().then(() => prove(groups))
+      return prove(groups)
+    }
+    const force = (): Promise<void> => {
+      this.terminationSignal = 'SIGKILL'
+      const emptied = (): Promise<void> =>
+        awaitSessionEmpty(this.sandbox, this.sessionId, this.controlEnvs, this.graceMs, this.pollMs, true).then(afterForce)
+      if (this.topLevelExited) return emptied()
+      return this.handle.kill().then(
+        emptied,
+        (error: Thrown) => {
           if (error instanceof SandboxNotFoundError) return
           throw error
-        }
+        },
+      )
+    }
+    const afterTerm = (remaining: number[]): Promise<void> => {
+      const continueClose = (): Promise<void> => {
+        if (remaining.length > 0 || !this.topLevelExited) return force()
+        return prove(remaining)
       }
-      groups = await awaitSessionEmpty(this.sandbox, this.sessionId, this.controlEnvs, this.graceMs, this.pollMs, true)
-      if (!this.topLevelExited) await Promise.race([this.done.catch(() => undefined), delay(this.graceMs)])
+      if (remaining.length === 0 && !this.topLevelExited) return ignoreDone().then(continueClose)
+      return continueClose()
     }
-    if (groups.length > 0) {
-      throw new Error(`subprocess-e2b: terminal cleanup failed; surviving process groups: ${groups.join(', ')}`)
-    }
-    if (!this.topLevelExited) {
-      throw new Error(`subprocess-e2b: terminal cleanup failed; surviving pid: ${this.pid}`)
-    }
-    try {
-      await this.handle.disconnect()
-    } catch (error: unknown) {
-      if (!(error instanceof SandboxNotFoundError)) throw error
-    }
-    try {
-      await this.sandbox.files.remove(this.stateDir)
-    } catch (_adapterPrivateStateRemovalFailure) {
-      // The terminal is quiescent; owner teardown bounds private residue.
-    }
+    return sessionProcessGroups(this.sandbox, this.sessionId, this.controlEnvs).then((groups) => {
+      if (groups.length > 0) {
+        this.terminationSignal = 'SIGTERM'
+        return signalRemoteGroups(this.sandbox, this.controlEnvs, groups, 'TERM').then(
+          () => awaitSessionEmpty(this.sandbox, this.sessionId, this.controlEnvs, this.graceMs, this.pollMs).then(afterTerm),
+        )
+      }
+      return afterTerm(groups)
+    })
   }
 }
 
@@ -463,92 +509,135 @@ export async function spawnE2BTerminal(
   let completion: Promise<CommandResult> | undefined
   let stateDirectoryCreated = false
   let controlEnvs: Record<string, string> = {}
-  try {
-    const ambient = await readRemoteEnvironment(sandbox, spec.signal)
-    controlEnvs = bootstrapEnvironment(ambient)
-    const environment = serializeRemoteEnvironment(ambient, spec.env)
-    const argv = serializeValues(spec.argv, 'argv')
-    stateDirectoryCreated = true
-    await sandbox.files.makeDir(stateDir, signalOpts(spec.signal))
-    await sandbox.commands.run(
-      `chmod 700 -- ${quoteE2BShellArg(stateDir)}`,
-      commandOpts(controlEnvs, spec.signal),
-    )
-    await sandbox.files.write([
-      { path: paths.runner, data: TERMINAL_RUNNER_SOURCE },
-      { path: paths.environment, data: environment },
-      { path: paths.argv, data: argv },
-      { path: paths.outputMarker, data: outputMarker.toString('utf8') },
-    ], signalOpts(spec.signal))
-    await sandbox.commands.run(
-      `chmod 600 -- ${quoteE2BShellArg(paths.runner)} ${quoteE2BShellArg(paths.environment)} ${quoteE2BShellArg(paths.argv)} ${quoteE2BShellArg(paths.outputMarker)}`,
-      commandOpts(controlEnvs, spec.signal),
-    )
-    handle = await sandbox.pty.create({
-      rows: spec.rows,
-      cols: spec.cols,
-      cwd: spec.cwd,
-      envs: e2bControlEnvs(controlEnvs),
-      timeoutMs: 0,
-      onData: (data) => { outputFilter.push(data) },
-    })
-    completion = handle.wait()
-    completion.catch(() => {})
-    spec.signal?.throwIfAborted()
-    if (!Number.isSafeInteger(handle.pid) || handle.pid <= 0) {
-      throw new Error(`subprocess-e2b: E2B returned invalid terminal pid ${handle.pid}`)
-    }
-    const command = `exec /bin/bash ${quoteE2BShellArg(paths.runner)} ${quoteE2BShellArg(stateDir)}\r`
-    await sandbox.pty.sendInput(handle.pid, Buffer.from(command), signalOpts(spec.signal))
-    await waitForBootstrapOutput(outputFilter.ready, completion, spec.signal)
-    const sessionId = await terminalSessionId(sandbox, handle.pid, controlEnvs, spec.signal)
-    return new E2BTerminalHandle(
-      sandbox,
-      handle,
-      output,
-      completion,
-      sessionId,
-      controlEnvs,
-      stateDir,
-      spec.graceMs,
-      pollMs,
-    )
-  } catch (error: unknown) {
+  const fail = (error: unknown): Promise<never> => {
     output.destroy()
     let terminalQuiescent = handle === undefined
     let stateRemoved = !stateDirectoryCreated
-    const cleanup = async (): Promise<void> => {
-      const failures: Error[] = []
-      if (!terminalQuiescent && handle !== undefined) {
-        try {
-          if (completion === undefined) await handle.kill()
-          else await rollbackUnpublishedTerminal(sandbox, handle, completion, controlEnvs, spec.graceMs, pollMs)
-          terminalQuiescent = true
-        } catch (cleanupError: unknown) {
-          if (cleanupError instanceof SandboxNotFoundError) terminalQuiescent = true
-          else failures.push(asError(cleanupError))
-        }
-      }
+    const removeState = async (failures: Error[]): Promise<void> => {
       if (!stateRemoved) {
-        try {
-          await sandbox.files.remove(stateDir)
-          stateRemoved = true
-        } catch (stateError: unknown) {
-          if (stateError instanceof FileNotFoundError || stateError instanceof SandboxNotFoundError) stateRemoved = true
-          else failures.push(asError(stateError))
-        }
+        await sandbox.files.remove(stateDir).then(
+          () => { stateRemoved = true },
+          (stateError: Thrown) => {
+            if (stateError instanceof FileNotFoundError || stateError instanceof SandboxNotFoundError) {
+              stateRemoved = true
+            } else {
+              failures.push(asError(stateError))
+            }
+          },
+        )
       }
       if (failures.length > 0) {
         throw new AggregateError(failures, 'subprocess-e2b: terminal setup cleanup did not complete')
       }
     }
-    try {
-      await cleanup()
-    } catch (cleanupError: unknown) {
-      // TODO(e2b-terminal-setup-rollback): Retain retry state only if a real
-      // double failure must be recovered before sandbox disposal or timeout.
-      throw new AggregateError([asError(error), asError(cleanupError)], asError(error).message)
+    const cleanup = (): Promise<void> => {
+      const failures: Error[] = []
+      if (terminalQuiescent || handle === undefined) return removeState(failures)
+      const rolled = completion === undefined
+        ? handle.kill()
+        : rollbackUnpublishedTerminal(sandbox, handle, completion, controlEnvs, spec.graceMs, pollMs)
+      return rolled.then(
+        () => {
+          terminalQuiescent = true
+          return removeState(failures)
+        },
+        (cleanupError: Thrown) => {
+          if (cleanupError instanceof SandboxNotFoundError) terminalQuiescent = true
+          else failures.push(asError(cleanupError))
+          return removeState(failures)
+        },
+      )
     }
-    throw error
+    return cleanup().then(
+      () => { throw error },
+      (cleanupError: Thrown) => {
+        // TODO(e2b-terminal-setup-rollback): Retain retry state only if a real
+        // double failure must be recovered before sandbox disposal or timeout.
+        throw new AggregateError([asError(error), asError(cleanupError)], asError(error).message)
+      },
+    )
   }
+  const rejected = (error: Thrown): Promise<never> => fail(error)
+  return readRemoteEnvironment(sandbox, spec.signal).then((ambient) => {
+    controlEnvs = bootstrapEnvironment(ambient)
+    let environment: string
+    let argv: string
+    try {
+      environment = serializeRemoteEnvironment(ambient, spec.env)
+      argv = serializeValues(spec.argv, 'argv')
+    } catch (error) {
+      return fail(error)
+    }
+    stateDirectoryCreated = true
+    return sandbox.files.makeDir(stateDir, signalOpts(spec.signal)).then(
+      () => sandbox.commands.run(
+        `chmod 700 -- ${quoteE2BShellArg(stateDir)}`,
+        commandOpts(controlEnvs, spec.signal),
+      ).then(
+        () => sandbox.files.write([
+          { path: paths.runner, data: TERMINAL_RUNNER_SOURCE },
+          { path: paths.environment, data: environment },
+          { path: paths.argv, data: argv },
+          { path: paths.outputMarker, data: outputMarker.toString('utf8') },
+        ], signalOpts(spec.signal)).then(
+          () => sandbox.commands.run(
+            `chmod 600 -- ${quoteE2BShellArg(paths.runner)} ${quoteE2BShellArg(paths.environment)} ${quoteE2BShellArg(paths.argv)} ${quoteE2BShellArg(paths.outputMarker)}`,
+            commandOpts(controlEnvs, spec.signal),
+          ).then(
+            () => sandbox.pty.create({
+              rows: spec.rows,
+              cols: spec.cols,
+              cwd: spec.cwd,
+              envs: e2bControlEnvs(controlEnvs),
+              timeoutMs: 0,
+              onData: (data) => { outputFilter.push(data) },
+            }).then(
+              (created) => {
+                handle = created
+                const live = created
+                let liveCompletion: Promise<CommandResult>
+                try {
+                  liveCompletion = live.wait()
+                } catch (error) {
+                  return fail(error)
+                }
+                completion = liveCompletion
+                liveCompletion.then(undefined, ignoreRejection)
+                if (spec.signal?.aborted === true) return fail(asError(spec.signal.reason))
+                if (!Number.isSafeInteger(live.pid) || live.pid <= 0) {
+                  return fail(new Error(`subprocess-e2b: E2B returned invalid terminal pid ${live.pid}`))
+                }
+                const command = `exec /bin/bash ${quoteE2BShellArg(paths.runner)} ${quoteE2BShellArg(stateDir)}\r`
+                return sandbox.pty.sendInput(live.pid, Buffer.from(command), signalOpts(spec.signal)).then(
+                  () => waitForBootstrapOutput(outputFilter.ready, liveCompletion, spec.signal).then(
+                    () => terminalSessionId(sandbox, live.pid, controlEnvs, spec.signal).then(
+                      sessionId => new E2BTerminalHandle(
+                        sandbox,
+                        live,
+                        output,
+                        liveCompletion,
+                        sessionId,
+                        controlEnvs,
+                        stateDir,
+                        spec.graceMs,
+                        pollMs,
+                      ),
+                      rejected,
+                    ),
+                    rejected,
+                  ),
+                  rejected,
+                )
+              },
+              rejected,
+            ),
+            rejected,
+          ),
+          rejected,
+        ),
+        rejected,
+      ),
+      rejected,
+    )
+  }, rejected)
 }

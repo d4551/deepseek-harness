@@ -1,6 +1,6 @@
 /** One DevTools connection: explicit local-domain routing plus a private Host V8 session. */
 
-import { cdpError, parseCdpRequest, type CdpTransport } from './protocol.ts'
+import { cdpError, parseCdpRequest, sendCdpFailure, type CdpTransport } from './protocol.ts'
 import { NetworkDomain, type NetworkSink } from './domains/network/session.ts'
 import { CDP_METHOD_NOT_HANDLED, handleScaffold, type CdpTargetDescriptor } from './target.ts'
 import { RuntimeDomainSession } from './domains/runtime/session.ts'
@@ -12,6 +12,8 @@ import { HostNativeDomainSession } from './domains/native.ts'
 import { InspectorRealmSessionSet } from './realm-sessions.ts'
 import type { InspectorRealmRegistry } from '../inspection/realm-store.ts'
 import type { CordisRuntimeTreeReader } from '../../shared/cordis/reader.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Per-connection CDP dispatcher. */
 export class CdpSession implements NetworkSink {
@@ -82,9 +84,7 @@ export class CdpSession implements NetworkSink {
       } else if (request.method === 'DSHInspector.getCordisTree') {
         this.cordisTrees.getTree().then(
           (tree) => { this.transport.send({ id: request.id, result: { tree } }) },
-          (error: unknown) => {
-            this.transport.send(cdpError(request.id, -32000, error instanceof Error ? error.message : String(error)))
-          },
+          (error: Thrown) => { sendCdpFailure(this.transport, request, error) },
         )
         return
       } else {
@@ -96,7 +96,7 @@ export class CdpSession implements NetworkSink {
       }
       this.transport.send({ id: request.id, result })
     } catch (error) {
-      this.transport.send(cdpError(request.id, -32000, error instanceof Error ? error.message : String(error)))
+      sendCdpFailure(this.transport, request, error)
     }
   }
 

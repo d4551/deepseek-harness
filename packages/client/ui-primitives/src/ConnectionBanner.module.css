@@ -6,7 +6,7 @@
   z-index: var(--dsw-z-popover);
   padding: 4px 12px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   background: var(--dsw-alias-bg-layer-3);
   color: var(--dsw-alias-label-error);

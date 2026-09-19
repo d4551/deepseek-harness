@@ -16,7 +16,7 @@ export {
   compactBlocks, isChunkRunEvent, settledBlocks,
 } from './assistant-stream.ts'
 export type { AssistantStream } from './assistant-stream.ts'
-export { applyInboxSplice, inputMessageNode } from './messages.ts'
+export { applyInboxSplice, inputMessageNode, readInboxState } from './messages.ts'
 export type { InboxState, InputMessageNode } from './messages.ts'
 export {
   MAX_TOOL_CALL_DEPTH, acceptsSubcallEdge, childToolCall, childToolResult,

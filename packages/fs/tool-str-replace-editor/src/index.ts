@@ -14,6 +14,8 @@ import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>'
 
 const DEFAULT_DESCRIPTION = `
@@ -74,9 +76,7 @@ class MutationPolicy {
   }
 
   resolve(exec: ToolRunContext): SandboxExecutionPolicy | undefined {
-    return this.policy?.resolve({
-      ...exec.agent === undefined ? {} : { session: exec.agent.session },
-    })
+    return this.policy?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
   }
 
   mapError(error: unknown, policy: SandboxExecutionPolicy | undefined): unknown {
@@ -256,18 +256,18 @@ async function createFile(
     exec,
     () => ({ kind: 'createIfAbsent' } as const),
   )
-  let outcome
-  try {
-    outcome = await ctx.fs.writeText(
-      target,
-      content,
-      intent,
-      exec.signal,
-      sandboxPolicy,
-    )
-  } catch (error: unknown) {
-    throw policy.mapError(error, sandboxPolicy)
-  }
+  const outcome = await ctx.fs.writeText(
+    target,
+    content,
+    intent,
+    exec.signal,
+    sandboxPolicy,
+  ).then(
+    undefined,
+    (error: Thrown) => {
+      throw policy.mapError(error, sandboxPolicy)
+    },
+  )
   ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
   return `New file created successfully at: ${target.displayPath}`
 }
@@ -308,20 +308,20 @@ async function replaceInFile(
       'FS_AMBIGUOUS_EDIT',
     )
   }
-  let outcome
-  try {
-    outcome = await ctx.fs.writeText(
-      target,
-      before.slice(0, offset) + newValue + before.slice(offset + oldValue.length),
-      intent === undefined
-        ? { kind: 'replaceIfVersion', version: info.version }
-        : { kind: 'replaceIfVersion', version: intent.version },
-      exec.signal,
-      sandboxPolicy,
-    )
-  } catch (error: unknown) {
-    throw policy.mapError(error, sandboxPolicy)
-  }
+  const outcome = await ctx.fs.writeText(
+    target,
+    before.slice(0, offset) + newValue + before.slice(offset + oldValue.length),
+    intent === undefined
+      ? { kind: 'replaceIfVersion', version: info.version }
+      : { kind: 'replaceIfVersion', version: intent.version },
+    exec.signal,
+    sandboxPolicy,
+  ).then(
+    undefined,
+    (error: Thrown) => {
+      throw policy.mapError(error, sandboxPolicy)
+    },
+  )
   ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
   return `The file ${target.displayPath} has been edited successfully.`
 }
@@ -358,12 +358,12 @@ async function insertInFile(
   const expected: FsWriteIntent = intent === undefined
     ? { kind: 'replaceIfVersion', version: info.version }
     : { kind: 'replaceIfVersion', version: intent.version }
-  let outcome
-  try {
-    outcome = await ctx.fs.writeText(target, after, expected, exec.signal, sandboxPolicy)
-  } catch (error: unknown) {
-    throw policy.mapError(error, sandboxPolicy)
-  }
+  const outcome = await ctx.fs.writeText(target, after, expected, exec.signal, sandboxPolicy).then(
+    undefined,
+    (error: Thrown) => {
+      throw policy.mapError(error, sandboxPolicy)
+    },
+  )
   ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
   return `The file ${target.displayPath} has been edited successfully.`
 }

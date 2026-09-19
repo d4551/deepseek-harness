@@ -167,6 +167,7 @@ class NotificationSubscriptionImpl implements NotificationSubscription {
    * Iterate notifications until the subscription or runtime closes (the
    * terminating rejection propagates).
    * @returns an async iterator over {@link next} results.
+   * @yields each matching {@link HarnessNotification} in arrival order.
    */
   async * [Symbol.asyncIterator](): AsyncIterator<HarnessNotification> {
     for (;;) yield await this.next()
@@ -200,8 +201,10 @@ export class HarnessClient {
   private transportClosing: Promise<void> | undefined
   private transportDisposal: Promise<PromiseSettledResult<void>[]> | undefined
 
-  /** @param options - dsh profile, patch, home, process, environment, and timeout options. */
-  constructor(options?: HarnessClientOptions)
+  /**
+   * @param options - dsh profile, patch, home, process, environment, and timeout options.
+   * @param runtime - optional already-resolved process launch used by package-local runtime tests.
+   */
   constructor(options: HarnessClientOptions = {}, runtime?: RuntimeProcessOptions) {
     this.options = options
     this.runtime = runtime ?? resolveDshLaunch(options)
@@ -230,8 +233,9 @@ export class HarnessClient {
     // Writes racing the runtime's death EPIPE on stdin; the exit edge below is
     // the real signal, so the stream-level error only needs to be non-fatal.
     // The timing of that race is not deterministically reproducible.
-    /* v8 ignore next */
-    child.stdin.on('error', () => {})
+    child.stdin.on('error', (error: Error) => {
+      this.appendStderr([`stdin: ${error.message}`])
+    })
     let stderrBuffer = ''
     child.stderr.setEncoding('utf8')
     child.stderr.on('data', (chunk: string) => {
@@ -328,7 +332,6 @@ export class HarnessClient {
       throw this.closedError('DeepSeek Harness runtime is not running')
     }
     const transport = this.transport
-    /* v8 ignore next -- start() either sets the transport or throws */
     if (transport === undefined) throw new TransportClosedError('DeepSeek Harness runtime is not running')
     const timeout = timeoutMs ?? this.runtime.requestTimeoutMs
     try {
@@ -455,7 +458,6 @@ export class HarnessClient {
       current = parent
     }
     // The parent map only ever extends chains upward, so a cycle cannot form.
-    /* v8 ignore next */
     return false
   }
 
@@ -489,11 +491,7 @@ export class HarnessClient {
 
 /** Construct the transport against a generic process for package-local fake-runtime tests. */
 export function createProcessHarnessClient(options: RuntimeProcessOptions): HarnessClient {
-  const Constructor = HarnessClient as unknown as new (
-    publicOptions: HarnessClientOptions,
-    runtime: RuntimeProcessOptions,
-  ) => HarnessClient
-  return new Constructor({}, options)
+  return new HarnessClient({}, options)
 }
 
 /**
@@ -507,6 +505,5 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** The message of a thrown value (the transport only throws `Error`s; `String` covers the rest). */
 function errorMessage(error: unknown): string {
-  /* v8 ignore next -- the transport and dispose ladder reject only with Errors */
   return error instanceof Error ? error.message : String(error)
 }

@@ -1,5 +1,5 @@
 ---
-description: "零依赖工具家族的包映射：原子文件写入、品牌化 id、harness 主目录路径、启动环境、原生命令、输出保留与超时。"
+description: "零依赖工具家族的包映射：原子文件写入、品牌化 id、拒绝值联合类型、harness 主目录路径、启动环境、原生命令、输出保留与超时。"
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-`util/` 组为能力包提供共享的机制原语，避免重复实现。它涵盖原子写入、品牌化 id、UUID、Harness home 路径、启动环境、原生命令、输出保留和超时处理。这里的每个包都是库：它不注册服务或事件，业务语义仍由消费它的能力负责。
+`util/` 组为能力包提供共享的机制原语，避免重复实现。它涵盖原子写入、品牌化 id、拒绝值联合类型、UUID、Harness home 路径、启动环境、原生命令、输出保留和超时处理。这里的每个包都是库：它不注册服务或事件，业务语义仍由消费它的能力负责。
 
 ## 目录
 
@@ -27,6 +27,7 @@ kind: "package-group"
 | 包 | 职责 |
 |---|---|
 | [`brand/`](brand/README.zh.md) | 为跨越包边界的 id 提供仅编译期的名义品牌 |
+| [`thrown/`](thrown/README.zh.md) | 为观察 throw 或 Promise 拒绝的处理方提供仅编译期的拒绝值联合类型 |
 | [`crypto/`](crypto/README.zh.md) | 基于跨运行时 `crypto.getRandomValues` 原语生成 RFC 9562 v4 UUID |
 | [`home-paths/`](home-paths/README.zh.md) | 解析统一的 Harness 主目录并拼接共享的用户数据路径 |
 | [`launch-environment/`](launch-environment/README.zh.md) | 冻结的启动环境，记住每个值来自哪一层 |

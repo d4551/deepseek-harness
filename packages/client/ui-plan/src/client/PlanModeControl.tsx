@@ -7,6 +7,26 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PlanChipInjected } from './index.ts'
 import css from './PlanModeControl.module.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Full plan-seat component props: runtime share (standard kit + locked owner prop) & injected share & the locale seat. */
 export type PlanChipProps =
   PropsRuntime<'conversation.input.plan'> & InjectFace<PlanChipInjected> & PropsLocale<'plan'>
@@ -41,10 +61,10 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
       if (!aliveRef.current) return
       setLeaving(false)
       setError(failure)
-    }, (reason: unknown) => {
+    }, (reason: Thrown) => {
       if (!aliveRef.current) return
       setLeaving(false)
-      setError(reason instanceof Error ? reason.message : String(reason))
+      setError(thrownMessage(reason))
     })
   }
 
@@ -63,7 +83,7 @@ export function PlanChip({ useProjection, locked, exitPlanMode, t }: PlanChipPro
           <IconCloseFill14 size={12} />
         </span>
       </button>
-      {error !== null && <span className={css.error} role="status" title={error}>{t('chip.exitFailed')}</span>}
+      {error !== null && <output className={css.error} title={error}>{t('chip.exitFailed')}</output>}
     </span>
   )
 }

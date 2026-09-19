@@ -21,7 +21,9 @@ const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/declared-reasoning', impo
 const UI_EXPECTED = fileURLToPath(new URL('./expected/declared-reasoning/ui.expected.md', import.meta.url))
 const MODE = webSnapshotMode()
 
-describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach the composer', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] declared-reasoning.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: declared reasoning efforts reach the composer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

@@ -39,6 +39,31 @@ import {
   subagentModelSelectionPolicy,
 } from './model-selection-state.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected scoped-fiber disposal.
+ * @param reason - the Thrown the dispose path rejected with.
+ * @returns the message to log.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt']
 
@@ -141,16 +166,17 @@ function outputValueText(values: JsonValue[]): string {
 }
 
 /** Settle pending startup without rejecting the task producer contract. */
-async function settleStart(start: Promise<SubagentRun>, signal: AbortSignal): Promise<JobOutcome> {
-  try {
-    return await settleRun(await start)
-  } catch (error: unknown) {
+function settleStart(start: Promise<SubagentRun>, signal: AbortSignal): Promise<JobOutcome> {
+  const claim = (error: Thrown): JobOutcome =>
     // Product providers aggregate startup and rollback failures. Cancellation
     // must not turn a failed cleanup into a cleanly killed Job.
-    return signal.aborted && !(error instanceof AggregateError)
+    signal.aborted && !(error instanceof AggregateError)
       ? { status: 'killed' }
       : { status: 'failed', detail: String(error) }
-  }
+  return start.then(
+    run => settleRun(run).then(undefined, claim),
+    claim,
+  )
 }
 
 /** A non-`completed` stop reason means the child did not finish cleanly. */
@@ -218,35 +244,35 @@ function isJsonBlocks(blocks: readonly unknown[]): blocks is JsonValue[] {
  * Collect and release one foreground run without letting disposal replace an
  * independent result failure.
  */
-async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResult> {
-  const [execution] = await Promise.allSettled([
-    run.result.then((result): ForegroundToolResult => {
-      const error = stopReasonError(result)
-      if (error !== undefined) {
-        // The registry converts this throw to isError; partial output is not
-        // success, but the preserved partial answer still reaches the parent.
-        throw new Error(withDiagnosticAndPartialText(error, result))
-      }
-      if (!isJsonBlocks(result.output)) {
-        // The registry would raise its own invalid-output failure a layer
-        // later; naming the run here says which subagent produced the block.
-        throw new Error(`subagent run ${run.id} produced output that is not lossless JSON`)
-      }
-      return { kind: 'foreground', runId: run.id, output: result.output }
-    }),
-  ])
-  const [disposal] = await Promise.allSettled([Promise.resolve().then(() => run.dispose())])
-  if (execution.status === 'rejected') {
-    if (disposal.status === 'rejected') {
-      throw new AggregateError(
-        [execution.reason, disposal.reason],
-        `subagent run failed: ${String(execution.reason)}; dispose failed: ${String(disposal.reason)}`,
-      )
+function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResult> {
+  return run.result.then((result): ForegroundToolResult => {
+    const error = stopReasonError(result)
+    if (error !== undefined) {
+      // The registry converts this throw to isError; partial output is not
+      // success, but the preserved partial answer still reaches the parent.
+      throw new Error(withDiagnosticAndPartialText(error, result))
     }
-    throw execution.reason
-  }
-  if (disposal.status === 'rejected') throw disposal.reason
-  return execution.value
+    if (!isJsonBlocks(result.output)) {
+      // The registry would raise its own invalid-output failure a layer
+      // later; naming the run here says which subagent produced the block.
+      throw new Error(`subagent run ${run.id} produced output that is not lossless JSON`)
+    }
+    return { kind: 'foreground', runId: run.id, output: result.output }
+  }).then(
+    value => run.dispose().then(
+      () => value,
+      (error: Thrown): never => { throw error },
+    ),
+    (executionError: Thrown) => run.dispose().then(
+      () => { throw executionError },
+      (disposalError: Thrown): never => {
+        throw new AggregateError(
+          [executionError, disposalError],
+          `subagent run failed: ${String(executionError)}; dispose failed: ${String(disposalError)}`,
+        )
+      },
+    ),
+  )
 }
 
 /**
@@ -679,8 +705,8 @@ export function apply(ctx: Context, config: Config): void {
     if (fiber === undefined) return
     scopedInstalls.delete(candidate)
     /* v8 ignore next 3 -- Cordis Fiber disposal contains registration cleanup failures; this is the final diagnostic sink. */
-    fiber.dispose().catch((error: unknown) => {
-      ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`)
+    fiber.dispose().catch((error: Thrown) => {
+      ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${thrownMessage(error)}`)
     })
   }
   const reconcileComposedAgents = (): void => {

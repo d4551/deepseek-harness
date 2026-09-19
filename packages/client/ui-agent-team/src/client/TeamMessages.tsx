@@ -43,7 +43,7 @@ export function TeamMessages({ view, t }: { view: TeamOverview; t: (key: TeamKey
         setSelectedMessage(null)
       }} />
     </PanelField>}
-    {search !== '' && threads.size === 0 && <p role="status">{t('noMatchingMessages')}</p>}
+    {search !== '' && threads.size === 0 && <output>{t('noMatchingMessages')}</output>}
     {threads.size > 0 && <PanelTable label={t('messages')} columns={[t('conversation'), t('messageCount')]}>
       {[...threads].map(([key, entries]) => {
         const latest = entries[0]

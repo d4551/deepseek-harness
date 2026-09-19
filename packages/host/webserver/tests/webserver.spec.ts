@@ -6,8 +6,9 @@
  */
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { IncomingMessage, ServerResponse } from 'node:http'
 import { once } from 'node:events'
-import { connect } from 'node:net'
+import { connect, Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -19,6 +20,12 @@ import HttpServer, { renderIndexInjections } from '../src/index.ts'
 
 let root: string | undefined
 let context: Context | undefined
+
+function isGzipMiddleware(
+  value: unknown,
+): value is (req: IncomingMessage, res: ServerResponse, next: () => void) => void {
+  return typeof value === 'function'
+}
 
 afterEach(async () => {
   await context?.fiber.dispose()
@@ -107,10 +114,20 @@ describe('real Loader composition', () => {
     })
     expect(() => HttpServer.Config({
       host: '127.0.0.1', port: 0, compressionLevel: 10,
-    })).toThrow()
+    })).toThrow('$.compressionLevel expected number <= 9 but got 10')
 
     const loaded = await loadComposition(0, true)
     const server = loaded.webServer
+    expect(server.host).toBe('127.0.0.1')
+    const gzip = Reflect.get(server, 'gzip')
+    if (!isGzipMiddleware(gzip)) throw new Error('leftover gzip middleware missing')
+    let leftoverGzipNext = false
+    const leftoverGzipReq = new IncomingMessage(new Socket())
+    leftoverGzipReq.headers = { 'accept-encoding': 'gzip' }
+    const leftoverGzipRes = new ServerResponse(leftoverGzipReq)
+    Object.defineProperty(leftoverGzipRes, 'socket', { value: undefined })
+    gzip(leftoverGzipReq, leftoverGzipRes, () => { leftoverGzipNext = true })
+    expect(leftoverGzipNext).toBe(true)
     const body = 'compressible response '.repeat(8)
     server.register({
       kind: 'exact',
@@ -300,7 +317,96 @@ describe('real Loader composition', () => {
     await loaded.fiber.dispose()
     expect(upgradedServerClosed).toBe(true)
     upgraded.destroy()
-    await expect(request(port, '/probe')).rejects.toThrow()
+    await expect(request(port, '/probe')).rejects.toThrow(/fetch failed|ECONNREFUSED|ECONNRESET/)
+  })
+
+  it('claims leftover HTTP and upgrade handler rejects as Thrown', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition()
+    const server = loaded.webServer
+    const port = server.port
+    server.register({ kind: 'exact', path: '/probe', handler: (_req, res) => { res.writeHead(200); res.end('EXACT') } })
+    expect(server.host).toBe('127.0.0.1')
+    const leftoverTap = server.tapIndex(html => html)
+    leftoverTap()
+    leftoverTap()
+    server.register({ kind: 'prefix', path: '/leftover/deep', handler: (_req, res) => { res.writeHead(200); res.end('DEEP') } })
+    server.register({ kind: 'prefix', path: '/leftover', handler: (_req, res) => { res.writeHead(200); res.end('SHALLOW') } })
+    expect(await request(port, '/leftover/deep/leaf')).toMatchObject({ status: 200, body: 'DEEP' })
+    server.register({
+      kind: 'exact',
+      path: '/leftover-listen-error',
+      handler: (req, res) => {
+        const httpServer = req.socket.server
+        if (httpServer === undefined || httpServer === null) throw new Error('leftover request has no server')
+        httpServer.emit('error', new Error('leftover post-listen error'))
+        res.writeHead(200)
+        res.end('LISTEN')
+      },
+    })
+    expect(await request(port, '/leftover-listen-error')).toMatchObject({ status: 200, body: 'LISTEN' })
+
+    const leftoverHttp = [
+      { path: '/leftover-string', reason: 'leftover string' },
+      { path: '/leftover-number', reason: 7 },
+      { path: '/leftover-boolean', reason: false },
+      { path: '/leftover-bigint', reason: 1n },
+      { path: '/leftover-symbol', reason: Symbol('leftover') },
+      { path: '/leftover-function', reason: function leftoverFn() {} },
+      { path: '/leftover-undefined', reason: undefined },
+      { path: '/leftover-null', reason: null },
+      { path: '/leftover-object', reason: { leftover: true } },
+    ]
+    for (const row of leftoverHttp) {
+      server.register({
+        kind: 'exact',
+        path: row.path,
+        handler: () => { throw row.reason },
+      })
+    }
+    for (const row of leftoverHttp) {
+      expect((await request(port, row.path)).status).toBe(400)
+    }
+
+    server.register({
+      kind: 'exact',
+      path: '/leftover-headers-sent',
+      handler: (_req, res) => {
+        res.writeHead(200, { 'content-type': 'text/plain' })
+        res.write('started')
+        throw 'leftover after headers'
+      },
+    })
+    await Promise.allSettled([request(port, '/leftover-headers-sent')])
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
+
+    server.registerUpgrade({
+      path: '/leftover-upgrade-sync',
+      handler: () => { throw 'leftover upgrade sync' },
+    })
+    server.registerUpgrade({
+      path: '/leftover-upgrade-async',
+      handler: async () => { throw { leftover: true } },
+    })
+    server.registerUpgrade({
+      path: '/leftover-upgrade-error',
+      handler: () => { throw new Error('leftover upgrade error') },
+    })
+    for (const path of ['/leftover-upgrade-sync', '/leftover-upgrade-async', '/leftover-upgrade-error', '/leftover-unmatched-upgrade', 'http://[']) {
+      const leftoverUpgrade = connect(port, '127.0.0.1')
+      leftoverUpgrade.on('error', () => { /* The leftover upgrade reject destroys the socket. */ })
+      await once(leftoverUpgrade, 'connect')
+      const leftoverUpgradeClosed = once(leftoverUpgrade, 'close')
+      leftoverUpgrade.write([
+        `GET ${path} HTTP/1.1`,
+        `Host: 127.0.0.1:${String(port)}`,
+        'Connection: Upgrade',
+        'Upgrade: dsh-test',
+        '',
+        '',
+      ].join('\r\n'))
+      await leftoverUpgradeClosed
+    }
+    expect(await request(port, '/probe')).toMatchObject({ status: 200, body: 'EXACT' })
   })
 
   it('collects injection rows fresh per render and layers taps over the rendered rows', { timeout: 60_000 }, async () => {

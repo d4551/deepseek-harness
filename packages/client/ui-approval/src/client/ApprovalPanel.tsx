@@ -4,6 +4,26 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ApprovalComposerProps, PendingApproval } from './contract/slots.ts'
 import css from './ApprovalPanel.module.css'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Render one pending approval and its optional Tool-owned detail.
  * @param props - selector-matched request and standard Slot props.
@@ -23,24 +43,28 @@ function ApprovalFlow({ pending, detail, t }: {
   t: ApprovalComposerProps['t']
 }) {
   const [answered, setAnswered] = useState(false)
+  const [answerError, setAnswerError] = useState<string | null>(null)
   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
     setAnswered(true)
-    pending.answer(outcome).catch(() => { setAnswered(false) })
+    setAnswerError(null)
+    pending.answer(outcome).then(
+      undefined,
+      (reason: Thrown) => {
+        setAnswered(false)
+        setAnswerError(thrownMessage(reason))
+      },
+    )
   }
   return (
     <div className={css.root} data-approval-key={pending.key}>
       <div className={css.card}>
         <div className={css.strip}><span className={css.dot} />{t('waiting')}</div>
-        <div
-          className={css.body}
-          data-approval-scroll=""
-          tabIndex={0}
-          role="group"
-          aria-label={t('detail.aria')}
-        >
+        <fieldset className={css.body} data-approval-scroll="">
+          <legend className="dsw-visually-hidden">{t('detail.aria')}</legend>
           <div className={css.headline}>{pending.reason ?? t('escalation', { toolName: pending.toolName })}</div>
           {detail !== null && <div className={css.command}>{detail}</div>}
-        </div>
+        </fieldset>
+        {answerError !== null && <div className={css.headline} role="alert">{answerError}</div>}
         <div className={css.actionRow}>
           <Button variant="outline" className={css.reject} disabled={answered} onClick={() => { answer('rejected') }}>
             {t('reject')}

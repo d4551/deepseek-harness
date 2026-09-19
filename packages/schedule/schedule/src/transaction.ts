@@ -2,6 +2,8 @@
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const tails = new WeakMap<Agent, Promise<void>>()
 
 /**
@@ -13,7 +15,7 @@ const tails = new WeakMap<Agent, Promise<void>>()
 export async function runScheduleTransaction<T>(agent: Agent, operation: () => Promise<T>): Promise<T> {
   const prior = tails.get(agent) ?? Promise.resolve()
   const run = prior.then(operation)
-  const tail = run.then(() => undefined, () => undefined)
+  const tail = run.then(() => undefined, (_error: Thrown) => undefined)
   tails.set(agent, tail)
   try {
     return await run

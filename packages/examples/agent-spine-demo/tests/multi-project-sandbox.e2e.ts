@@ -81,7 +81,9 @@ async function agents() {
 }
 
 describe('one-context multi-project sandbox', () => {
-  it.skipIf(!processSandboxUsable)('confines concurrent bash calls to each calling session workspace', async () => {
+  const SKIP_WITHOUT_PROCESS_SANDBOX = !processSandboxUsable
+  if (SKIP_WITHOUT_PROCESS_SANDBOX) console.info('[skip] multi-project-sandbox.e2e.ts: process sandbox is unusable on this host; confinement e2e stays off')
+  it.skipIf(SKIP_WITHOUT_PROCESS_SANDBOX)('confines concurrent bash calls to each calling session workspace', async () => {
     const { active, agentA, agentB } = await agents()
     const [aOwn, bOwn, aCross, bCross] = await Promise.all([
       active.tools.execute({
@@ -155,7 +157,9 @@ describe('one-context multi-project sandbox', () => {
     await expectMissing(join(projectA, 'from-b.txt'))
   })
 
-  it.skipIf(!processSandboxUsable)('keeps symlink-sensitive session cwd semantics aligned across bash, fs, and policy', async () => {
+  const SKIP_WITHOUT_PROCESS_SANDBOX_2 = !processSandboxUsable
+  if (SKIP_WITHOUT_PROCESS_SANDBOX_2) console.info('[skip] multi-project-sandbox.e2e.ts: process sandbox is unusable on this host; confinement e2e stays off')
+  it.skipIf(SKIP_WITHOUT_PROCESS_SANDBOX_2)('keeps symlink-sensitive session cwd semantics aligned across bash, fs, and policy', async () => {
     const active = ctx as Context
     const lexicalRoot = await projectDir('lexical-workspace')
     const physicalRoot = await projectDir('physical-workspace')
@@ -205,7 +209,9 @@ describe('one-context multi-project sandbox', () => {
     await expectMissing(join(lexicalRoot, 'fs-escaped.txt'))
   })
 
-  it.skipIf(!processSandboxUsable)('resolves parent traversal from a symlinked session root consistently', async () => {
+  const SKIP_WITHOUT_PROCESS_SANDBOX_3 = !processSandboxUsable
+  if (SKIP_WITHOUT_PROCESS_SANDBOX_3) console.info('[skip] multi-project-sandbox.e2e.ts: process sandbox is unusable on this host; confinement e2e stays off')
+  it.skipIf(SKIP_WITHOUT_PROCESS_SANDBOX_3)('resolves parent traversal from a symlinked session root consistently', async () => {
     const active = ctx as Context
     const lexicalRoot = await projectDir('lexical-parent')
     const physicalRoot = await projectDir('physical-parent')

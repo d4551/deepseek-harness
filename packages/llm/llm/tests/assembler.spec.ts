@@ -71,11 +71,9 @@ describe('BlockAssembler', () => {
 
   it('mustGet throws when an index is missing from the partials map (invariant violation)', () => {
     const assembler = new BlockAssembler()
-    // Force the invariant violation: manually corrupt the data structures.
-    /* oxlint-disable */
-    const hack = assembler as any
-    hack.order.push(99)
-    /* oxlint-enable */
+    const order = Reflect.get(assembler, 'order')
+    if (!Array.isArray(order)) throw new Error('BlockAssembler order is missing')
+    order.push(99)
     expect(() => assembler.blocks()).toThrow('BlockAssembler invariant violated')
   })
 

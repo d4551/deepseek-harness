@@ -182,7 +182,9 @@ describe('LocalSubprocessRuntime', () => {
     }
   })
 
-  it.skipIf(process.platform === 'win32')('refuses a POSIX file without the execute bit', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] local.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('refuses a POSIX file without the execute bit', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-exec-check-'))
     tempDirs.push(dir)
     const data = join(dir, 'notes.txt')

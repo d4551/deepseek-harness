@@ -27,7 +27,7 @@ This package powers the input trigger pipeline of the Web GUI: it detects `/` an
 
 Mount this plugin alongside `ui-conversation`; the menu then appears in the input overlay when the user types a trigger under the caret. Grouped candidates render under title rows; a pick routes to the source, and the consuming surface applies the result — a slash command opens its popup or executes, a reference inserts its inline token.
 
-A source whose candidate load fails keeps its group: the menu shows that group's title, an alert carrying the failure's own message, and a Retry action, instead of hiding the failure behind an empty body. The failure is terminal for that query — nothing repeats the load until Retry is pressed or the query changes — so a permanently failing source costs one request per user intent, not one per draft notification.
+A source whose candidate load fails keeps its group: the menu shows that group's title, an alert carrying the failure's own message, and a Retry action, instead of hiding the failure behind an empty body. The failure is terminal for that query — nothing repeats the load until Retry is pressed or the query changes — so a permanently failing source costs one request per user intent, not one per draft notification. Synchronous hooks report a failed answer as `{ hookFailed: true, message }` so one faulty source cannot take down the menu, the lexicon, or remaining session controllers.
 
 ### Keyboard and mouse
 

@@ -17,6 +17,7 @@ import { zh } from '../src/client/locales.ts'
 import type {
   InputTriggerCrumb, MenuState, TriggerHit,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { PickAction } from '../src/types.ts'
 import { MenuView } from '../src/client/MenuView.tsx'
 import './menu-view.browser.css'
 
@@ -59,11 +60,11 @@ const t = makeTranslate(zh, commonZh)
 function mount(state: MenuState, crumbs: ReadonlyMap<string, readonly InputTriggerCrumb[]> = new Map()) {
   const menu = createSnapshotStore<MenuState>(state)
   const headers = createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(crumbs)
-  const onPick = vi.fn()
-  const onCrumb = vi.fn()
-  const onHover = vi.fn()
-  const onRetry = vi.fn()
-  const onDismiss = vi.fn()
+  const onPick = vi.fn<(source: string, index: number, action?: PickAction) => void>()
+  const onCrumb = vi.fn<(source: string, index: number) => void>()
+  const onHover = vi.fn<(source: string, index: number) => void>()
+  const onRetry = vi.fn<(source: string) => void>()
+  const onDismiss = vi.fn<() => void>()
   const view = render(
     <main className="menuComposer">
       <MenuView
@@ -110,9 +111,8 @@ describe('MenuView', () => {
     mount(openState())
     const options = screen.getAllByRole('option')
     expect(options.map(o => o.textContent)).toEqual(['goalSet up a goal', 'plan'])
-    // The icon token renders as an SVG glyph, not text.
-    expect(options[0]?.querySelector('svg')).not.toBeNull()
-    expect(options[1]?.querySelector('svg')).toBeNull()
+    expect(options[0]?.getAttribute('data-icon')).toBe('file')
+    expect(options[1]?.getAttribute('data-icon')).toBeNull()
     // The loading state is announced by text, not by the skeleton bars alone.
     const status = screen.getByRole('status', { name: '正在加载…' })
     expect(status.textContent).toBe('正在加载…')
@@ -253,20 +253,20 @@ describe('MenuView', () => {
 
   it('pointerdown inside the surrounding composer card does not dismiss; outside it does', () => {
     const menu = createSnapshotStore<MenuState>(openState())
-    const onDismiss = vi.fn()
+    const onDismiss = vi.fn<() => void>()
     render(
       <div data-composer-card="">
         <MenuView
           menu={menu}
           headers={createSnapshotStore<ReadonlyMap<string, readonly InputTriggerCrumb[]>>(new Map())}
-          onPick={vi.fn()}
-          onCrumb={vi.fn()}
-          onHover={vi.fn()}
-          onRetry={vi.fn()}
+          onPick={vi.fn<(source: string, index: number, action?: PickAction) => void>()}
+          onCrumb={vi.fn<(source: string, index: number) => void>()}
+          onHover={vi.fn<(source: string, index: number) => void>()}
+          onRetry={vi.fn<(source: string) => void>()}
           onDismiss={onDismiss}
           t={t}
         />
-        <button type="button" data-testid="composer-button" />
+        <button type="button" data-testid="composer-button" aria-label="composer" />
       </div>,
     )
     fireEvent.pointerDown(screen.getByTestId('composer-button'))

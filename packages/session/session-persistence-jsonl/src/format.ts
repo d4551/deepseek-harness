@@ -89,23 +89,28 @@ export function fromHeaderLine(line: HeaderLine): SessionHeader {
 
 /** Type guard: a parsed first line is a well-formed session header. */
 function isHeaderLine(value: unknown): value is HeaderLine {
+  if (typeof value !== 'object' || value === null) return false
+  const type: unknown = Reflect.get(value, 'type')
+  const version: unknown = Reflect.get(value, 'version')
+  const id: unknown = Reflect.get(value, 'id')
+  const createdAt: unknown = Reflect.get(value, 'createdAt')
+  const delegationDepth: unknown = Reflect.get(value, 'delegationDepth')
+  const origin: unknown = Reflect.get(value, 'origin')
+  const agentPreset: unknown = Reflect.get(value, 'agentPreset')
   return (
-    typeof value === 'object' && value !== null
-    && (value as { type?: unknown }).type === 'session'
-    && typeof (value as { version?: unknown }).version === 'number'
-    && typeof (value as { id?: unknown }).id === 'string'
-    && typeof (value as { createdAt?: unknown }).createdAt === 'number'
-    && Number.isSafeInteger((value as { createdAt: number }).createdAt)
-    && (value as { createdAt: number }).createdAt >= 0
-    && !Object.is((value as { createdAt: number }).createdAt, -0)
-    && typeof (value as { delegationDepth?: unknown }).delegationDepth === 'number'
-    && Number.isSafeInteger((value as { delegationDepth: number }).delegationDepth)
-    && (value as { delegationDepth: number }).delegationDepth >= 0
-    && !Object.is((value as { delegationDepth: number }).delegationDepth, -0)
-    && ((value as { origin?: unknown }).origin === undefined
-      || (value as { origin?: unknown }).origin === 'subagent')
-    && ((value as { agentPreset?: unknown }).agentPreset === undefined
-      || typeof (value as { agentPreset?: unknown }).agentPreset === 'string')
+    type === 'session'
+    && typeof version === 'number'
+    && typeof id === 'string'
+    && typeof createdAt === 'number'
+    && Number.isSafeInteger(createdAt)
+    && createdAt >= 0
+    && !Object.is(createdAt, -0)
+    && typeof delegationDepth === 'number'
+    && Number.isSafeInteger(delegationDepth)
+    && delegationDepth >= 0
+    && !Object.is(delegationDepth, -0)
+    && (origin === undefined || origin === 'subagent')
+    && (agentPreset === undefined || typeof agentPreset === 'string')
   )
 }
 
@@ -244,21 +249,28 @@ function encodeProvenanceForStorage(record: StorageRecord): unknown {
  * @returns the value with provenance expanded.
  * @throws when the record or its storage-form provenance is malformed.
  */
-function expandProvenanceFromStorage(parsed: unknown): unknown {
+function expandProvenanceFromStorage(parsed: unknown): object {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new TypeError('stored session records must be objects')
   }
-  const record = parsed as { seq?: unknown; sourceEventSeqs?: unknown }
-  if (record.sourceEventSeqs === undefined) return parsed
-  if (!Number.isSafeInteger(record.seq) || (record.seq as number) < 0) {
+  const sourceEventSeqs: unknown = Reflect.get(parsed, 'sourceEventSeqs')
+  if (sourceEventSeqs === undefined) return parsed
+  const seq: unknown = Reflect.get(parsed, 'seq')
+  if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 0) {
     throw new TypeError('stored session event seq must be a non-negative safe integer')
   }
-  return { ...record, sourceEventSeqs: decodeSeqRanges(record.sourceEventSeqs, record.seq as number) }
+  const record: { [key: string]: unknown } = {}
+  for (const key of Object.keys(parsed)) {
+    const field: unknown = Reflect.get(parsed, key)
+    record[key] = field
+  }
+  record.sourceEventSeqs = decodeSeqRanges(sourceEventSeqs, seq)
+  return record
 }
 
 interface SessionLogScan {
   meta: SessionHeader
-  events: SessionEvent[]
+  events: object[]
   committedBytes: number
 }
 
@@ -272,7 +284,8 @@ interface SessionLogScan {
  */
 function refuseForeignFormatVersion(parsed: unknown): void {
   if (typeof parsed !== 'object' || parsed === null) return
-  const { version, id } = parsed as { version?: unknown; id?: unknown }
+  const version: unknown = Reflect.get(parsed, 'version')
+  const id: unknown = Reflect.get(parsed, 'id')
   if (typeof version !== 'number' || version === SESSION_FORMAT_VERSION) return
   throw new SessionFormatUnsupportedError(
     sessionFormatVersionRefusal(typeof id === 'string' ? id : String(id), version),
@@ -304,7 +317,7 @@ function parseHeaderRecord(record: Buffer): SessionHeader {
  */
 export class SessionLogScanner {
   private readonly meta: SessionHeader
-  private readonly events: SessionEvent[] = []
+  private readonly events: object[] = []
   private fragments: Buffer[] = []
   private fragmentBytes = 0
   private inputBytes: number
@@ -379,7 +392,7 @@ export class SessionLogScanner {
   /** Decode one complete event row and update the contiguous prefix. */
   private consumeEventLine(line: Buffer, endByte: number): void {
     this.eventLine += 1
-    let decoded: SessionEvent[]
+    let decoded: unknown[]
     try {
       decoded = decodeStorageRecord(expandProvenanceFromStorage(JSON.parse(line.toString('utf8'))))
     } catch {
@@ -388,20 +401,26 @@ export class SessionLogScanner {
     }
 
     if (this.issue !== undefined) {
-      if (decoded.some(event => event.type === 'turn/end')) throw this.issue
+      if (decoded.some(event => storedEventType(event) === 'turn/end')) throw this.issue
       return
     }
 
     const rowStart = this.events.length
     for (const event of decoded) {
-      if (event.seq !== this.events.length) {
+      if (typeof event !== 'object' || event === null) {
+        this.issue = new Error(`corrupt session log: unparsable committed event at line ${this.eventLine}`)
+        if (decoded.some(candidate => storedEventType(candidate) === 'turn/end')) throw this.issue
+        return
+      }
+      const seq = storedEventSeq(event)
+      if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq !== this.events.length) {
         const expected = this.events.length
         this.events.length = rowStart
         this.issue = new Error(
           `corrupt session log: seq gap in committed region at line ${this.eventLine} `
-          + `(expected ${expected}, got ${event.seq})`,
+          + `(expected ${String(expected)}, got ${String(seq)})`,
         )
-        if (decoded.some(candidate => candidate.type === 'turn/end')) throw this.issue
+        if (decoded.some(candidate => storedEventType(candidate) === 'turn/end')) throw this.issue
         return
       }
       this.events.push(event)
@@ -443,4 +462,15 @@ export function parseHeaderMeta(firstLine: string): SessionHeader | undefined {
   }
   if (!isHeaderLine(parsed)) return undefined
   return fromHeaderLine(parsed)
+}
+
+/** Read the type carried by one decoded stored record. */
+function storedEventType(event: unknown): unknown {
+  if (typeof event !== 'object' || event === null) return undefined
+  return Reflect.get(event, 'type')
+}
+
+/** Read the sequence number carried by one decoded stored record. */
+function storedEventSeq(event: object): unknown {
+  return Reflect.get(event, 'seq')
 }

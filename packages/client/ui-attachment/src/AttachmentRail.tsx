@@ -38,10 +38,14 @@ const WHEEL_LINE_PX = 16
 
 /** Smooth paging unless the user asked for reduced motion. */
 function pageBehavior(): ScrollBehavior {
-  // jsdom (the unit lane) implements no matchMedia despite lib.dom's
-  // non-optional typing; the optional call keeps that lane on the default.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+  if (typeof window.matchMedia !== 'function') return 'smooth'
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+}
+
+function mountedRail(ref: { current: HTMLElement | null }): HTMLElement {
+  const el = ref.current
+  if (el === null) throw new TypeError('attachment rail is not mounted')
+  return el
 }
 
 /**
@@ -70,16 +74,14 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
   onOpen: (item: T) => void
   onRemove: (item: T) => void
 }) {
-  const railRef = useRef<HTMLDivElement | null>(null)
+  const railRef = useRef<HTMLFieldSetElement | null>(null)
   // null marks the first layout pass: a rail that MOUNTS over an existing
   // draft (session switch back to held images) is initial display, not
   // growth, and must not jump to the end.
   const countRef = useRef<number | null>(null)
   const [edges, setEdges] = useState({ left: false, right: false })
   const updateEdges = useCallback(() => {
-    const el = railRef.current
-    /* v8 ignore next -- defensive: every caller runs while the rail element is mounted. */
-    if (el === null) return
+    const el = mountedRail(railRef)
     // 1px slack: engines report fractional scroll positions at the edges.
     const left = el.scrollLeft > 1
     const right = el.scrollLeft < el.scrollWidth - el.clientWidth - 1
@@ -88,27 +90,19 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
   useLayoutEffect(() => {
     const grew = countRef.current !== null && items.length > countRef.current
     countRef.current = items.length
-    const el = railRef.current
-    /* v8 ignore next -- defensive: the rail div renders unconditionally, so the layout effect always finds it. */
-    if (el === null) return
+    const el = mountedRail(railRef)
     // A newly added attachment lands at the rail's end: reveal it.
     if (grew) el.scrollLeft = el.scrollWidth - el.clientWidth
     updateEdges()
   }, [items.length, updateEdges])
   useEffect(() => {
-    const el = railRef.current
-    /* v8 ignore next -- defensive: the rail div renders unconditionally, so the mount effect always finds it. */
-    if (el === null) return
+    const el = mountedRail(railRef)
     // The rail's width follows the composer, which resizes with sidebars and
     // panels, not only the window — observe the element itself. jsdom (the
     // unit lane) implements no ResizeObserver; every browser gets the
     // subscription.
-    let disconnect = (): void => {}
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(updateEdges)
-      observer.observe(el)
-      disconnect = () => { observer.disconnect() }
-    }
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(updateEdges)
+    if (observer !== undefined) observer.observe(el)
     // The rail scrolls horizontally ONLY: any wheel tick with a vertical
     // component is consumed — without preventDefault it would also scroll the
     // conversation behind the composer, and React's root wheel listener is
@@ -133,14 +127,12 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => {
-      disconnect()
+      observer?.disconnect()
       el.removeEventListener('wheel', onWheel)
     }
   }, [updateEdges])
   const page = (direction: -1 | 1): void => {
-    const el = railRef.current
-    /* v8 ignore next -- defensive: the arrows render only while the rail is mounted, so a click cannot find a null ref. */
-    if (el === null) return
+    const el = mountedRail(railRef)
     // One viewport minus a card keeps the last visible thumbnail as context;
     // the floor keeps narrow rails paging a useful distance.
     el.scrollBy({ left: direction * Math.max(el.clientWidth - 64, 200), behavior: pageBehavior() })
@@ -157,10 +149,9 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
           <IconChevronLeftOutline14 />
         </button>
       )}
-      <div
+      <fieldset
         ref={railRef}
         className={css.rail}
-        role="group"
         aria-label={labels.group}
         onScroll={updateEdges}
       >
@@ -184,7 +175,7 @@ export function AttachmentRail<T extends AttachmentRailItem>({ items, labels, on
             </button>
           </div>
         ))}
-      </div>
+      </fieldset>
       {edges.right && (
         <button
           type="button"

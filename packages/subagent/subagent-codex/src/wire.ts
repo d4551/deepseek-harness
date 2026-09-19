@@ -203,8 +203,9 @@ function unattendedDiagnostic(
   return `Codex unattended decision (mode: ${mode}; request: ${request}; decision: ${decision}): ${reason}`
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed protocol and stream failures reject with Error. */
   return value instanceof Error ? value : new Error(String(value))
 }
 
@@ -216,7 +217,7 @@ function abortError(signal: AbortSignal): Error {
 
 async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
-    pending.catch(() => {})
+    pending.catch((_error: Thrown) => {})
     throw abortError(signal)
   }
   let rejectAbort!: (error: Error) => void
@@ -281,7 +282,7 @@ export class CodexAppServerWire {
     this.transport.onNotification((method, params) => {
       try {
         this.handleNotification(method, params)
-      } catch (error: unknown) {
+      } catch (error) {
         this.fail(thrown(error))
       }
     })
@@ -383,7 +384,7 @@ export class CodexAppServerWire {
       }, signal), signal), 'turn/start response')
       const turn = object(response.turn, 'turn/start turn')
       this.commitTurnId(string(turn.id, 'turn/start turn id'))
-    } catch (error: unknown) {
+    } catch (error) {
       this.recordFailure({ stage: 'turn-start', category: 'unknown' })
       throw error
     }
@@ -396,7 +397,7 @@ export class CodexAppServerWire {
     try {
       completed = await this.guarded(completion.promise, signal)
       terminal = object(completed.params.turn, 'turn/completed turn')
-    } catch (error: unknown) {
+    } catch (error) {
       this.recordFailure({ stage: 'turn', category: 'unknown' })
       throw error
     }
@@ -441,7 +442,7 @@ export class CodexAppServerWire {
     this.transport.request('turn/interrupt', {
       threadId: this.threadId,
       turnId: this.turnId,
-    }).catch(() => {})
+    }).catch((_error: Thrown) => {})
   }
 
   /**
@@ -700,7 +701,7 @@ export class CodexAppServerWire {
         default:
           throw new Error(`subagent-codex: unsupported app-server request ${JSON.stringify(method)}`)
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const normalized = thrown(error)
       this.fail(normalized)
       return Promise.reject(normalized)

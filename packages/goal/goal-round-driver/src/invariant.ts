@@ -18,7 +18,7 @@ export const inject = ['invariants']
 function foldChecked(events: readonly SessionEvent[], fail: InvariantFailure): FoldedGoal {
   try {
     return foldGoal(events)
-  } catch (error: unknown) {
+  } catch (error) {
     /* v8 ignore next -- the strict goal decoder throws Error instances */
     const message = error instanceof Error ? error.message : String(error)
     return fail(`cannot reconstruct the goal before a continuation message: ${message}`)

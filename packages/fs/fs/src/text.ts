@@ -62,7 +62,7 @@ export function decodeText(bytes: Uint8Array, displayPath: string, binarySampleB
   }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (error: unknown) {
+  } catch (error) {
     throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
   }
 }
@@ -109,7 +109,7 @@ export function literalEdit(content: string, request: FsEditRequest, displayPath
  * @param chunks - the file's bytes in order.
  * @param displayPath - the path named in failure messages.
  * @param binarySampleBytes - how many leading bytes are inspected for NUL.
- * @returns the decoded text, in chunks, skipping empty ones.
+ * @yields decoded UTF-8 text chunks, skipping empty ones.
  * @throws FsError `FS_NOT_TEXT` for NUL-bearing or invalid UTF-8 content.
  */
 export async function* decodeTextStream(
@@ -128,14 +128,14 @@ export async function* decodeTextStream(
     let text: string
     try {
       text = decoder.decode(bytes, { stream: true })
-    } catch (error: unknown) {
+    } catch (error) {
       throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
     }
     if (text.length > 0) yield text
   }
   try {
     decoder.decode()
-  } catch (error: unknown) {
+  } catch (error) {
     throw new FsError(`cannot read "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT', { cause: error })
   }
 }

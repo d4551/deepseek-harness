@@ -42,7 +42,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: calc(300px + var(--dsh-content-font-delta, 0px));
+  width: calc(300px + var(--dsh-content-font-delta));
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -61,8 +61,8 @@
 .leading {
   position: relative; /* .chevronHover overlay anchor */
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -78,8 +78,8 @@
    .compactionLeading, and MessageIconActions); migrating the bash row onto
    the shared DisclosureRow would collapse them to one. */
 .leading svg:not([data-state]) {
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--dsh-content-font-delta));
+  height: calc(14px + var(--dsh-content-font-delta));
 }
 
 .chevron {
@@ -112,8 +112,8 @@
 
 .title {
   flex: none;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  font-size: var(--dsh-content-font-size-secondary);
+  line-height: calc(24px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-secondary);
 }
 

@@ -32,6 +32,8 @@ const INVALID_REQUEST_RPC_ID = RpcId('invalid-request')
 const CHANNEL_PATTERN = /^\/[A-Za-z0-9._~-]+$/
 const ENDPOINT_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 interface ConnectionRpcInterceptor {
   readonly matches: ConnectionRpcEndpointMatcher
   readonly fetchHandler: FetchHandler
@@ -205,43 +207,39 @@ function rpcFetchHandler(
   handler: ConnectionRpcHandler,
 ): FetchHandler {
   return {
-    async fetch(request: Request): Promise<Response> {
+    fetch(request: Request): Promise<Response> {
       const endpoint = endpointFromPath(channel, new URL(request.url).pathname)
       if (request.method !== 'POST' || endpoint === undefined) {
-        return new Response('not found', { status: 404 })
+        return Promise.resolve(new Response('not found', { status: 404 }))
       }
 
       const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
       if (mediaType !== 'application/json') {
-        return new Response('content type must be application/json', { status: 415 })
+        return Promise.resolve(new Response('content type must be application/json', { status: 415 }))
       }
 
-      let body: unknown
-      try {
-        body = await request.json()
-      } catch {
-        return new Response('body is not JSON', { status: 400 })
-      }
+      return request.json().then(
+        (body: unknown) => {
+          const envelope = clientRequestSchema.safeParse(body)
+          if (!envelope.success) {
+            return invalidEnvelopeResponse(body, envelope.error.issues)
+          }
+          const message: ClientRequest = envelope.data
+          if (message.method !== endpoint) {
+            return errorResponse(message.rpcId, {
+              code: 'bad-request',
+              message: `method ${JSON.stringify(message.method)} does not match endpoint ${JSON.stringify(endpoint)}`,
+              details: { issues: [] },
+            })
+          }
 
-      const envelope = clientRequestSchema.safeParse(body)
-      if (!envelope.success) {
-        return invalidEnvelopeResponse(body, envelope.error.issues)
-      }
-      const message: ClientRequest = envelope.data
-      if (message.method !== endpoint) {
-        return errorResponse(message.rpcId, {
-          code: 'bad-request',
-          message: `method ${JSON.stringify(message.method)} does not match endpoint ${JSON.stringify(endpoint)}`,
-          details: { issues: [] },
-        })
-      }
-
-      try {
-        const result = await handler(endpoint, message.payload, request.signal)
-        return fullResponse(message.rpcId, result)
-      } catch (error) {
-        return new Response(`handler failure: ${String(error)}`, { status: 500 })
-      }
+          return handler(endpoint, message.payload, request.signal).then(
+            result => fullResponse(message.rpcId, result),
+            (error: Thrown) => new Response(`handler failure: ${String(error)}`, { status: 500 }),
+          )
+        },
+        (_error: Thrown) => new Response('body is not JSON', { status: 400 }),
+      )
     },
   }
 }

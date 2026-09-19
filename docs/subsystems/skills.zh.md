@@ -291,18 +291,17 @@ Layered registry of skill providers, the host+per-scope shape the tools registry
  * @returns the exact Cordis effect disposer that unregisters this provider;
  *   composite effects may yield it directly to preserve teardown ordering.
  */
-registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void
+registerProvider(create: (control: SkillProviderControl) => SkillProvider): () => void | Promise<void>
 
 /**
  * Register a borrowed readonly runtime skill into the calling context's
  * layer. Project entries outrank runtime entries, which outrank user
- * entries, within one layer. Same-name runtime entries in one layer are
- * first-wins; a duplicate logs a warning and receives a no-op disposer so
- * it cannot remove the winner.
+ * entries, within one layer. Same-name runtime entries in one layer throw
+ * so a duplicate cannot dispose or replace the winner.
  * @param skill - the skill definition input; omitted invocation and provider fields receive defaults.
  * @returns the exact Cordis effect disposer, preserving composite teardown order and invalidating caches.
  */
-register(skill: SkillRegistration): () => void
+register(skill: SkillRegistration): () => void | Promise<void>
 
 /**
  * List invocation-neutral skill summaries for a workspace. Consumers apply
@@ -355,7 +354,7 @@ A skill provider, runtime contribution, or provider-backed catalog may have chan
  * contained and cannot veto the registry mutation.
  * @mode emit
  */
-'skills/change'(): void
+'skills/change'(): void | Promise<void>
 ```
 
 Source: [`packages/skill/skill/src/index.ts`](../../packages/skill/skill/src/index.ts)

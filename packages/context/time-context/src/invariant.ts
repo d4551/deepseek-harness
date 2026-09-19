@@ -150,7 +150,7 @@ function validateReading(
         createTimestampFormatter(browserContext.timeZone),
         browserContext.timeZone,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       fail(`time-context browser zone cannot format its durable timestamp: ${String(error)}`)
     }
     if (rendered !== expectedTimestamp) {

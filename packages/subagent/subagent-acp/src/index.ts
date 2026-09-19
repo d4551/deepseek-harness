@@ -165,7 +165,7 @@ class AcpProvider implements SubagentProvider {
     let cwd: string
     try {
       cwd = resolveCwd(this.config.cwd, request)
-    } catch (error: unknown) {
+    } catch (error) {
       const failure = acpConfigurationFailure(error)
       this.ctx.logger.warn(`subagent-acp "${this.name}": child start failed: %o`, error)
       throw failure

@@ -62,12 +62,12 @@ export async function settleRun(run: SubagentRun): Promise<JobOutcome> {
   let outcome: JobOutcome
   try {
     outcome = runOutcome(await run.result)
-  } catch (error: unknown) {
+  } catch (error) {
     outcome = { status: 'failed', detail: String(error) }
   }
   try {
     await run.dispose()
-  } catch (error: unknown) {
+  } catch (error) {
     const prefix = outcome.detail === undefined ? '' : `${outcome.detail}; `
     return { status: 'failed', detail: `${prefix}dispose failed: ${String(error)}` }
   }

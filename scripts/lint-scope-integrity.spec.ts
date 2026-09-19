@@ -40,7 +40,7 @@ describe('complete lint scope integrity', () => {
 
   it.each(['files', 'plugins', 'jsPlugins'])('rejects changing every override %s field', (field) => {
     const overrides = array(object(object(object(reviewed).configurations)['.oxlintrc.json']).overrides)
-    expect(overrides).toHaveLength(9)
+    expect(overrides).toHaveLength(10)
     for (const index of overrides.keys()) {
       const changed = changedRoot((config) => {
         object(array(config.overrides)[index])[field] = []
@@ -92,13 +92,14 @@ describe('complete lint scope integrity', () => {
     expect(() => { assertLintScopeIntegrity(changed) }).toThrow('lint scope differs')
   })
 
-  it('rejects changes to every discovery exclusion file', () => {
-    for (const file of Object.keys(object(object(reviewed).discovery))) {
+  it.each(Object.keys(object(object(reviewed).discovery)))(
+    'rejects changes to discovery exclusion file %s',
+    (file) => {
       const changed = structuredClone(reviewed)
       object(object(changed).discovery)[file] = '*\n'
-      expect(() => { assertLintScopeIntegrity(changed) }, file).toThrow('lint scope differs')
-    }
-  })
+      expect(() => { assertLintScopeIntegrity(changed) }).toThrow('lint scope differs')
+    },
+  )
 
   it('rejects adding an ESLint exclusion file', () => {
     const changed = structuredClone(reviewed)

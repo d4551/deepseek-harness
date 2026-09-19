@@ -16,14 +16,40 @@
 
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { beginRosterRead, messageOf, writeDefaultPreset } from './settings-store.ts'
+import { beginRosterRead, writeDefaultPreset } from './settings-store.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
+function openerHasDocument(value: Thrown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  if (Reflect.get(value, 'ok') !== true) return false
+  return Reflect.get(value, 'value') === true
+}
 
 /** Ids a preset directory may be named, mirroring the host's own rule. */
 const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
 
 /** One preset row the page renders. */
 export interface PresetRow {
-  /** Preset id and directory name; the display name falls back to it. */
+  /** Preset id and directory name; used as the display name when the preset published none. */
   id: string
   /** Display name the preset published, absent when it published none. */
   name?: string
@@ -50,7 +76,7 @@ export interface CopyDraft {
   fromTitle: string
   /** New preset id being typed; the directory name, so it is required. */
   id: string
-  /** Display name being typed; empty falls back to the id. */
+  /** Display name being typed; empty uses the id. */
   name: string
   /** Whether the copy is in flight. */
   saving: boolean
@@ -169,11 +195,16 @@ export class AgentPresetSectionController {
     // where a concurrent reload silently returns instead of refreshing.
     const opener = this.remote.settings.canOpenAgentPresetDirectory()
     const roster = await beginRosterRead(this.remote, this.store)
-    // A refused describe leaves the reveal-the-path path, which needs no opener.
-    const described = await opener.catch(() => undefined)
+    // A refused opener leaves the reveal-the-path path, which needs no desktop open.
+    const described = await new Promise<Thrown>((resolve) => {
+      resolve(opener)
+    }).then(
+      (value: Thrown) => ({ kind: 'answered' as const, value }),
+      (reason: Thrown) => ({ kind: 'refused' as const, reason }),
+    )
     if (roster === undefined) return
     const { presets, authorable } = roster
-    const hasDocument = described?.ok === true && described.value
+    const hasDocument = described.kind === 'answered' && openerHasDocument(described.value)
     if (presets.length === 0) {
       // Nothing to manage leaves nothing to keep a dialog open over.
       this.set({ status: 'unavailable', rows: [], authorable, hasDocument, copy: null, view: null })
@@ -201,17 +232,19 @@ export class AgentPresetSectionController {
    */
   async view(id: string): Promise<void> {
     this.set({ error: null })
-    try {
-      const result = await this.remote.agentPresets.read(id)
-      if (!result.ok) {
-        this.set({ error: result.error.message })
-        return
-      }
-      const { name, content } = result.value
-      this.set({ view: { id, title: name ?? id, content } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
+    return this.remote.agentPresets.read(id).then(
+      (result) => {
+        if (!result.ok) {
+          this.set({ error: result.error.message })
+          return
+        }
+        const { name, content } = result.value
+        this.set({ view: { id, title: name ?? id, content } })
+      },
+      (reason: Thrown) => {
+        this.set({ error: thrownMessage(reason) })
+      },
+    )
   }
 
   /** Close the read-only viewer. */
@@ -263,28 +296,34 @@ export class AgentPresetSectionController {
     if (draft === null || draft.saving) return
     if (draftBlocker(draft, this.store.getSnapshot().rows) !== undefined) return
     this.patchCopy({ saving: true, error: null })
-    try {
-      const name = draft.name.trim()
-      // Every declared parameter is passed even when optional: the Remote face
-      // checks arity against the declaration and rejects a short call. An
-      // empty display name goes as `undefined` — absent rather than empty, so
-      // the host falls back to the id instead of labelling the row with ''.
-      const result = await this.remote.agentPresets.copy(
-        draft.from, draft.id, name === '' ? undefined : name)
-      if (!result.ok) {
-        this.patchCopy({ saving: false, error: result.error.message })
-        return
-      }
-      this.set({ copy: null })
-      await this.load()
-      await this.rosterChanged?.()
-      // A preset is its files from here on (the dialog collected nothing
-      // else), so landing in them is the completion, not a follow-up.
-      await this.openLocation(draft.id)
-    } catch (error) {
-      if (this.store.getSnapshot().copy === null) this.set({ error: messageOf(error) })
-      else this.patchCopy({ saving: false, error: messageOf(error) })
-    }
+    const name = draft.name.trim()
+    return this.remote.agentPresets.copy(
+      draft.from, draft.id, name === '' ? undefined : name,
+    ).then(
+      async (result) => {
+        if (!result.ok) {
+          this.patchCopy({ saving: false, error: result.error.message })
+          return
+        }
+        this.set({ copy: null })
+        await this.load()
+        const announced = this.rosterChanged?.()
+        if (typeof announced === 'object' && announced !== null) {
+          await announced.then(
+            () => undefined,
+            (reason: Thrown) => {
+              this.set({ error: thrownMessage(reason) })
+            },
+          )
+        }
+        await this.openLocation(draft.id)
+      },
+      (reason: Thrown) => {
+        const message = thrownMessage(reason)
+        if (this.store.getSnapshot().copy === null) this.set({ error: message })
+        else this.patchCopy({ saving: false, error: message })
+      },
+    )
   }
 
   /**
@@ -294,18 +333,20 @@ export class AgentPresetSectionController {
    * @returns once the host answered and the page reflects it.
    */
   async openLocation(id: string): Promise<void> {
-    try {
-      const result = await this.remote.settings.openAgentPresetDirectory(id)
-      if (!result.ok) {
-        this.set({ error: result.error.message })
-        return
-      }
-      if (result.value.opened) return
-      const { path } = result.value
-      this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
+    return this.remote.settings.openAgentPresetDirectory(id).then(
+      (result) => {
+        if (!result.ok) {
+          this.set({ error: result.error.message })
+          return
+        }
+        if (result.value.opened) return
+        const { path } = result.value
+        this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
+      },
+      (reason: Thrown) => {
+        this.set({ error: thrownMessage(reason) })
+      },
+    )
   }
 
   /**
@@ -328,18 +369,20 @@ export class AgentPresetSectionController {
     const { pendingDelete, deleting } = this.store.getSnapshot()
     if (pendingDelete === null || deleting) return
     this.set({ deleting: true, error: null })
-    try {
-      const result = await this.remote.agentPresets.deletePreset(pendingDelete)
-      if (!result.ok) {
-        this.set({ deleting: false, pendingDelete: null, error: result.error.message })
-        return
-      }
-      this.set({ deleting: false, pendingDelete: null })
-      await this.load()
-      await this.rosterChanged?.()
-    } catch (error) {
-      this.set({ deleting: false, pendingDelete: null, error: messageOf(error) })
-    }
+    return this.remote.agentPresets.deletePreset(pendingDelete).then(
+      async (result) => {
+        if (!result.ok) {
+          this.set({ deleting: false, pendingDelete: null, error: result.error.message })
+          return
+        }
+        this.set({ deleting: false, pendingDelete: null })
+        await this.load()
+        await this.rosterChanged?.()
+      },
+      (reason: Thrown) => {
+        this.set({ deleting: false, pendingDelete: null, error: thrownMessage(reason) })
+      },
+    )
   }
 
   /**

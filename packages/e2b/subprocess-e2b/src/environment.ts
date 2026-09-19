@@ -44,7 +44,7 @@ export async function readRemoteEnvironment(sandbox: Sandbox, signal?: AbortSign
     const decoder = new TextDecoder('utf-8', { fatal: true })
     home = decoder.decode(Buffer.from(encodedHome, 'base64'))
     raw = decoder.decode(Buffer.from(encodedEnvironment, 'base64'))
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error('subprocess-e2b: remote environment is not valid UTF-8', { cause: error })
   }
   if (!posix.isAbsolute(home) || home.includes('\0')) {

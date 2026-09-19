@@ -59,6 +59,8 @@ import type {
 import type { LaunchEnvironmentEntry } from '@deepseek-ai/dsh-launch-environment'
 import { renderCredentialEdit } from './document-edit.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Basename of the credentials document inside the harness home. */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'
 
@@ -118,11 +120,14 @@ const DOCUMENT_LOCK_WAIT_MS = 30_000
  * @throws when the path hierarchy is invalid, or the file exists and something other than its owner can read it.
  */
 async function assertOwnerOnly(filename: string): Promise<void> {
-  let mode: number
-  try {
-    mode = (await stat(filename)).mode
-  } catch (error) {
-    if (!isENOENT(error)) throw error
+  const mode = await stat(filename).then(
+    info => info.mode,
+    (error: Thrown) => {
+      if (!isENOENT(error)) throw error
+      return undefined
+    },
+  )
+  if (mode === undefined) {
     await canonicalizeWatchPath(filename)
     return
   }

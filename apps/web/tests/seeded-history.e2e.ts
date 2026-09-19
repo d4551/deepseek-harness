@@ -220,7 +220,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE !== 'record')('records the seed turn live through the composer', async () => {
+  const SKIP_UNLESS_RECORD_MODE = MODE !== 'record'
+  if (SKIP_UNLESS_RECORD_MODE) console.info('[skip] seeded-history.e2e.ts: replay mode; this record-only capture runs in record mode')
+  it.skipIf(SKIP_UNLESS_RECORD_MODE)('records the seed turn live through the composer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-record'))
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
@@ -231,7 +233,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await recordFixture(scaffold, sessionId, SEED)
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('serves the projections baseline on the real composition opening snapshot', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('serves the projections baseline on the real composition opening snapshot', async () => {
     // Composition regression tripwire: the projection registry must be a row
     // in the SHIPPED cordis.yml — with it absent every domain unit's optional
     // injection stays silent and this block disappears (no titles/todos on
@@ -265,7 +269,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     expect(sessionStats?.steps).toBeGreaterThanOrEqual(sessionStats?.turns ?? 0)
   })
 
-  it.skipIf(MODE === 'record')('lists the seeded session cold and renders its history from the log', async () => {
+  const SKIP_IN_RECORD_MODE_2 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_2) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_2)('lists the seeded session cold and renders its history from the log', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-history'))
     // The sidebar tree collapses workspace groups by default: click the group
     // row (treeitem 0) to expand, then the revealed session row.
@@ -332,7 +338,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
       .waitFor({ timeout: 10_000 })
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('matches the historical conversation aria golden', async () => {
+  const SKIP_IN_RECORD_MODE_3 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_3) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_3)('matches the historical conversation aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-aria'))
     // This scenario issues zero model calls — the scaffold's route-only
     // adapter serves the catalog and refuses to stream — so history restores
@@ -350,7 +358,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await compareOrRefreshGolden(UI_EXPANDED_EXPECTED, expanded, MODE)
   })
 
-  it.skipIf(MODE === 'record')('matches the Figma context disclosure geometry', async () => {
+  const SKIP_IN_RECORD_MODE_4 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_4) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_4)('matches the Figma context disclosure geometry', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-context-injection'))
     const disclosure = page.getByRole('button', { name: 'Context injection AGENTS.md', exact: true })
     expect(await disclosure.getAttribute('aria-expanded')).toBe('false')
@@ -406,7 +416,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await expect.poll(() => disclosure.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it.skipIf(MODE === 'record')('file-path tool rows rebuilt from the cold log stay details-inert', async () => {
+  const SKIP_IN_RECORD_MODE_5 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_5) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_5)('file-path tool rows rebuilt from the cold log stay details-inert', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-toolrow'))
     // Interaction over cold-resumed history: read summaries are host-open
     // file links (not expand-in-place / not details). Runs after the golden
@@ -428,7 +440,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await expect.poll(() => page.getByText('a.txt', { exact: false }).count(), { timeout: 5_000 }).toBeGreaterThan(0)
   })
 
-  it.skipIf(MODE === 'record')('a Host open refusal keeps the reason and retries the same path', async () => {
+  const SKIP_IN_RECORD_MODE_6 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_6) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_6)('a Host open refusal keeps the reason and retries the same path', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-file-open-failure'))
     const fileLink = page.locator('[data-variant="read"] button').first()
     await fileLink.waitFor({ timeout: 10_000 })
@@ -458,7 +472,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     }
   })
 
-  it.skipIf(MODE === 'record')('expands the cold-resumed compact summary', async () => {
+  const SKIP_IN_RECORD_MODE_7 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_7) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_7)('expands the cold-resumed compact summary', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-compaction'))
     const marker = page.getByRole('button', { name: /compact Compacted \d+ history items/ })
     await marker.waitFor({ timeout: 10_000 })
@@ -474,7 +490,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await expect.poll(() => marker.getAttribute('aria-expanded'), { timeout: 5_000 }).toBe('false')
   })
 
-  it.skipIf(MODE === 'record')('an Access-chip switch lands one command row: bare name, non-repeating settlement text', async () => {
+  const SKIP_IN_RECORD_MODE_8 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_8) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_8)('an Access-chip switch lands one command row: bare name, non-repeating settlement text', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-command-row'))
     // The Access chip submits `/permission <preset>` — a host command with no
     // model call, so the settled row renders keylessly over this cold history.
@@ -496,7 +514,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await compareOrRefreshGolden(COMMAND_ROW_EXPECTED, snapshot, MODE)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('reports full feedback correlation ids in an expandable two-line row', async () => {
+  const SKIP_IN_RECORD_MODE_9 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_9) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_9)('reports full feedback correlation ids in an expandable two-line row', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-feedback-row'))
     const previousDshHome = process.env.DSH_HOME
     process.env.DSH_HOME = scaffold.harnessHome
@@ -534,7 +554,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('fits short logged context without a scrollport', async () => {
+  const SKIP_IN_RECORD_MODE_10 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_10) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_10)('fits short logged context without a scrollport', async () => {
     const agent = scaffold.ctx.agents.get(SessionId(SEED_ID))
     if (agent === undefined) throw new Error('seeded session did not attach an agent')
     agent.session.append('user/message', createUserMessage({
@@ -556,7 +578,9 @@ describe('web e2e: seeded history renders through cold resume', () => {
     expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(false)
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', async () => {
+  const SKIP_IN_RECORD_MODE_11 = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE_11) console.info('[skip] seeded-history.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE_11)('issued zero model calls and stayed clean', async () => {
     // No replay fixture was installed and the llm seam is open — any stray
     // stream would have failed the turn loudly. Cleanliness pins the wire.
     expect(tripwire.pageErrors).toEqual([])

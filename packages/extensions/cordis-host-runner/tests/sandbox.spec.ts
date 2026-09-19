@@ -3,6 +3,27 @@ import { sandboxDefineTool } from '../src/guard.ts'
 import { syntaxErrorContext } from '../src/sandbox.ts'
 import { AGENT_A, call, CONTENT_OUTPUT_CODE, mount, setup, text, running } from './helpers.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/** Human text for a leftover reject-arm value. */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * The vm sandbox contract a host half runs under: isolated globals, Node-API
  * traps that redirect to cordis services, the encoding primitives a bare vm
@@ -57,8 +78,10 @@ describe('sandbox isolation and Node-API traps', () => {
     ['fetch(\'https://example.com\')', 'fetch is not available in the dynamic package sandbox', 'ctx.web'],
   ])('traps the Node API call %s with a redirect to the cordis alternative', async (invocation, trapMessage, redirect) => {
     const harness = await setup()
-    const failure = await mount(harness, `${invocation}\nreturn (ctx) => {}`).catch((error: unknown) =>
-      error instanceof Error ? error.message : String(error))
+    const failure = await mount(harness, `${invocation}\nreturn (ctx) => {}`).then(
+      undefined,
+      (error: Thrown) => thrownMessage(error),
+    )
     expect(failure).toContain(trapMessage)
     expect(failure).toContain(redirect)
     expect(running(harness.runner, AGENT_A)).toEqual([{ id: 'probe-1', running: false }])
@@ -157,7 +180,7 @@ describe('host-half failures leave nothing running', () => {
 
   it('passes a null throw through untouched (no SyntaxError misclassification)', async () => {
     const harness = await setup()
-    await expect(mount(harness, 'throw null')).rejects.toThrow()
+    await expect(mount(harness, 'throw null')).rejects.toThrow('null')
   })
 })
 

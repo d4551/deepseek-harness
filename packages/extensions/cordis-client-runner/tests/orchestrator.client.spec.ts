@@ -5,12 +5,11 @@
  * what is under test is the round trip itself — the engine has its own account in
  * runner.spec.
  */
-/* oxlint-disable typescript/no-unsafe-assignment -- Vitest asymmetric matchers are typed as any. */
-
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
   DynamicCordisClientSource, DynamicCordisHostHalfResult, DynamicCordisResolveAck,
+  DynamicCordisRunResolution, DynamicCordisRunResponse,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import { CordisRunOrchestrator } from '../src/client/orchestrator.ts'
@@ -47,7 +46,7 @@ interface Bench {
   }
   load: ReturnType<typeof vi.fn>
   /** Resolutions the host received, in order. */
-  answers: unknown[]
+  answers: DynamicCordisRunResolution[]
 }
 
 function boot(overrides: {
@@ -56,28 +55,44 @@ function boot(overrides: {
   loaded?: () => Promise<DynamicCordisLoadResult>
   resolve?: () => Promise<DynamicCordisResolveAck>
 } = {}): Bench {
-  const answers: unknown[] = []
+  const answers: DynamicCordisRunResolution[] = []
   const host = {
-    runHostHalf: vi.fn(overrides.hostHalf ?? (() => Promise.resolve(HOST_OK))),
-    getClientCode: vi.fn(overrides.clientCode ?? (() => Promise.resolve({
-      code: 'return {}', name: 'demo', pluginId: PLUGIN, packageId: PACKAGE, pluginRunId: RUN,
-    }))),
-    resolveRequestRun: vi.fn((_requestId: unknown, resolution: unknown) => {
+    runHostHalf: vi.fn<() => Promise<DynamicCordisHostHalfResult>>(
+      overrides.hostHalf ?? (() => Promise.resolve(HOST_OK)),
+    ),
+    getClientCode: vi.fn<() => Promise<DynamicCordisClientSource>>(
+      overrides.clientCode ?? (() => Promise.resolve({
+        code: 'return {}', name: 'demo', pluginId: PLUGIN, packageId: PACKAGE, pluginRunId: RUN,
+      })),
+    ),
+    resolveRequestRun: vi.fn<(
+      requestId: ApprovalRequestId,
+      resolution: DynamicCordisRunResolution,
+    ) => Promise<DynamicCordisResolveAck>>((_requestId, resolution) => {
       answers.push(resolution)
       return (overrides.resolve ?? (() => Promise.resolve({ accepted: true })))()
     }),
-    settleUserRun: vi.fn((_agentId: SessionId, _pluginId: CordisDynamicPluginId, resolution: unknown) =>
-      Promise.resolve({
+    settleUserRun: vi.fn<(
+      agentId: SessionId,
+      pluginId: CordisDynamicPluginId,
+      resolution: DynamicCordisRunResolution,
+    ) => Promise<DynamicCordisRunResponse>>((_agentId, _pluginId, resolution) => {
+      const pluginRunId = resolution.pluginRunId
+      if (pluginRunId === undefined) throw new Error('settlement missing pluginRunId')
+      return Promise.resolve({
         ok: true as const,
         status: 'running' as const,
         pluginId: PLUGIN,
         packageId: PACKAGE,
-        pluginRunId: (resolution as { pluginRunId: CordisDynamicPluginRunId }).pluginRunId,
+        pluginRunId,
         waitingFor: [],
         mode: 'run' as const,
-      })),
+      })
+    }),
   }
-  const load = vi.fn(overrides.loaded ?? (() => Promise.resolve({ ok: true as const, pluginRunId: RUN })))
+  const load = vi.fn<() => Promise<DynamicCordisLoadResult>>(
+    overrides.loaded ?? (() => Promise.resolve({ ok: true as const, pluginRunId: RUN })),
+  )
   const orchestrator = new CordisRunOrchestrator({
     runner: { load } as unknown as DynamicCordisPackageRunner,
     host,
@@ -262,26 +277,30 @@ describe('approve', () => {
   })
 
   it('folds a transport rejection of the host verb into its own failure shape', async () => {
-    const bench = boot({ hostHalf: () => Promise.reject(new Error('socket closed')) })
+    const bench = boot({ hostHalf: async () => { throw new Error('socket closed') } })
     ask(bench)
     await bench.orchestrator.approve(REQ, false)
-    expect(bench.answers).toEqual([{
-      ok: false,
-      reason: 'host-half-failed',
-      message: 'socket closed',
-      stack: expect.any(String),
-    }])
+    expect(bench.answers).toHaveLength(1)
+    const answer = bench.answers[0]
+    if (answer === undefined || answer.ok) throw new Error('expected host-half failure')
+    expect(answer.reason).toBe('host-half-failed')
+    expect(answer.message).toBe('socket closed')
+    expect(typeof answer.stack).toBe('string')
   })
 
   it('reports a source fetch that failed as the browser half failing', async () => {
-    const bench = boot({ clientCode: () => Promise.reject(new Error('definition vanished')) })
+    const bench = boot({ clientCode: async () => { throw new Error('definition vanished') } })
     ask(bench)
     await bench.orchestrator.approve(REQ, false)
     expect(bench.load).not.toHaveBeenCalled()
-    expect(bench.answers).toEqual([{
-      ok: false, reason: 'client-half-failed', pluginRunId: RUN, startedHere: true,
-      message: 'definition vanished', stack: expect.any(String),
-    }])
+    expect(bench.answers).toHaveLength(1)
+    const answer = bench.answers[0]
+    if (answer === undefined || answer.ok) throw new Error('expected client-half failure')
+    expect(answer.reason).toBe('client-half-failed')
+    expect(answer.pluginRunId).toBe(RUN)
+    expect(answer.startedHere).toBe(true)
+    expect(answer.message).toBe('definition vanished')
+    expect(typeof answer.stack).toBe('string')
   })
 
   it('carries the failing load stage into the answer', async () => {
@@ -296,13 +315,17 @@ describe('approve', () => {
   })
 
   it('treats a load that rejects outright as a browser-half failure', async () => {
-    const bench = boot({ loaded: () => Promise.reject(new Error('module table missing')) })
+    const bench = boot({ loaded: async () => { throw new Error('module table missing') } })
     ask(bench)
     await bench.orchestrator.approve(REQ, false)
-    expect(bench.answers).toEqual([{
-      ok: false, reason: 'client-half-failed', pluginRunId: RUN, startedHere: true,
-      message: 'evaluate: module table missing', stack: expect.any(String),
-    }])
+    expect(bench.answers).toHaveLength(1)
+    const answer = bench.answers[0]
+    if (answer === undefined || answer.ok) throw new Error('expected client-half failure')
+    expect(answer.reason).toBe('client-half-failed')
+    expect(answer.pluginRunId).toBe(RUN)
+    expect(answer.startedHere).toBe(true)
+    expect(answer.message).toBe('evaluate: module table missing')
+    expect(typeof answer.stack).toBe('string')
   })
 
   it('joins a second approve into the orchestration already in flight', async () => {
@@ -318,7 +341,7 @@ describe('approve', () => {
   })
 
   it('logs an answer the host refused, and settles anyway', async () => {
-    const bench = boot({ resolve: () => Promise.reject(new Error('stream gone')) })
+    const bench = boot({ resolve: async () => { throw new Error('stream gone') } })
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     ask(bench)
     await bench.orchestrator.approve(REQ, false)
@@ -394,22 +417,19 @@ describe('startUserRun', () => {
   })
 
   it('records a source fetch failure with nothing to answer', async () => {
-    const bench = boot({ clientCode: () => Promise.reject(new Error('gone')) })
+    const bench = boot({ clientCode: async () => { throw new Error('gone') } })
     await bench.orchestrator.startUserRun(DUAL)
     expect(bench.host.resolveRequestRun).not.toHaveBeenCalled()
-    expect(bench.orchestrator.lastRunError.getSnapshot().get(PLUGIN))
-      .toEqual({
-        packageId: PACKAGE,
-        reason: 'client-half-failed',
-        message: 'gone',
-        stack: expect.any(String),
-      })
+    const recorded = bench.orchestrator.lastRunError.getSnapshot().get(PLUGIN)
+    expect(recorded?.packageId).toBe(PACKAGE)
+    expect(recorded?.reason).toBe('client-half-failed')
+    expect(recorded?.message).toBe('gone')
+    expect(typeof recorded?.stack).toBe('string')
   })
 
   it('records a load failure, stringifying a non-Error rejection', async () => {
 
-    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the case under test
-    const bench = boot({ loaded: () => Promise.reject('plain rejection') })
+    const bench = boot({ loaded: async () => { throw 'plain rejection' } })
     await bench.orchestrator.startUserRun(DUAL)
     expect(bench.host.resolveRequestRun).not.toHaveBeenCalled()
     expect(bench.orchestrator.lastRunError.getSnapshot().get(PLUGIN))

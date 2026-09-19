@@ -6,6 +6,8 @@ import { parseInspectorHostControl, parseInspectorWorkerConfig } from '../shared
 import { isPlainObject } from '../shared/json.ts'
 import { startInspectorWorker } from './server.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 if (parentPort === null) throw new Error('experimental inspector: Worker entry loaded on the main thread')
 const controlPort = parentPort
 
@@ -41,16 +43,19 @@ const reportFailure = (error: unknown): void => {
 controlPort.on('message', (message: unknown) => {
   try {
     parseInspectorHostControl(message)
-    stop().then(undefined, reportFailure)
+    stop().then(undefined, (error: Thrown) => { reportFailure(error) })
   } catch (error) {
     reportFailure(error)
   }
 })
 
-try {
-  runtime = await startInspectorWorker(boot)
-  controlPort.postMessage({ type: 'ready', ...runtime.endpoint } satisfies InspectorWorkerControl)
-} catch (error) {
-  reportFailure(error)
-  await stop()
-}
+await startInspectorWorker(boot).then(
+  (started) => {
+    runtime = started
+    controlPort.postMessage({ type: 'ready', ...runtime.endpoint } satisfies InspectorWorkerControl)
+  },
+  async (error: Thrown) => {
+    reportFailure(error)
+    await stop()
+  },
+)

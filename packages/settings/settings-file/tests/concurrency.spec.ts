@@ -86,7 +86,9 @@ describe('writer lock', () => {
     expect(await readFile(lockPath, 'utf8')).toBe('slow-holder\n')
   }, 10_000)
 
-  it.skipIf(process.platform === 'win32')('surfaces a non-contention lock failure as the write error', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] concurrency.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('surfaces a non-contention lock failure as the write error', async () => {
     const dir = await tempDir()
     const path = join(dir, 'settings.yaml')
     const ctx = await boot({ path, watch: false })

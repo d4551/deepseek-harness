@@ -17,9 +17,26 @@ import {
   type SubprocessSpawnSpec,
 } from '@deepseek-ai/dsh-subprocess'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 function thrown(value: unknown): Error {
-  /* v8 ignore next -- the subprocess seam rejects with Error. */
-  return value instanceof Error ? value : new Error(String(value))
+  /* v8 ignore start -- the subprocess seam rejects with Error. */
+  if (value instanceof Error) return value
+  switch (typeof value) {
+    case 'string': return new Error(value)
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return new Error(String(value))
+    case 'undefined':
+      return new Error('undefined')
+    case 'object':
+      if (value === null) return new Error('null')
+      return new Error(Object.prototype.toString.call(value))
+  }
+  /* v8 ignore stop */
 }
 
 /**
@@ -81,13 +98,13 @@ export class ManagedClaudeCodeProcess implements SpawnedProcess {
     // EventEmitter gives `error` special throw semantics without a listener.
     // The SDK attaches its listener synchronously after custom spawn returns,
     // while this no-op also contains an already-rejected spawn handle.
-    this.events.on('error', () => {})
+    this.events.on('error', (_error: Thrown) => {})
     child.done.then(
       (outcome) => {
         this.outcomeValue = outcome
         this.events.emit('exit', outcome.exitCode, outcome.signal)
       },
-      (error: unknown) => {
+      (error: Thrown) => {
         this.events.emit('error', thrown(error))
       },
     )

@@ -20,8 +20,8 @@ function declarations(selector: string): string[] {
 describe('user-text.module.css font-size axis', () => {
   it('scales reference glyphs by the shared px delta', () => {
     expect(declarations('.refIcon')).toEqual(expect.arrayContaining([
-      'width: calc(16px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(16px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(16px + var(--dsh-content-font-delta))',
+      'height: calc(16px + var(--dsh-content-font-delta))',
     ]))
   })
 })

@@ -25,6 +25,11 @@
 
 .copyable {
   cursor: pointer;
+  margin: 0;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
 }
 
 .copyable:focus-visible {
@@ -40,7 +45,6 @@
 
 .copied {
   color: var(--dsw-static-neutral-00);
-  font-size: 14px;
-  line-height: 20px;
+  font: var(--dsw-font-body);
   text-align: center;
 }

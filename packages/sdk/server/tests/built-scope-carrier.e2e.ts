@@ -98,7 +98,9 @@ try {
 }
 `
 
-describe.skipIf(!existsSync(jsonrpcBundle))('dsh-sdk-jsonrpc-server BUILT scope carrier', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACT = !existsSync(jsonrpcBundle)
+if (SKIP_WITHOUT_BUILT_ARTIFACT) console.info('[skip] built-scope-carrier.e2e.ts: built artifact is absent; run the package build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACT)('dsh-sdk-jsonrpc-server BUILT scope carrier', () => {
   it('preserves parent-scoped completion after child disposal', async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, ['--input-type=module', '-e', builtRuntimeProbe], {
       cwd: repoRoot,

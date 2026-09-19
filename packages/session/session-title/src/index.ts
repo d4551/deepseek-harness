@@ -26,6 +26,31 @@ import { fallbackSessionTitle, normalizeSessionTitle } from './normalize.ts'
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected fallback or automatic title failure.
+ * @param reason - the Thrown the reject arm delivered.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Identifies one session-title provider registration. */
 export type SessionTitleProviderId = Branded<'SessionTitleProviderId'>
 
@@ -478,14 +503,13 @@ export class SessionTitleService extends Service {
         state.pending = { registration, revision, throughSeq: event.seq }
       }
     }
-    this.defer(async () => {
-      try {
-        await this.ensureFallback(session)
-      } catch (error: unknown) {
+    this.defer(() => this.ensureFallback(session).then(
+      () => undefined,
+      (error: Thrown) => {
         if (!this.serviceActive()) return
-        this.ctx.logger.warn(`session "${session.id}": fallback title update failed: ${String(error)}`)
-      }
-    })
+        this.ctx.logger.warn(`session "${session.id}": fallback title update failed: ${thrownMessage(error)}`)
+      },
+    ))
   }
 
   /** Start pending automatic work only after its exact main-request route is logged. */
@@ -531,12 +555,13 @@ export class SessionTitleService extends Service {
         || this.work.get(session) !== state
         || state.revision !== pending.revision) return
       const work = this.activate(pending, state)
-      try {
-        await this.startProvider(session, work, route)
-      } catch (error: unknown) {
-        if (work.signal.aborted || !this.serviceActive()) return
-        this.ctx.logger.warn(`session "${session.id}": automatic title generation failed: ${String(error)}`)
-      }
+      await this.startProvider(session, work, route).then(
+        undefined,
+        (error: Thrown) => {
+          if (work.signal.aborted || !this.serviceActive()) return
+          this.ctx.logger.warn(`session "${session.id}": automatic title generation failed: ${thrownMessage(error)}`)
+        },
+      )
     })
   }
 
@@ -688,7 +713,7 @@ export class SessionTitleService extends Service {
       if (!this.serviceActive()) return
       await task()
     })
-    this.track(run).then(undefined, (error: unknown) => { this.ctx.logger.error(error) })
+    this.track(run).then(undefined, (error: Thrown) => { this.ctx.logger.error(error) })
   }
 
   /** Retain one promise until settlement for service and optional provider teardown. */
@@ -705,7 +730,7 @@ export class SessionTitleService extends Service {
 
   /** Await every current and settling promise in one lifecycle registry. */
   private async drain(active: Set<Promise<unknown>>): Promise<void> {
-    while (active.size > 0) await Promise.allSettled([...active])
+    while (active.size > 0) await Promise.allSettled(active)
   }
 
   /** Whether the owning plugin fiber can still start or commit title work. */

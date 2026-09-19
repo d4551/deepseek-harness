@@ -13,6 +13,7 @@ import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@d
 import type {} from './slot-contract.ts'
 import type { ConfigurablePluginsTabFace } from './tab-store.ts'
 import { PluginCard } from './PluginCard.tsx'
+import css from './PluginsSettingsSection.module.css'
 
 /** Props the renderer binds for the configurable tab. */
 export type ConfigurablePluginsTabProps =
@@ -35,7 +36,7 @@ export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
   const independent = namespaces.filter(ns => !members.has(ns))
   if (namespaces.length > 0) {
     return (
-      <div role="list">
+      <ul className={css.cards}>
         {flows.map(flow => (
           <PluginCard
             key={flow.id}
@@ -54,7 +55,7 @@ export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
           </PluginCard>
         ))}
         {independent.length > 0 && (
-          <div role="listitem">
+          <li>
             <SettingsDisclosure
               title={t('otherGroupTitle')}
               toggleLabel={t('otherGroupTitle')}
@@ -67,15 +68,15 @@ export function ConfigurablePluginsTab(props: ConfigurablePluginsTabProps) {
                 return next
               }}
             >
-              <div role="list">
+              <ul className={css.cards}>
                 {independent.map(ns => (
                   <Fragment key={ns}>{renderSlot('settings.plugin.item', {}, { entryKey: ns })}</Fragment>
                 ))}
-              </div>
+              </ul>
             </SettingsDisclosure>
-          </div>
+          </li>
         )}
-      </div>
+      </ul>
     )
   }
   return loaded ? <p>{t('empty')}</p> : null

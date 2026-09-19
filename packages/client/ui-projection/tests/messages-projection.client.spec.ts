@@ -10,8 +10,14 @@ import type {
   ConversationMatch, ConversationPreviousContext,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
-const previous = (state: InboxState): ConversationPreviousContext<InboxState> =>
-  ({ state } as ConversationPreviousContext<InboxState>)
+const previous = (state: InboxState): ConversationPreviousContext => ({
+  key: 'inbox',
+  kind: 'inbox',
+  id: 'inbox',
+  startSeq: 0,
+  state,
+  matches: [],
+})
 
 type MessageEvent = Extract<ConversationMatch['event'], { type: 'user/message' }>
 

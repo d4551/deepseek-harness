@@ -19,6 +19,8 @@ import { expandHomePath } from '@deepseek-ai/dsh-home-paths'
 import { METADATA_FILE, renderPresetMetadata } from './metadata.ts'
 import { PRESET_ID, type AgentPreset, type PresetRoot } from './preset.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** A preset id that cannot be used as a directory name under a root. */
 export class InvalidPresetIdError extends Error {
   constructor(
@@ -80,16 +82,15 @@ export async function readComposition(preset: AgentPreset): Promise<string> {
 }
 
 /** Whether anything occupies the path (cp's own errorOnExist backstops races). */
-async function occupied(path: string): Promise<boolean> {
-  let present = true
-  try {
-    await stat(path)
-  } catch {
-    // Every stat failure means the same thing here: nothing usable occupies
-    // the path, so the copy may claim it.
-    present = false
-  }
-  return present
+function occupied(path: string): Promise<boolean> {
+  return stat(path).then(
+    () => true,
+    (_error: Thrown) => {
+      // Every stat failure means the same thing here: nothing usable occupies
+      // the path, so the copy may claim it.
+      return false
+    },
+  )
 }
 
 /**
@@ -145,27 +146,24 @@ export async function copyComposition(
   // no composition file still occupies the name and deserves a readable
   // refusal rather than a filesystem error code.
   if (await occupied(dir)) throw new PresetExistsError(id)
-  try {
-    await cp(dirname(source.path), dir, {
-      recursive: true, dereference: true, force: false, errorOnExist: true,
+  const revert = (error: Thrown): Promise<never> =>
+    // A half-copied directory would be invisible to discovery at best and a
+    // mountable-but-incomplete preset at worst; a failed copy leaves nothing.
+    rm(dir, { recursive: true, force: true }).then(() => {
+      throw error
     })
-    await tightenModes(dir)
+  await cp(dirname(source.path), dir, {
+    recursive: true, dereference: true, force: false, errorOnExist: true,
+  }).then(() => tightenModes(dir).then(() => {
     const rendered = renderPresetMetadata({
       ...name === undefined ? {} : { name },
       ...source.description === undefined ? {} : { description: source.description },
     })
     const metadataPath = join(dir, METADATA_FILE)
-    if (rendered === undefined) {
-      await rm(metadataPath, { force: true })
-    } else {
-      await writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
-    }
-  } catch (error) {
-    // A half-copied directory would be invisible to discovery at best and a
-    // mountable-but-incomplete preset at worst; a failed copy leaves nothing.
-    await rm(dir, { recursive: true, force: true })
-    throw error
-  }
+    return rendered === undefined
+      ? rm(metadataPath, { force: true })
+      : writeFileAtomic(metadataPath, rendered, { mode: 0o600, dirMode: 0o700 })
+  })).then(undefined, revert)
   return dir
 }
 

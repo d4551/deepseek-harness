@@ -39,7 +39,12 @@ export class ConversationEventRegistry extends ConversationDefinitionRegistry<Co
         this.refresh()
       }
     }, `uiConversation.events.registerFallback(${JSON.stringify(definition.kind)})`)
-    return () => { Promise.resolve(dispose()).catch(this.ctx.logger().error) }
+    return () => {
+      const released = dispose()
+      if (released !== undefined) {
+        throw new TypeError('conversation fallback registry dispose must complete synchronously')
+      }
+    }
   }
 
   /**

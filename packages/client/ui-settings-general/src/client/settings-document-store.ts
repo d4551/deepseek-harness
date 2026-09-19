@@ -14,8 +14,31 @@ export interface SettingsDocumentState {
   error: string | null
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+type OpenSettingsDocumentResult = Awaited<ReturnType<ClientRemote['settings']['openSettingsDocument']>>
+
+/**
+ * Human text for a rejected native-open.
+ * @param reason - the Thrown the host rejected with.
+ * @returns the message to store.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
 /** Derives local-document availability from the shared mirror and invokes the pathless Host-owned open operation. */
@@ -62,13 +85,23 @@ export class SettingsDocumentStore {
       state.opening = true
       state.error = null
     })
-    try {
-      const result = await this.remote.settings.openSettingsDocument()
-      if (!result.ok) throw new Error(result.error.message)
-    } catch (error) {
-      this.store.update((state) => { state.error = messageOf(error) })
-    } finally {
-      this.store.update((state) => { state.opening = false })
+    using _opening = {
+      [Symbol.dispose]: () => {
+        this.store.update((state) => { state.opening = false })
+      },
+    }
+    const opened = await new Promise<OpenSettingsDocumentResult>((resolve) => {
+      resolve(this.remote.settings.openSettingsDocument())
+    }).then(
+      result => result,
+      (reason: Thrown) => {
+        this.store.update((state) => { state.error = thrownMessage(reason) })
+        return undefined
+      },
+    )
+    if (opened === undefined) return
+    if (!opened.ok) {
+      this.store.update((state) => { state.error = opened.error.message })
     }
   }
 

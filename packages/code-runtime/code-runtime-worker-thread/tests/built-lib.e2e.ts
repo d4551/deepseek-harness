@@ -15,7 +15,9 @@ const pkgDir = fileURLToPath(new URL('..', import.meta.url))
 const built = ['lib/index.js', 'lib/worker.cjs'].every(file => existsSync(join(pkgDir, file)))
   && existsSync(join(pkgDir, '../code-runtime/lib/index.js'))
 
-describe.skipIf(!built)('built lib real load path (plain node)', () => {
+const SKIP_WITHOUT_BUILT_LIB = !built
+if (SKIP_WITHOUT_BUILT_LIB) console.info('[skip] built-lib.e2e.ts: built lib artifact is absent; run the package build to exercise the load path')
+describe.skipIf(SKIP_WITHOUT_BUILT_LIB)('built lib real load path (plain node)', () => {
   it('runs a TypeScript program with a binding through lib/index.js and its lib/worker.cjs entry', async () => {
     const script = `
       const { Context } = await import('@deepseek-ai/cordis')

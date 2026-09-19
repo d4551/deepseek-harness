@@ -50,9 +50,9 @@ export type {
  * page must not fetch on background invalidations.
  * @param controller - the page store.
  */
-export function refreshIfLoaded(controller: ModelsSettingsStore): void {
-  if (controller.store.getSnapshot().status === 'idle') return
-  controller.load().catch(console.error)
+export function refreshIfLoaded(controller: ModelsSettingsStore): Promise<void> {
+  if (controller.store.getSnapshot().status === 'idle') return Promise.resolve()
+  return controller.load()
 }
 
 /**
@@ -84,7 +84,7 @@ export function apply(ctx: ClientContext): void {
   const controller = new ModelsSettingsStore(wire, schema, ctx.settingsScope.describe())
   // Registration-time text (the nav label thunk) and the inject faces share
   // one bound translate; copy freshness rides the locale revision.
-  const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
+  const t: ModelsSectionInjected['t'] = ctx.locale.bind(NS)
   const injected = (): ModelsSectionInjected => ({
     controller,
     hooks: { snapshot: controller.store },
@@ -117,7 +117,9 @@ export function apply(ctx: ClientContext): void {
   // mirror refresh before this store joins that refresh. The welcome notice
   // follows its settings scope, so it needs no subscription here.
   ctx.effect(() => {
-    const refreshModels = (): void => { refreshIfLoaded(controller) }
+    const refreshModels = (): void => {
+      controller.flight = refreshIfLoaded(controller)
+    }
     const disposers = [
       ctx.remote.$on('settings/document-updated', () => { refreshModels() }),
       ctx.remote.$on('credentials/reference-updated', refreshModels),

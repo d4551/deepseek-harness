@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TeamOverview, TeamView } from '@deepseek-ai/dsh-agent-team/client'
-import type { TeamActionResult } from './TeamAction.tsx'
+import { thrownMessage, type TeamActionResult } from './TeamAction.tsx'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 import { Button, IconRightUpOutline16, StateDot, PanelSection, PanelTable, PanelActions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TeamKey } from './locales.ts'
 import { memberLabel } from './member-label.ts'
@@ -13,7 +14,7 @@ interface TeamConversationsProps {
   load: (signal: AbortSignal) => Promise<TeamActionResult<TeamView['subagents']>>
   t: (key: TeamKey) => string
   open: (entry: TeamConversation) => Promise<void>
-  reportError: (reason: unknown) => void
+  reportError: (reason: Thrown) => void
 }
 
 /** Follow descendant conversations whenever the Team activity snapshot changes. */
@@ -31,8 +32,8 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
       setDirectory(result.ok
         ? { status: 'ready', entries: result.value }
         : { status: 'error', message: `${result.error.message} (${result.error.code})` })
-    }, (reason: unknown) => {
-      if (!controller.signal.aborted) setDirectory({ status: 'error', message: String(reason) })
+    }, (reason: Thrown) => {
+      if (!controller.signal.aborted) setDirectory({ status: 'error', message: thrownMessage(reason) })
     })
     return () => { controller.abort() }
   }, [load, revision, view])
@@ -46,7 +47,7 @@ export function TeamConversations({ view, load, t, open, reportError }: TeamConv
     <PanelSection title={t('conversations')} actions={directory.status === 'error' && (
       <Button size="touch" onClick={() => { setRevision(current => current + 1) }}>{t('refreshConversations')}</Button>
     )}>
-      {directory.status === 'loading' && <p role="status">{t('loadingConversations')}</p>}
+      {directory.status === 'loading' && <output>{t('loadingConversations')}</output>}
       {directory.status === 'error' && <p role="alert">{directory.message}</p>}
       {directory.status === 'ready' && directory.entries.length === 0 && <p>{t('noSubagents')}</p>}
       {directory.status === 'ready' && directory.entries.length > 0 && <PanelTable label={t('conversations')}

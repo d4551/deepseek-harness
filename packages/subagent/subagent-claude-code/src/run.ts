@@ -38,6 +38,8 @@ import {
   ManagedClaudeCodeProcess,
 } from './process.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Default POSIX grace between subprocess termination tiers. */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
 
@@ -268,16 +270,17 @@ export async function disposeClaudeCodeChild(
   const failures: Error[] = []
   try {
     query?.close()
-  } catch (error: unknown) {
+  } catch (error) {
     failures.push(toError(error))
   }
 
   child.terminate()
-  try {
-    await child.waitForExit()
-  } catch (error: unknown) {
-    failures.push(toError(error))
-  }
+  await child.waitForExit().then(
+    undefined,
+    (error: Thrown) => {
+      failures.push(toError(error))
+    },
+  )
   const outcome = await child.done
 
   const firstFailure = failures[0]
@@ -435,7 +438,7 @@ export async function startClaudeCodeRun(
     if (controller.signal.aborted) {
       throw new Error('subagent-claude-code: request was aborted before SDK startup')
     }
-  } catch (error: unknown) {
+  } catch (error) {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = controller.signal.aborted
     // Let child.done publish a concurrently observed exit before classification.
@@ -455,16 +458,17 @@ export async function startClaudeCodeRun(
       let closeError: Error | undefined
       try {
         query?.close()
-      } catch (disposeError: unknown) {
+      } catch (disposeError) {
         closeError = toError(disposeError)
       }
 
       let spawnError = toError(error)
-      try {
-        await child.done
-      } catch (childError: unknown) {
-        spawnError = toError(childError)
-      }
+      await child.done.then(
+        undefined,
+        (childError: Thrown) => {
+          spawnError = toError(childError)
+        },
+      )
 
       if (closeError !== undefined) {
         const failure = startupFailure(spawnError)
@@ -487,22 +491,23 @@ export async function startClaudeCodeRun(
       throw failure
     }
     if (child !== undefined) {
-      try {
-        await disposeClaudeCodeChild(query, child)
-      } catch (disposeError: unknown) {
-        const failure = startupFailure()
-        const cleanupFailure = toError(disposeError)
-        const aggregate = new AggregateError(
-          [failure, cleanupFailure],
-          `${failure.message}; ${cleanupFailure.message}`,
-        )
-        reportFailure(aggregate)
-        throw aggregate
-      }
+      await disposeClaudeCodeChild(query, child).then(
+        undefined,
+        (disposeError: Thrown) => {
+          const failure = startupFailure()
+          const cleanupFailure = toError(disposeError)
+          const aggregate = new AggregateError(
+            [failure, cleanupFailure],
+            `${failure.message}; ${cleanupFailure.message}`,
+          )
+          reportFailure(aggregate)
+          throw aggregate
+        },
+      )
     } else if (query !== undefined) {
       try {
         query.close()
-      } catch (disposeError: unknown) {
+      } catch (disposeError) {
         const failure = startupFailure()
         const cleanupFailure = new ClaudeCodeFailure({
           stage: 'teardown',
@@ -528,19 +533,18 @@ export async function startClaudeCodeRun(
   const publishedChild = child
   let receivedResult = false
   const result = settleRunResult({
-    attempt: async () => {
-      try {
-        return await consumeClaudeQuery(publishedQuery, () => {
-          capturePermissionDiagnostic(unattendedDiagnostic(
-            spec.permissionMode,
-            'tool permission',
-            'denied',
-            'Claude Code denied the request before an interactive prompt',
-          ))
-        }, () => {
-          receivedResult = true
-        })
-      } catch (error: unknown) {
+    attempt: () => consumeClaudeQuery(publishedQuery, () => {
+      capturePermissionDiagnostic(unattendedDiagnostic(
+        spec.permissionMode,
+        'tool permission',
+        'denied',
+        'Claude Code denied the request before an interactive prompt',
+      ))
+    }, () => {
+      receivedResult = true
+    }).then(
+      undefined,
+      (error: Thrown) => {
         const processOutcome = managedProcess?.outcome
         let facts: ClaudeCodeFailureFacts
         if (error instanceof ClaudeCodeFailure) {
@@ -563,8 +567,8 @@ export async function startClaudeCodeRun(
         throw error instanceof ClaudeCodeFailure
           ? error
           : new ClaudeCodeFailure(facts, toError(error))
-      }
-    },
+      },
+    ),
     collectOutput: () => [],
     collectDiagnostic: () => diagnostic,
     cancelled: () => controller.signal.aborted,
@@ -579,14 +583,13 @@ export async function startClaudeCodeRun(
     signal: request.signal,
     onAbort,
     requestCancel,
-    teardown: async () => {
-      try {
-        await disposeClaudeCodeChild(publishedQuery, publishedChild)
-      } catch (error: unknown) {
+    teardown: () => disposeClaudeCodeChild(publishedQuery, publishedChild).then(
+      undefined,
+      (error: Thrown) => {
         const failure = toError(error)
         reportFailure(failure)
         throw failure
-      }
-    },
+      },
+    ),
   })
 }

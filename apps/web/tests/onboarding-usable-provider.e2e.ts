@@ -20,7 +20,9 @@ const DISMISSED_EXPECTED = join(SNAPSHOT_DIR, 'dismissed.expected.md')
 const MODE = webSnapshotMode()
 const CREDENTIAL_STEP = '添加一个 API Key 开始使用'
 
-describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-run onboarding', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] onboarding-usable-provider.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: another usable provider ends first-run onboarding', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

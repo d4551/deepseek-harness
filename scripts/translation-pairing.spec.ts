@@ -158,7 +158,9 @@ describe('translation pairing snapshots', () => {
     }
   })
 
-  it.skipIf(!supportsSha256ObjectFormat)('rejects an object format that pairing records cannot represent', () => {
+  const SKIP_WITHOUT_SHA256_OBJECT_FORMAT = !supportsSha256ObjectFormat
+  if (SKIP_WITHOUT_SHA256_OBJECT_FORMAT) console.info('[skip] translation-pairing.spec.ts: git on this host lacks sha256 object-format support')
+  it.skipIf(SKIP_WITHOUT_SHA256_OBJECT_FORMAT)('rejects an object format that pairing records cannot represent', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-translation-pairing-'))
     try {
       execFileSync('git', ['init', '--quiet', '--object-format=sha256', root])

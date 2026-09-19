@@ -758,7 +758,9 @@ describe('cross-directory sampling', () => {
       .toEqual({ items: ['src'], shown: 1, total: 1 })
   })
 
-  it.skipIf(process.platform === 'win32')('treats POSIX backslashes as filename characters', () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] tools.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('treats POSIX backslashes as filename characters', () => {
     const paths = ['old\\one', 'old\\two', 'src/a']
     expect(sampleAcrossTopLevel(paths, 2)).toEqual({
       items: ['old\\one', 'old\\two'],

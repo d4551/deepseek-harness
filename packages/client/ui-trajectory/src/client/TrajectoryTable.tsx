@@ -261,6 +261,11 @@ type VirtualSpacerStyle = CSSProperties & {
   '--trajectory-virtual-spacer-height': string
 }
 
+/** Pixel height for a virtualized spacer row. */
+function virtualSpacerStyle(height: number): VirtualSpacerStyle {
+  return { '--trajectory-virtual-spacer-height': `${height}px` }
+}
+
 interface OlderLoadAnchor {
   readonly historyStartSeq: number | undefined
   readonly scrollHeight: number
@@ -2074,6 +2079,16 @@ export function TrajectoryTable({
     onClearSelection?.()
   }
 
+  useEffect(() => {
+    const pane = tablePaneRef.current
+    if (pane === null) return
+    const onClick = (event: MouseEvent): void => {
+      if (event.target === pane) clearAllSelections()
+    }
+    pane.addEventListener('click', onClick)
+    return () => { pane.removeEventListener('click', onClick) }
+  })
+
   const selectRecord = useCallback((index: number) => {
     const record = allRecords.find(candidate => candidate.cell.index === index)
     onRecordSelect?.(index)
@@ -2172,10 +2187,8 @@ export function TrajectoryTable({
     const row = recordIndex === undefined
       ? null
       : rootRef.current?.querySelector<HTMLElement>(`tr[data-record-index="${recordIndex}"]`)
-    /* v8 ignore next -- jsdom lacks scrollIntoView; browsers always have it. */
-    if (row !== undefined && row !== null && typeof row.scrollIntoView === 'function') {
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
+    if (row === null || row === undefined) return
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [records, rowVirtualizer, virtualIndexByRecordId, virtualizationEnabled])
   useEffect(() => {
     if (timelineFocusIndexes === null || timelineFocusIndexes.size === 0) return
@@ -2202,14 +2215,12 @@ export function TrajectoryTable({
       const target = focusHeight > ledger.clientHeight
         ? firstRow
         : focusedRows[Math.floor((focusedRows.length - 1) / 2)]
-      /* v8 ignore next -- jsdom lacks scrollIntoView; browsers always have it. */
-      if (target !== undefined && typeof target.scrollIntoView === 'function') {
-        followsTableTail.current = false
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: focusHeight > ledger.clientHeight ? 'start' : 'center',
-        })
-      }
+      if (target === undefined) return
+      followsTableTail.current = false
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: focusHeight > ledger.clientHeight ? 'start' : 'center',
+      })
       return
     }
     const focusedVirtualIndexes = [...new Set(focusedPositions.flatMap((position) => {
@@ -2315,17 +2326,14 @@ export function TrajectoryTable({
               <= BOTTOM_FOLLOW_THRESHOLD_PX
           requestOlder(pane, true)
         }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) clearAllSelections()
-        }}
       >
         {showInitialLoading && (
-          <div className={css.historyLoading} role="status" aria-live="polite">
+          <output className={css.historyLoading} aria-live="polite">
             <span className={css.historyLoadingBar}>
               <span className={css.historyLoadingSpinner} aria-hidden="true" />
               {t('history.loadingTrajectory')}
             </span>
-          </div>
+          </output>
         )}
         <table
           className={css.table}
@@ -2362,9 +2370,9 @@ export function TrajectoryTable({
                     <span aria-hidden="true">
                       {olderBusy ? t('history.loadingEarlier') : t('history.loadEarlier')}
                     </span>
-                    <span className="dsw-visually-hidden" role="status" aria-live="polite">
+                    <output className="dsw-visually-hidden" aria-live="polite">
                       {olderBusy ? t('history.loadingEarlier') : ''}
-                    </span>
+                    </output>
                   </button>
                 </td>
               </tr>
@@ -2373,9 +2381,8 @@ export function TrajectoryTable({
               <tr className={css.virtualSpacer} data-virtual-spacer="top" aria-hidden="true">
                 <td
                   colSpan={2}
-                  style={{
-                    '--trajectory-virtual-spacer-height': `${virtualTop}px`,
-                  } as VirtualSpacerStyle}
+                  aria-hidden="true"
+                  style={virtualSpacerStyle(virtualTop)}
                 />
               </tr>
             )}
@@ -2638,9 +2645,8 @@ export function TrajectoryTable({
               <tr className={css.virtualSpacer} data-virtual-spacer="bottom" aria-hidden="true">
                 <td
                   colSpan={2}
-                  style={{
-                    '--trajectory-virtual-spacer-height': `${virtualBottom}px`,
-                  } as VirtualSpacerStyle}
+                  aria-hidden="true"
+                  style={virtualSpacerStyle(virtualBottom)}
                 />
               </tr>
             )}
@@ -2655,13 +2661,11 @@ export function TrajectoryTable({
           aria-label={t('details.event')}
           style={detailsWidth === null ? undefined : { width: detailsWidth }}
         >
-          <div
+          <button
+            type="button"
             className={css.detailsResizeHandle}
-            role="separator"
             aria-label={t('details.resize')}
             aria-controls="trajectory-detail-panel"
-            aria-orientation="vertical"
-            tabIndex={0}
             title={t('details.resizeTitle')}
             onDoubleClick={() => {
               setDetailsWidth(null)

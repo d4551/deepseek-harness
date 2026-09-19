@@ -53,7 +53,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: calc(36px + var(--dsh-content-font-delta, 0px));
+  height: calc(36px + var(--dsh-content-font-delta));
   /* Right inset 12px puts the chevron on the same vertical line as the Todo
      header's chevron (12px body padding there). */
   padding: 4px 12px;
@@ -88,7 +88,7 @@
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--dsw-font-family);
-  font-size: 13px;
+  font-size: var(--dsh-content-font-size-secondary);
   font-weight: 500;
   line-height: 24px;
 }
@@ -97,8 +97,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: calc(14px + var(--dsh-content-font-delta, 0px));
-  height: calc(14px + var(--dsh-content-font-delta, 0px));
+  width: calc(14px + var(--dsh-content-font-delta));
+  height: calc(14px + var(--dsh-content-font-delta));
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -116,7 +116,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: calc(36px + var(--dsh-content-font-delta, 0px));
+  height: calc(36px + var(--dsh-content-font-delta));
   padding: 4px 5px 4px 12px;
   border-radius: 8px;
 }
@@ -142,7 +142,7 @@
 
 .editor {
   box-sizing: border-box;
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  height: calc(28px + var(--dsh-content-font-delta));
   padding: 0 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
@@ -166,8 +166,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: calc(28px + var(--dsh-content-font-delta, 0px));
-  height: calc(28px + var(--dsh-content-font-delta, 0px));
+  width: calc(28px + var(--dsh-content-font-delta));
+  height: calc(28px + var(--dsh-content-font-delta));
   padding: 0;
   border: none;
   border-radius: 999px;

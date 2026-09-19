@@ -6,6 +6,7 @@ import { apply, defineDomain, descriptorOf, DomainFacility, domainTable } from '
 import type { Config } from '../src/index.ts'
 import type { DomainChanged } from '../src/events.ts'
 import { MemoryMediaPool, MemoryStorageBackend } from './helpers/memory-backend.ts'
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 const itemSchema = z.object({ label: z.string(), count: z.number().int() })
 type Item = z.infer<typeof itemSchema>
@@ -287,6 +288,42 @@ describe('durability failure', () => {
     await expect(domain.global.set({ theme: 'dark' })).rejects.toThrow(/injected/)
     expect(domain.global.get()).toEqual({ theme: 'plain' })
     expect(pool.media.get('demo')!.global).toBeNull()
+  })
+
+  it('contains leftover Thrown write rejections so the next write lands', async () => {
+    const leftovers: Thrown[] = [
+      { tag: 'leftover-object' },
+      'leftover string',
+      0,
+      false,
+      1n,
+      Symbol.for('leftover-domain-write'),
+      null,
+      undefined,
+    ]
+    const pool = new MemoryMediaPool()
+    const { facility, changes } = await harness({ pool })
+    const domain = await facility.open(spec)
+    const table = domain.table('items')
+    await table.put('seed', { label: 's', count: 1 })
+    const seen = changes.length
+    for (const leftover of leftovers) {
+      pool.leftoverWriteRejections.push(leftover)
+      await expect(table.put('seed', { label: 's', count: 99 })).rejects.toBe(leftover)
+      expect(table.get('seed')).toEqual({ label: 's', count: 1 })
+      expect(pool.media.get('demo')!.tables.get('items')!.get('seed')).toEqual({ label: 's', count: 1 })
+      expect(changes).toHaveLength(seen)
+    }
+    await table.update('seed', current => ({ ...current, count: current.count + 1 }))
+    expect(table.get('seed')).toEqual({ label: 's', count: 2 })
+    for (const leftover of leftovers) {
+      pool.leftoverWriteRejections.push(leftover)
+      await expect(domain.global.set({ theme: 'dark' })).rejects.toBe(leftover)
+      expect(domain.global.get()).toEqual({ theme: 'plain' })
+      expect(pool.media.get('demo')!.global).toBeNull()
+    }
+    await domain.global.set({ theme: 'dark' })
+    expect(domain.global.get()).toEqual({ theme: 'dark' })
   })
 })
 

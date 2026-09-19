@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type {
   ChatConversationViewNode, ChatSnapshot,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { requireChatSnapshot } from '../src/client/contract/snapshot.ts'
+import {
+  publishedAssistantStep, publishedTurnProcess, publishedTurnTail,
+} from '../src/client/conversation-nodes/location-data.ts'
 import type {
   SessionEventLikeEntry, SessionLiveEventEntry,
 } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -24,7 +28,9 @@ import { compactionDefinition } from '../src/client/conversation-nodes/compactio
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
 import { nextStepInboxDefinition, nextTurnInboxDefinition } from '../src/client/conversation-nodes/inbox.ts'
 import { messageDefinition } from '../src/client/conversation-nodes/message.ts'
-import { inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  inspectRequestPrompt, requireConversationPromptSnapshot,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { requestPromptDefinition } from '../src/client/conversation-nodes/request-prompt.ts'
 import { retryDefinition } from '../src/client/conversation-nodes/retry.ts'
 import { toolDefinition } from '../src/client/conversation-nodes/tool.ts'
@@ -40,7 +46,7 @@ const DEFINITIONS: readonly ConversationNodeDefinition[] = [
   nextTurnInboxDefinition,
   nextStepInboxDefinition,
   messageDefinition,
-  requestPromptDefinition(inspectRequestPrompt),
+  requestPromptDefinition(inspectRequestPrompt, requireConversationPromptSnapshot),
   assistantDefinition,
   turnProcessDefinition,
   toolDefinition,
@@ -112,9 +118,59 @@ function assembler(entries: readonly SessionEventLikeEntry[] = [], hasMore = fal
 }
 
 function snapshot(value: ConversationNodeAssembler): ChatSnapshot {
-  const current = value.snapshot('chat') as ChatSnapshot | undefined
+  const current = value.snapshot('chat')
   if (current === undefined) throw new Error('chat view was not registered')
-  return current
+  return requireChatSnapshot(current)
+}
+
+function turnProcess(value: ConversationNodeAssembler, turn: number) {
+  const signature = publishedTurnProcess(snapshot(value).timeline.turns.get(turn)?.data.get('turn-process'))
+  return signature === undefined ? undefined : decodeTurnProcess(signature)
+}
+
+function requireAssistantChatData(value: unknown): AssistantChatData {
+  const claimed = publishedAssistantStep(value)
+  if (claimed === undefined) throw new TypeError('assistant-step data is missing')
+  return claimed
+}
+
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function isToolChatData(value: object): value is ToolChatData {
+  return 'root' in value
+}
+
+function requireToolChatData(value: unknown): ToolChatData {
+  if (!isRecord(value) || !isToolChatData(value)) throw new TypeError('tool-call data is missing root')
+  return value
+}
+
+function requireTurnTailChatData(value: unknown): TurnTailChatData {
+  const claimed = publishedTurnTail(value)
+  if (claimed === undefined) throw new TypeError('turn-tail data is missing')
+  return claimed
+}
+
+function isRetryChatData(value: object): value is RetryChatData {
+  return 'attempts' in value && 'current' in value
+}
+
+function requireRetryChatData(value: unknown): RetryChatData {
+  if (!isRecord(value) || !isRetryChatData(value)) throw new TypeError('retry data is malformed')
+  return value
+}
+
+function isManualCompactionChatData(value: object): value is ManualCompactionChatData {
+  return 'command' in value
+}
+
+function requireManualCompactionChatData(value: unknown): ManualCompactionChatData {
+  if (!isRecord(value) || !isManualCompactionChatData(value)) {
+    throw new TypeError('manual compaction data is malformed')
+  }
+  return value
 }
 
 function node(value: ChatSnapshot, kind: string): ChatConversationViewNode | undefined {
@@ -162,7 +218,11 @@ describe('built-in conversation node Definitions', () => {
       location: { kind: 'session' as const },
     }
 
-    expect(() => requestPromptDefinition(inspectRequestPrompt).start({} as never, invalidStart, {} as never))
+    const start = requestPromptDefinition(
+      inspectRequestPrompt,
+      requireConversationPromptSnapshot,
+    ).start
+    expect(() => start({} as never, invalidStart, {} as never))
       .toThrow('request-prompt start requires request/header')
   })
 
@@ -256,10 +316,7 @@ describe('built-in conversation node Definitions', () => {
         chunk: { type: 'tool-call-delta', index: 2, id: 'call-1', name: 'read', argumentsDelta: '{}' },
       }),
     ])
-    const process = () => {
-      const signature = snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
-      return signature === undefined ? undefined : decodeTurnProcess(signature)
-    }
+    const process = () => turnProcess(value, 1)
     expect(process()).toMatchObject({ processStartSeq: 4, answerAnchorSeq: null, answerStep: null })
     expect(node(snapshot(value), 'turn-process')?.data).toMatchObject({ answerAnchorSeq: null })
 
@@ -322,8 +379,7 @@ describe('built-in conversation node Definitions', () => {
       }),
       at(26, 'turn/end', { turn: 2, reason: { kind: 'interrupted' } }),
     ])
-    const recoveredSignature = snapshot(recovered).timeline.turns.get(2)?.data.get('turn-process')
-    expect(recoveredSignature === undefined ? undefined : decodeTurnProcess(recoveredSignature))
+    expect(turnProcess(recovered, 2))
       .toMatchObject({ answerStep: 2, answerAnchorSeq: 25.1 })
 
     const partialWindow = assembler([
@@ -332,8 +388,7 @@ describe('built-in conversation node Definitions', () => {
       }),
       at(31, 'step/end', { turn: 3, step: 4 }),
     ], true)
-    const partialSignature = snapshot(partialWindow).timeline.turns.get(3)?.data.get('turn-process')
-    expect(partialSignature === undefined ? undefined : decodeTurnProcess(partialSignature))
+    expect(turnProcess(partialWindow, 3))
       .toMatchObject({ processStartSeq: 30.1, answerAnchorSeq: 30.1, answerStep: 4 })
   })
 
@@ -364,8 +419,7 @@ describe('built-in conversation node Definitions', () => {
       at(11, 'step/end', { turn: 1, step: 2 }),
       at(12, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ])
-    const signature = snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
-    expect(signature === undefined ? undefined : decodeTurnProcess(signature)).toMatchObject({
+    expect(turnProcess(value, 1)).toMatchObject({
       messageCount: 1,
       toolCallCount: 1,
       subagentCount: 1,
@@ -534,9 +588,9 @@ describe('built-in conversation node Definitions', () => {
       }),
     ])
     const read = () => {
-      const signature = snapshot(value).timeline.turns.get(4)?.data.get('turn-process')
-      if (signature === undefined) throw new Error('turn-process signature is unavailable')
-      return decodeTurnProcess(signature)
+      const spec = turnProcess(value, 4)
+      if (spec === undefined) throw new Error('turn-process signature is unavailable')
+      return spec
     }
     const streaming = read()
     value.append(at(44, 'assistant/message', {
@@ -561,11 +615,9 @@ describe('built-in conversation node Definitions', () => {
     const current = snapshot(value)
     const process = node(current, 'turn-process')
     const answer = node(current, 'assistant-step')
-    const signature = current.timeline.turns.get(5)?.data.get('turn-process')
-
     expect(process?.anchorSeq).toBe(51.9)
     expect(answer?.anchorSeq).toBe(52)
-    expect(signature === undefined ? undefined : decodeTurnProcess(signature))
+    expect(turnProcess(value, 5))
       .toMatchObject({ answerAnchorSeq: null, answerStep: null })
   })
 
@@ -609,7 +661,7 @@ describe('built-in conversation node Definitions', () => {
     ])
     const interrupted = node(snapshot(interruptedValue), 'assistant-step')
     expect(interrupted?.data).toMatchObject({ status: 'interrupted' })
-    expect((interrupted?.data as AssistantChatData).finalNode?.interrupted).toBe(true)
+    expect(requireAssistantChatData(interrupted?.data).finalNode?.interrupted).toBe(true)
 
     const markedValue = assembler([
       at(20, 'turn/start', { turn: 3 }),
@@ -623,7 +675,7 @@ describe('built-in conversation node Definitions', () => {
     ])
     const marked = node(snapshot(markedValue), 'assistant-step')
     expect(marked?.data).toMatchObject({ status: 'interrupted', blocks: [{ kind: 'text', text: 'cut short' }] })
-    expect((marked?.data as AssistantChatData).finalNode?.interrupted).toBe(true)
+    expect(requireAssistantChatData(marked?.data).finalNode?.interrupted).toBe(true)
 
     const hiddenValue = assembler([
       at(20, 'turn/start', { turn: 3 }),
@@ -707,7 +759,7 @@ describe('built-in conversation node Definitions', () => {
         message: assistantMessage('assistant-retried', 'done'),
       }, { surfaceOp: 'append' }),
     ])
-    const retryTiming = (node(snapshot(retryTimingValue), 'assistant-step')?.data as AssistantChatData).finalNode
+    const retryTiming = requireAssistantChatData(node(snapshot(retryTimingValue), 'assistant-step')?.data).finalNode
     expect(retryTiming?.timing?.firstTokenTime).toBe(1_700_000_000_052)
 
     const partialWindow = assembler([
@@ -832,7 +884,7 @@ describe('built-in conversation node Definitions', () => {
     const finalizedScalar = snapshot(assembler(finalizedHistory))
     const finalizedPacked = snapshot(assembler(packedInputs(finalizedHistory)))
     expect(finalizedPacked).toEqual(finalizedScalar)
-    const finalNode = (node(finalizedPacked, 'assistant-step')?.data as AssistantChatData).finalNode
+    const finalNode = requireAssistantChatData(node(finalizedPacked, 'assistant-step')?.data).finalNode
     expect(finalNode?.timing?.firstTokenTime).toBe(1_999)
 
     const namedToolHistory = [
@@ -854,7 +906,7 @@ describe('built-in conversation node Definitions', () => {
     const namedToolScalar = snapshot(assembler(namedToolHistory))
     const namedToolPacked = snapshot(assembler(packedInputs(namedToolHistory)))
     expect(namedToolPacked).toEqual(namedToolScalar)
-    const namedTool = (node(namedToolPacked, 'assistant-step')?.data as AssistantChatData).finalNode
+    const namedTool = requireAssistantChatData(node(namedToolPacked, 'assistant-step')?.data).finalNode
     expect(namedTool?.timing?.firstTokenTime).toBe(4_000)
   })
 
@@ -866,7 +918,7 @@ describe('built-in conversation node Definitions', () => {
     ])
     const runningSnapshot = snapshot(value)
     const running = node(runningSnapshot, 'tool-call')
-    expect((running?.data as ToolChatData).root).toMatchObject({ callId: 'root', name: 'code' })
+    expect(requireToolChatData(running?.data).root).toMatchObject({ callId: 'root', name: 'code' })
     const order = runningSnapshot.order
 
     value.append(at(4, 'tool/result', {
@@ -882,7 +934,7 @@ describe('built-in conversation node Definitions', () => {
     const settled = node(settledSnapshot, 'tool-call')
     expect(settled?.key).toBe(running?.key)
     expect(settledSnapshot.order).toBe(order)
-    expect((settled?.data as ToolChatData).root).toMatchObject({
+    expect(requireToolChatData(settled?.data).root).toMatchObject({
       kind: 'tool-result',
       callId: 'root',
       call: { name: 'code', argsRaw: '{}' },
@@ -916,7 +968,7 @@ describe('built-in conversation node Definitions', () => {
       }, { surfaceOp: 'append' }),
     ], true)
     const before = node(snapshot(history), 'tool-call')
-    expect((before?.data as ToolChatData).root.subCalls).toMatchObject([
+    expect(requireToolChatData(before?.data).root.subCalls).toMatchObject([
       { kind: 'tool-result', callId: 'child', parentCallId: 'history-root', call: { name: 'read' } },
     ])
 
@@ -935,11 +987,11 @@ describe('built-in conversation node Definitions', () => {
 
     const after = node(snapshot(history), 'tool-call')
     expect(after?.key).toBe(before?.key)
-    expect((after?.data as ToolChatData).root.subCalls).toMatchObject([
+    expect(requireToolChatData(after?.data).root.subCalls).toMatchObject([
       { kind: 'tool-result', callId: 'child', parentCallId: 'history-root', call: { name: 'read' } },
     ])
 
-    const firstChild = (after?.data as ToolChatData).root.subCalls[0]
+    const firstChild = requireToolChatData(after?.data).root.subCalls[0]
     history.append(at(17, 'tool/code-dispatch-start', {
       rootCallId: 'history-root',
       parentCallId: 'history-root',
@@ -949,7 +1001,7 @@ describe('built-in conversation node Definitions', () => {
     }))
     history.flush()
     const withSecondChild = node(snapshot(history), 'tool-call')
-    expect((withSecondChild?.data as ToolChatData).root.subCalls[0]).toBe(firstChild)
+    expect(requireToolChatData(withSecondChild?.data).root.subCalls[0]).toBe(firstChild)
   })
 
   it('prepends an older turn without replacing already materialized nodes', () => {
@@ -1042,7 +1094,7 @@ describe('built-in conversation node Definitions', () => {
       at(7, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ])
 
-    const tail = node(snapshot(value), 'turn-tail')?.data as TurnTailChatData
+    const tail = requireTurnTailChatData(node(snapshot(value), 'turn-tail')?.data)
     expect(tail.closing?.finalNode.seq).toBe(3)
     expect(tail.branchUnavailable).toBe(true)
   })
@@ -1066,7 +1118,7 @@ describe('built-in conversation node Definitions', () => {
       at(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ], true)
 
-    expect((node(snapshot(value), 'turn-tail')?.data as TurnTailChatData).tokenUsage).toBeUndefined()
+    expect(requireTurnTailChatData(node(snapshot(value), 'turn-tail')?.data).tokenUsage).toBeUndefined()
 
     value.prepend([
       at(1, 'turn/start', { turn: 1 }),
@@ -1074,7 +1126,7 @@ describe('built-in conversation node Definitions', () => {
     ], false)
     value.flush()
 
-    expect((node(snapshot(value), 'turn-tail')?.data as TurnTailChatData).tokenUsage).toEqual({
+    expect(requireTurnTailChatData(node(snapshot(value), 'turn-tail')?.data).tokenUsage).toEqual({
       uncachedInputTokens: 10,
       outputTokens: 4,
       totalTokens: 17,
@@ -1549,7 +1601,7 @@ describe('built-in conversation node Definitions', () => {
     expect(node(current, 'user')).toBeUndefined()
     expect(node(current, 'context')).toBeUndefined()
     expect(node(current, 'assistant-step')).toBeUndefined()
-    expect((node(current, 'tool-call')?.data as ToolChatData).root).not.toHaveProperty('kind')
+    expect(requireToolChatData(node(current, 'tool-call')?.data).root).not.toHaveProperty('kind')
   })
 
   it('assembles retry chains and keeps manual and automatic compaction ownership separate', () => {
@@ -1588,7 +1640,7 @@ describe('built-in conversation node Definitions', () => {
       }),
     ])
     const retryNode = node(snapshot(retry), 'model-retry')
-    const retryData = retryNode?.data as RetryChatData
+    const retryData = requireRetryChatData(retryNode?.data)
     expect(retryData.attempts.map(attempt => attempt.retryState)).toEqual(['started', 'cancelled'])
     expect(node(snapshot(retry), 'turn-error')?.data).toMatchObject({
       kind: 'turn-error',
@@ -1649,7 +1701,7 @@ describe('built-in conversation node Definitions', () => {
     ])
 
     const manual = node(snapshot(compactions), 'manual-compaction')
-    expect((manual?.data as ManualCompactionChatData).compaction).toMatchObject({
+    expect(requireManualCompactionChatData(manual?.data).compaction).toMatchObject({
       summary: 'manual summary',
       summaryEventSeq: 12,
     })
@@ -1831,7 +1883,7 @@ describe('built-in conversation node Definitions', () => {
     value.flush()
 
     const retry = node(snapshot(value), 'model-retry')
-    expect((retry?.data as RetryChatData).attempts).toHaveLength(2)
+    expect(requireRetryChatData(retry?.data).attempts).toHaveLength(2)
     expect(node(snapshot(value), 'turn-error')?.data).toMatchObject({
       kind: 'turn-error',
       seq: 7,
@@ -1947,11 +1999,11 @@ describe('built-in conversation node Definitions', () => {
     ], true)
 
     const tool = node(snapshot(value), 'tool-call')
-    const root = (tool?.data as ToolChatData).root
+    const root = requireToolChatData(tool?.data).root
     expect(root.subCalls).toHaveLength(1)
     expect(root.subCalls[0]).toMatchObject({ callId: 'child', kind: 'tool-result' })
     const manual = node(snapshot(value), 'manual-compaction')
-    expect((manual?.data as ManualCompactionChatData)).toMatchObject({
+    expect(requireManualCompactionChatData(manual?.data)).toMatchObject({
       command: { commandId: 'command-1', name: 'compact', outcome: { kind: 'success' } },
       compaction: { summary: 'manual summary', summaryEventSeq: 20 },
     })

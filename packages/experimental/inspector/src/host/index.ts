@@ -6,6 +6,8 @@ import { resolveInspectorOptions, startInspector, type InspectorOptions } from '
 import { createInspectorService } from '../shared/service.ts'
 import { publishCordisTree } from '../shared/cordis/publisher.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 export { resolveInspectorOptions, startInspector } from './bridge/controller.ts'
 export type { InspectorEndpoint, InspectorHandle, InspectorOptions, InspectorSpec } from './bridge/controller.ts'
 export type { CordisRuntimeTreeReader } from '../shared/cordis/reader.ts'
@@ -52,7 +54,7 @@ export async function apply(ctx: Context, config: HostPluginConfig): Promise<voi
       // This readiness URL is emitted while the plugin tree is still loading, before a logger sink is guaranteed.
       console.log(`dsh inspector: ${handle.endpoint.devtoolsFrontendUrl}`)
     } catch (error) {
-      await disposeInspector(handle, disposers).catch((cleanupError: unknown) => {
+      await disposeInspector(handle, disposers).then(undefined, (cleanupError: Thrown) => {
         ctx.logger.error('experimental-inspector: initialization rollback failed', cleanupError)
       })
       throw error
@@ -65,18 +67,16 @@ async function disposeInspector(
   handle: Awaited<ReturnType<typeof startInspector>>,
   disposers: readonly (() => unknown)[],
 ): Promise<void> {
-  const failures: unknown[] = []
+  const failures: Thrown[] = []
   for (const dispose of [...disposers].reverse()) {
-    try {
-      await dispose()
-    } catch (error) {
+    await new Promise((resolve) => {
+      resolve(dispose())
+    }).then(undefined, (error: Thrown) => {
       failures.push(error)
-    }
+    })
   }
-  try {
-    await handle.close()
-  } catch (error) {
+  await handle.close().then(undefined, (error: Thrown) => {
     failures.push(error)
-  }
+  })
   if (failures.length > 0) throw new AggregateError(failures, 'experimental-inspector: disposal failed')
 }

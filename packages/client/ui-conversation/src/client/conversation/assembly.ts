@@ -1,5 +1,5 @@
 /** Per-Session target-neutral Conversation assembly. */
-import { Service, type Context } from '@deepseek-ai/cordis'
+import { FiberState, Service, type Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {
   ISessions, SessionBinding, SessionEventSource, SessionEventWindow,
@@ -9,12 +9,15 @@ import {
   createSnapshotStore, type ObservableSnapshot, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
 import type {
-  ConversationPublication, ConversationViewSnapshotMap,
+  ConversationPublication,
   ConversationViewSnapshotStore,
 } from '../contract/conversation.ts'
 import type { ConversationSnapshot } from '../contract/snapshot.ts'
 import type { ConversationPromptSnapshot, RequestPromptInspection } from '../contract/request-inspection.ts'
-import { inspectRequestPrompt } from '../contract/request-inspection.ts'
+import {
+  inspectRequestPrompt as inspectStoredRequestPrompt,
+  requireConversationPromptSnapshot as claimConversationPromptSnapshot,
+} from '../contract/request-inspection.ts'
 import { ConversationNodeAssembler } from './assembler.ts'
 import { ConversationEventRegistry } from './event-registry.ts'
 import { HistoricalImageCache } from './historical-images.ts'
@@ -26,20 +29,17 @@ export interface ConversationBinding {
   /**
    * Resolve one target-owned snapshot source.
    * @param target - registered Conversation target.
-   * @returns identity-stable source following the target.
+   * @returns source following the target through the binding snapshot store.
    */
-  target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
+  target(target: string): ObservableSnapshot<unknown>
 }
 
 class BoundConversation implements ConversationBinding {
   readonly snapshot: SnapshotStore<ConversationSnapshot>
   private readonly viewStore: ConversationViewSnapshotStore
-  private readonly targetSources = new Map<string, ObservableSnapshot<unknown>>()
   private revision = -1
   private frame: number | undefined
-  private disposeFeed: () => void = () => {}
+  private disposeFeed: () => void
 
   constructor(
     feed: SessionEventSource,
@@ -53,19 +53,11 @@ class BoundConversation implements ConversationBinding {
     })
   }
 
-  target<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined> {
-    let source = this.targetSources.get(target)
-    if (source === undefined) {
-      const views = this.viewStore as unknown as { get(key: string): unknown }
-      source = {
-        getSnapshot: () => views.get(target),
-        subscribe: (listener) => { return this.snapshot.subscribe(listener) },
-      }
-      this.targetSources.set(target, source)
+  target(target: string): ObservableSnapshot<unknown> {
+    return {
+      getSnapshot: () => this.viewStore.get(target),
+      subscribe: listener => this.snapshot.subscribe(listener),
     }
-    return source as ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
   }
 
   rebuild(): void { this.publish(this.assembler.rebuildRegistry()) }
@@ -172,7 +164,9 @@ export class UiConversation extends Service {
       return () => {
         disposeViews()
         disposeEvents()
-        for (const record of [...this.bindings.values()]) this.drop(record, true)
+        const records: BindingRecord[] = []
+        for (const record of this.bindings.values()) records.push(record)
+        for (const record of records) this.drop(record, true)
       }
     }, 'ui-conversation assembly')
   }
@@ -181,6 +175,7 @@ export class UiConversation extends Service {
    * Resolve the Conversation binding for one Controller binding or Session id.
    * @param source - Session binding or identity.
    * @returns stable Conversation binding.
+   * @throws {Error} when the Session Controller binding's fiber is inactive.
    */
   binding(source: SessionBinding | SessionId): ConversationBinding {
     const sessionId = typeof source === 'string' ? source : source.sessionId
@@ -189,17 +184,35 @@ export class UiConversation extends Service {
     const current = this.bindings.get(owner.sessionId)
     if (current?.source === owner) return current.binding
     if (current !== undefined) this.drop(current, true)
+    const fiber = owner.ctx.fiber
+    if (fiber.uid === null || fiber.state === FiberState.UNLOADING) {
+      throw new Error(`uiConversation.binding: session "${owner.sessionId}" fiber is not active`)
+    }
+    const installed: { record: BindingRecord | undefined } = { record: undefined }
+    const disposeScope = owner.ctx.effect(
+      () => () => {
+        const current = installed.record
+        if (current === undefined) return
+        this.drop(current, false)
+      },
+      'ui-conversation binding',
+    )
     const binding = new BoundConversation(
       owner.eventSource,
       new ConversationNodeAssembler(this.events, this.views),
     )
-    const record: BindingRecord = { source: owner, binding, disposeScope: () => {} }
+    const record: BindingRecord = {
+      source: owner,
+      binding,
+      disposeScope: () => {
+        const released = disposeScope()
+        if (released !== undefined) {
+          throw new TypeError('uiConversation binding disposeScope must complete synchronously')
+        }
+      },
+    }
+    installed.record = record
     this.bindings.set(owner.sessionId, record)
-    const disposeScope = owner.ctx.effect(
-      () => () => { this.drop(record, false) },
-      'ui-conversation binding',
-    )
-    record.disposeScope = () => { Promise.resolve(disposeScope()).catch(owner.ctx.logger().error) }
     return binding
   }
 
@@ -239,10 +252,6 @@ export class UiConversation extends Service {
 
   /**
    * Canonicalize one `request/header` event against the previous prompt state.
-   *
-   * A pure interpretation shared by the Chat and Trajectory Definitions, exposed
-   * as a service method because cross-plugin value imports are forbidden in
-   * client bundles.
    * @param previous - prompt recorded by the preceding loaded header, if any.
    * @param event - the `request/header` session event to interpret.
    * @returns the canonical prompt snapshot and any model-visible change.
@@ -251,7 +260,17 @@ export class UiConversation extends Service {
     previous: ConversationPromptSnapshot | undefined,
     event: SessionEvent<'request/header'>,
   ): RequestPromptInspection {
-    return inspectRequestPrompt(previous, event)
+    return inspectStoredRequestPrompt(previous, event)
+  }
+
+  /**
+   * Claim a stored model-visible request-header snapshot.
+   * @param value - untyped predecessor or stored prompt payload.
+   * @returns the snapshot.
+   * @throws {TypeError} when the payload is not a ConversationPromptSnapshot.
+   */
+  requireConversationPromptSnapshot(value: unknown): ConversationPromptSnapshot {
+    return claimConversationPromptSnapshot(value)
   }
 
   private drop(record: BindingRecord, releaseScope: boolean): void {

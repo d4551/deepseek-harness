@@ -7,7 +7,8 @@
  * @module dsh-subprocess-local/spawn
  */
 
-import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import { randomBytes } from 'node:crypto'
 import { closeSync, mkdtempSync, openSync, unlinkSync, writeSync } from 'node:fs'
@@ -28,6 +29,8 @@ import type {
 import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import { createWindowsProcessJob } from './windows-job.ts'
 import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
 
 /** Node's Windows process launcher restores omitted environment entries from its parent. */
 export const LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED = process.platform !== 'win32'
@@ -476,7 +479,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     detached: platform !== 'win32',
   })
 
-  let collectionFailure: Error | undefined
+  let collectionFailure: Thrown | undefined
   const collectStream = (mode: SubprocessOutputMode, stream: Readable | null, label: string): OutputCollector | undefined => {
     if (!isCollect(mode) || stream === null) return undefined
     const collector = new OutputCollector(mode.maxBytes, mode.spill?.maxBytes, label, spillDir)
@@ -484,7 +487,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       new Promise<void>((resolve) => {
         collector.push(chunk)
         resolve()
-      }).then(undefined, failCollection)
+      }).then(undefined, (error: Thrown) => { failCollection(error) })
     })
     stream.on('error', failCollection)
     return collector
@@ -582,7 +585,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     kill('SIGKILL')
   }
 
-  function failCollection(error: Error): void {
+  function failCollection(error: Thrown): void {
     collectionFailure ??= error
     terminate()
     if (stdoutCollector !== undefined) child.stdout?.destroy()
@@ -615,7 +618,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       if (collectionFailure !== undefined) reject(collectionFailure)
       else resolve({ exitCode, signal })
     }
-    child.on('error', (error) => {
+    child.on('error', (error: Thrown) => {
       // No meaningful close outcome follows a spawn failure.
       settled = true
       cleanup()

@@ -208,7 +208,9 @@ describe('web e2e: Trajectory virtualization over tail-paged history', () => {
     await rm(replayDir, { recursive: true, force: true })
   })
 
-  it.skipIf(MODE === 'record')('retains identity on prepend and reaches the bounded virtual range', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] trajectory-virtualization.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('retains identity on prepend and reaches the bounded virtual range', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-trajectory-virtualization'))
     await openSeed(page)
 

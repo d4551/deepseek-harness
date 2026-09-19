@@ -66,18 +66,43 @@ type AuthPlan =
   | { scheme: 'token'; tokenEnv: CredentialRef }
   | { scheme: 'password' | 'digest' | 'auto'; usernameEnv: CredentialRef; passwordEnv: CredentialRef }
 
-/** Fields a `webdav` client error carries beyond `Error`. */
-interface WebDavStatusError {
-  status?: number
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected WebDAV client or credential value.
+ * @param reason - the Thrown reject value to render.
+ * @returns the Error text, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) {
+    if (reason.message.length > 0) return reason.message
+    const line = reason.stack?.split('\n', 1)[0]
+    return line !== undefined && line.length > 0 ? line : reason.message
+  }
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
 }
 
-function statusOf(error: unknown): number | undefined {
+function statusOf(error: Thrown): number | undefined {
   if (typeof error !== 'object' || error === null) return undefined
-  const status = (error as WebDavStatusError).status
+  if (!('status' in error)) return undefined
+  const status = error.status
   return typeof status === 'number' ? status : undefined
 }
 
-function aborted(error: unknown, signal: AbortSignal | undefined): boolean {
+function aborted(error: Thrown, signal: AbortSignal | undefined): boolean {
   if (signal?.aborted === true) return true
   return error instanceof DOMException && error.name === 'AbortError'
 }
@@ -90,7 +115,7 @@ function aborted(error: unknown, signal: AbortSignal | undefined): boolean {
  * @param signal - the caller's signal, which outranks the transport's own classification.
  * @returns the typed drive error to raise.
  */
-function mapError(error: unknown, operation: string, path: DrivePath, signal: AbortSignal | undefined): DriveError {
+function mapError(error: Thrown, operation: string, path: DrivePath, signal: AbortSignal | undefined): DriveError {
   if (error instanceof DriveError) return error
   if (aborted(error, signal)) return new DriveError(`${operation} "${path}" aborted`, 'DRIVE_ABORTED', { cause: error })
   const status = statusOf(error)
@@ -112,7 +137,7 @@ function mapError(error: unknown, operation: string, path: DrivePath, signal: Ab
     case 413:
       return new DriveError(`cannot ${operation} "${path}": the drive refused the transfer size`, 'DRIVE_TOO_LARGE', { cause: error })
     default:
-      return new DriveError(`cannot ${operation} "${path}": ${String(error)}`, 'DRIVE_IO_ERROR', { cause: error })
+      return new DriveError(`cannot ${operation} "${path}": ${thrownMessage(error)}`, 'DRIVE_IO_ERROR', { cause: error })
   }
 }
 
@@ -353,9 +378,9 @@ export class WebDavNetworkDrive extends NetworkDrive {
     if (cancelled()) throw new DriveError(`${operation} "${path}" aborted`, 'DRIVE_ABORTED')
     const deadline = AbortSignal.timeout(this.config.requestTimeoutMs)
     const requestSignal = signal === undefined ? deadline : AbortSignal.any([signal, deadline])
-    try {
-      return await run(await this.client(), requestSignal)
-    } catch (error: unknown) {
+    return await this.client().then(
+      client => run(client, requestSignal),
+    ).then(undefined, (error: Thrown): never => {
       if (deadline.aborted && !cancelled()) {
         throw new DriveError(
           `cannot ${operation} "${path}": the drive did not answer within ${this.config.requestTimeoutMs}ms`,
@@ -364,26 +389,27 @@ export class WebDavNetworkDrive extends NetworkDrive {
         )
       }
       throw mapError(error, operation, path, signal)
-    }
+    })
   }
 
-  override async stat(path: DrivePath, signal?: AbortSignal): Promise<DriveStat | undefined> {
-    return this.call('stat', path, signal, async (client, requestSignal) => {
-      let stat: FileStat
-      try {
-        stat = await client.stat(requestPath(path), { signal: requestSignal }) as FileStat
-      } catch (error: unknown) {
-        const status = statusOf(error)
-        if (status === 404 || status === 410) return undefined
-        throw error
-      }
-      return {
-        path,
-        type: entryType(stat),
-        version: versionOf(stat),
-        ...stat.type === 'file' ? { size: stat.size } : {},
-      }
-    })
+  override stat(path: DrivePath, signal?: AbortSignal): Promise<DriveStat | undefined> {
+    return this.call('stat', path, signal, (client, requestSignal) =>
+      client.stat(requestPath(path), { signal: requestSignal }).then(
+        (stat) => {
+          const fileStat = stat as FileStat
+          return {
+            path,
+            type: entryType(fileStat),
+            version: versionOf(fileStat),
+            ...fileStat.type === 'file' ? { size: fileStat.size } : {},
+          }
+        },
+        (error: Thrown) => {
+          const status = statusOf(error)
+          if (status === 404 || status === 410) return undefined
+          throw error
+        },
+      ))
   }
 
   override async list(path: DrivePath, signal?: AbortSignal): Promise<DriveDirEntry[]> {
@@ -476,15 +502,15 @@ export class WebDavNetworkDrive extends NetworkDrive {
 
   override async makeDirectory(path: DrivePath, signal?: AbortSignal): Promise<void> {
     if (path.length === 0) return
-    await this.call('makeDirectory', path, signal, async (client, requestSignal) => {
-      try {
-        await client.createDirectory(requestPath(path), { signal: requestSignal, recursive: true })
-      } catch (error: unknown) {
-        // MKCOL answers 405 when the collection is already there, which is the
-        // outcome this operation promises.
-        if (statusOf(error) !== 405) throw error
-      }
-    })
+    await this.call('makeDirectory', path, signal, (client, requestSignal) =>
+      client.createDirectory(requestPath(path), { signal: requestSignal, recursive: true }).then(
+        undefined,
+        (error: Thrown) => {
+          // MKCOL answers 405 when the collection is already there, which is the
+          // outcome this operation promises.
+          if (statusOf(error) !== 405) throw error
+        },
+      ))
   }
 }
 

@@ -13,7 +13,7 @@ function inboxDefinition(target: InboxTarget): ConversationNodeDefinition<InboxS
       : null,
     start: (_context, match, reader) => {
       if (match.event.type !== 'agent/inbox/spliced') throw new Error(`${kind} start requires agent/inbox/spliced`)
-      return applyInboxSplice(reader.previous<InboxState>(kind), match.event.data)
+      return applyInboxSplice(reader.previous(kind), match.event.data)
     },
     update: context => context.state,
     publication: () => 'none',

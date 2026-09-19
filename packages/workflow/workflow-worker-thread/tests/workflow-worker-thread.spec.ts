@@ -560,8 +560,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
           // The rejection VALUE's own coercion throws: a warn built with bare
           // String(error) would itself throw, skipping the ChildDisposed ack
           // and wedging the script's finally until the grace/terminate path.
-          // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection IS the scenario under test
-          dispose: () => Promise.reject({ toString: () => { throw new Error('coercion trap') } }),
+          dispose: async () => { throw { toString: () => { throw new Error('coercion trap') } } },
         }),
       }
       ctx.subagents.registerProvider(provider)

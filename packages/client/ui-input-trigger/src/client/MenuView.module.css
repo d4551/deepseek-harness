@@ -24,10 +24,23 @@
 }
 
 .viewport {
+  appearance: base-select;
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  outline: none;
+}
+
+.viewport option::checkmark {
+  display: none;
 }
 
 .item {
@@ -41,7 +54,8 @@
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
+  list-style: none;
+  font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
   text-align: start;
@@ -58,7 +72,7 @@
   min-height: 26px;
   padding: 6px 10px 2px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   font-weight: 500;
   line-height: 18px;
 }
@@ -70,8 +84,8 @@
 .itemIcon {
   display: inline-flex;
   flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(16px + var(--dsh-content-font-delta));
+  height: calc(16px + var(--dsh-content-font-delta));
   align-items: center;
   justify-content: center;
   color: var(--dsw-alias-label-tertiary);
@@ -110,7 +124,7 @@
 .drillHintText {
   display: none;
   color: var(--dsw-alias-label-caption);
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
   white-space: nowrap;
 }
@@ -122,7 +136,7 @@
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-caption);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--dsw-font-xxxs-11-font-size);
   line-height: 18px;
 }
 
@@ -137,9 +151,15 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: calc(20px + var(--dsh-content-font-delta, 0px));
-  height: calc(20px + var(--dsh-content-font-delta, 0px));
+  width: calc(20px + var(--dsh-content-font-delta));
+  height: calc(20px + var(--dsh-content-font-delta));
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   /* label-caption, the quiet tint the composer's access-mode chevron uses. */
   color: var(--dsw-alias-label-caption);
 }
@@ -153,7 +173,7 @@
  * padding aligned with items (mirrors ui-primitives Menu .label). */
 .groupTitle {
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -172,7 +192,7 @@
 }
 
 .skeletonBar {
-  height: calc(20px + var(--dsh-content-font-delta, 0px));
+  height: calc(20px + var(--dsh-content-font-delta));
   border-radius: 4px;
   background: var(--dsw-alias-bg-skeleton);
   animation: dsh-menu-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
@@ -217,7 +237,7 @@
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -257,7 +277,7 @@
   gap: 4px 8px;
   box-sizing: border-box;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
   color: var(--dsw-alias-label-error);
 }
@@ -286,7 +306,7 @@
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   line-height: 18px;
 }
 

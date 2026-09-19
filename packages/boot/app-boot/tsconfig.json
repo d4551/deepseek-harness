@@ -37,6 +37,9 @@
     },
     {
       "path": "../../util/home-paths"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ]
 }

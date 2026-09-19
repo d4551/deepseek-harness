@@ -30,6 +30,30 @@ import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SaveTextSpill, SpillRef } from '@deepseek-ai/dsh-spill'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+/**
+ * Human text for a rejected formatted-result spill.
+ * @param reason - the Thrown the spill path rejected with.
+ * @returns Error.message; primitive String; null/undefined literals; objects Object.prototype.toString.call(reason).
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Default cap on the complete raw `rg` stdout the tools will parse (the
  * `rawOutputMaxBytes` config), matching Claude Code's ripgrep raw buffer.
@@ -225,61 +249,77 @@ export async function runRipgrep(
   graceMs: number,
   stderrMaxBytes: number,
 ): Promise<RipgrepRun> {
-  if (exec.signal.aborted) {
-    throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
-  }
-  const cwd = exec.agent?.session.header.cwd
-  const workdir = cwd ?? process.cwd()
-  let handle: SubprocessHandle
+  const watch = watchAbort(exec.signal)
   try {
-    handle = ctx.subprocess.spawn({
-      argv: [await resolveRgPath(), '--no-config', ...argv],
-      cwd: workdir,
-      stdio: {
-        stdin: 'ignore',
-        stdout: { maxBytes: rawOutputMaxBytes },
-        stderr: { maxBytes: stderrMaxBytes },
-      },
-      graceMs,
-      signal: exec.signal,
-    } satisfies SubprocessSpawnSpec)
-  } catch (error: unknown) {
-    // Node's spawn() throws synchronously for a NUL in argv, and the local
-    // impl can throw synchronously when the signal aborts between the check
-    // above and this call (or when the platform-package resolution rejects).
-    // The static narrowing that proves this re-check "always false" cannot
-    // see AbortSignal state changes.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition
-    if (exec.signal.aborted) {
+    if (watch.aborted()) {
       throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
     }
-    throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+    const cwd = exec.agent?.session.header.cwd
+    const workdir = cwd ?? process.cwd()
+    const rgPath = await resolveRgPath().then(
+      undefined,
+      (error: Thrown) => {
+        if (watch.aborted()) {
+          throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
+        }
+        throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+      },
+    )
+    let handle: SubprocessHandle
+    try {
+      handle = ctx.subprocess.spawn({
+        argv: [rgPath, '--no-config', ...argv],
+        cwd: workdir,
+        stdio: {
+          stdin: 'ignore',
+          stdout: { maxBytes: rawOutputMaxBytes },
+          stderr: { maxBytes: stderrMaxBytes },
+        },
+        graceMs,
+        signal: exec.signal,
+      } satisfies SubprocessSpawnSpec)
+    } catch (error) {
+      if (watch.aborted()) {
+        throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
+      }
+      throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+    }
+    const outcome: SubprocessOutcome = await handle.done.then(
+      undefined,
+      (error: Thrown) => {
+        throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+      },
+    )
+    const stdout = handle.collected.stdout?.readFrom(0)
+    const stderr = handle.collected.stderr?.readFrom(0)
+    if (stdout === undefined || stderr === undefined) {
+      throw new SearchError(`${toolName} search command produced no collected output streams`, 'SEARCH_FAILED')
+    }
+    if (watch.aborted()) {
+      throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
+    }
+    if (outcome.signal !== null || outcome.exitCode === null) {
+      throw new SearchError(`${toolName} search command was killed by signal ${outcome.signal ?? '(unknown)'}`, 'SEARCH_FAILED')
+    }
+    if (outcome.exitCode !== 0 && outcome.exitCode !== 1) {
+      throw classifyRunFailure(toolName, outcome.exitCode, stderr.text, stderr.lossy)
+    }
+    const text = completeStdout(toolName, stdout, rawOutputMaxBytes)
+    return { stdout: text, noMatches: outcome.exitCode === 1, workdir }
+  } finally {
+    watch.stop()
   }
-  let outcome: SubprocessOutcome
-  try {
-    outcome = await handle.done
-  } catch (error: unknown) {
-    throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+}
+
+/** Track AbortSignal flips that TypeScript control-flow analysis cannot see across awaits. */
+function watchAbort(signal: AbortSignal): { aborted(): boolean; stop(): void } {
+  let aborted = signal.aborted
+  const mark = (): void => { aborted = true }
+  signal.addEventListener('abort', mark)
+  return {
+    aborted: () => aborted,
+    stop: () => { signal.removeEventListener('abort', mark) },
   }
-  const stdout = handle.collected.stdout?.readFrom(0)
-  const stderr = handle.collected.stderr?.readFrom(0)
-  if (stdout === undefined || stderr === undefined) {
-    throw new SearchError(`${toolName} search command produced no collected output streams`, 'SEARCH_FAILED')
-  }
-  // The signal can abort while the spawn is awaited; the static narrowing that
-  // proves this re-check "always false" cannot see AbortSignal state changes.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition
-  if (exec.signal.aborted) {
-    throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
-  }
-  if (outcome.signal !== null || outcome.exitCode === null) {
-    throw new SearchError(`${toolName} search command was killed by signal ${outcome.signal ?? '(unknown)'}`, 'SEARCH_FAILED')
-  }
-  if (outcome.exitCode !== 0 && outcome.exitCode !== 1) {
-    throw classifyRunFailure(toolName, outcome.exitCode, stderr.text, stderr.lossy)
-  }
-  const text = completeStdout(toolName, stdout, rawOutputMaxBytes)
-  return { stdout: text, noMatches: outcome.exitCode === 1, workdir }
 }
 
 /**
@@ -422,12 +462,13 @@ export async function trySaveFormattedResult(
     suggestedName,
     content,
   }
-  try {
-    return await spillStore.saveText(save)
-  } catch (error: unknown) {
-    // Best-effort: a storage failure must never fail the search or hide the
-    // inline result — the footer reports the unsaved remainder instead.
-    ctx.logger.warn(`tool-fs-search: saveText failed for ${exec.name}: ${String(error)}; complete result not saved`)
-    return undefined
-  }
+  return await spillStore.saveText(save).then(
+    undefined,
+    (error: Thrown) => {
+      // Best-effort: a storage failure must never fail the search or hide the
+      // inline result — the footer reports the unsaved remainder instead.
+      ctx.logger.warn(`tool-fs-search: saveText failed for ${exec.name}: ${thrownMessage(error)}; complete result not saved`)
+      return undefined
+    },
+  )
 }

@@ -82,6 +82,15 @@ function appendRound(session: Session, ref: GoalRef, round: number): void {
 }
 
 describe('GoalService creation and replay', () => {
+  it('constructs GoalError only for taxonomy members', () => {
+    const error = new GoalError('missing', 'GOAL_NOT_FOUND')
+    expect(error).toBeInstanceOf(GoalError)
+    expect(error).toBeInstanceOf(HarnessError)
+    expect(error.code).toBe('GOAL_NOT_FOUND')
+    expect(() => new GoalError('x', 'NOT_A_CODE')).toThrow(/unrecognized goal error code: NOT_A_CODE/)
+    expect(() => GoalId('')).toThrow(/goal id must be a non-empty string/)
+  })
+
   it('applies the configured default and writes one durable goal change', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_700_000_000_000)
@@ -376,7 +385,21 @@ describe('GoalService mutations', () => {
   it('records canonical blocker reasons and enforces the round cap on resume', async () => {
     const { ctx, agent, session } = await harness()
     let goal = ctx.goals.create(agent, { objective: 'bounded', maxGoalRounds: 2 })
-    for (const reason of [null, [], { code: 1, message: 'invalid code' }, { code: 'round-limit', message: 1 }]) {
+    for (const reason of [
+      null,
+      undefined,
+      '',
+      0,
+      false,
+      1n,
+      Symbol.for('goal-block-reason'),
+      [],
+      {},
+      { message: 'Blocked for the test.' },
+      { code: 'needs-input' },
+      { code: 1, message: 'invalid code' },
+      { code: 'round-limit', message: 1 },
+    ]) {
       expect(() => ctx.goals.block(agent, goal, reason as never)).toThrow(expect.objectContaining({
         code: 'GOAL_INVALID_BLOCK_REASON',
       }))
@@ -447,6 +470,8 @@ describe('GoalService mutations', () => {
     ctx.on('goal/changed', ({ change }) => { seen.push(change.operation) })
     expect(ctx.goals.create(agent, { objective: 'notify' }).phase).toBe('active')
     expect(seen).toEqual(['create'])
+    // agentEvents reports the contained throw on its Thrown reject arm.
+    await Promise.resolve()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('broken observer'))
   })
 
@@ -701,7 +726,7 @@ describe('goal replay validation', () => {
         goal: { ...base.goal, revision: 2, phase: 'paused', maxGoalRounds: 3 },
       }),
     ]
-    for (const change of invalid) expect(() => foldPair(base, change)).toThrow()
+    for (const change of invalid) expect(() => foldPair(base, change)).toThrow(/goal /)
   })
 
   it('rejects invalid replayed lifecycle phase transitions', () => {
@@ -713,7 +738,7 @@ describe('goal replay validation', () => {
       mutation(base, 'complete', 'active'),
       mutation(base, 'block', 'active'),
     ]
-    for (const change of invalid) expect(() => foldPair(base, change)).toThrow()
+    for (const change of invalid) expect(() => foldPair(base, change)).toThrow(/goal /)
 
     const paused = mutation(base, 'pause', 'paused')
     const exhausted = mutation(paused, 'resume', 'active', {
@@ -806,7 +831,7 @@ describe('goal replay validation', () => {
       { ...base.goal, revision: 0 },
       { ...base.goal, maxGoalRounds: -1 },
     ]
-    for (const goal of badSnapshots) expect(() => decodeGoalChange({ ...base, goal })).toThrow()
+    for (const goal of badSnapshots) expect(() => decodeGoalChange({ ...base, goal })).toThrow(/goal /)
     expect(() => decodeGoalChange({ ...base, roundsStarted: -1 })).toThrow('roundsStarted')
     expect(() => decodeGoalChange({ ...base, createdAt: -1 })).toThrow('createdAt')
     expect(() => decodeGoalChange({ ...base, updatedAt: 9 })).toThrow('cannot precede')

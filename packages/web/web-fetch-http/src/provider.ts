@@ -14,6 +14,8 @@ import { publicHttpNetwork } from './network.ts'
 import type { PublicAddress } from './network.ts'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 /** Resolved provider limits (the plugin's schemastery Config supplies defaults). */
 export interface HttpFetchLimits {
   /** Maximum response body size in bytes (read is aborted past this). */
@@ -96,7 +98,7 @@ export class HttpFetchProvider implements WebFetchProvider {
                 'WEB_REDIRECT_BLOCKED',
               )
             }
-          } catch (error: unknown) {
+          } catch (error) {
             await response.body?.cancel()
             throw error
           }
@@ -113,17 +115,18 @@ export class HttpFetchProvider implements WebFetchProvider {
     }
   }
 
-  private async requestOnce(url: URL, signal: AbortSignal) {
-    try {
-      const addresses = await this.resolveAddresses(url.hostname, signal)
-      return await publicHttpNetwork.request(url, addresses, {
-        'user-agent': this.limits.userAgent,
-        'accept': 'text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8',
-      }, signal)
-    } catch (error: unknown) {
+  private requestOnce(url: URL, signal: AbortSignal) {
+    const claim = (error: Thrown): never => {
       if (error instanceof WebError) throw error
       throw translateAbortOrNetwork(error, signal)
     }
+    return this.resolveAddresses(url.hostname, signal).then(
+      addresses => publicHttpNetwork.request(url, addresses, {
+        'user-agent': this.limits.userAgent,
+        'accept': 'text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8',
+      }, signal).then(undefined, claim),
+      claim,
+    )
   }
 
   /** Read, byte-cap, classify, and decode the final response body. */
@@ -141,7 +144,7 @@ export class HttpFetchProvider implements WebFetchProvider {
     let decoder: TextDecoder
     try {
       decoder = decoderForCharset(parseCharset(contentType))
-    } catch (error: unknown) {
+    } catch (error) {
       await response.body?.cancel()
       throw error
     }
@@ -168,53 +171,64 @@ export class HttpFetchProvider implements WebFetchProvider {
    * past the cap is cut short (`truncatedByBytes`) rather than rejected, so a
    * server that under-reports still yields a bounded usable body.
    */
-  private async readCapped(response: Response, signal: AbortSignal): Promise<{ bytes: Uint8Array; truncatedByBytes: boolean }> {
+  private readCapped(response: Response, signal: AbortSignal): Promise<{ bytes: Uint8Array; truncatedByBytes: boolean }> {
     const declared = response.headers.get('content-length')
     if (declared !== null) {
       const length = Number(declared)
       if (Number.isFinite(length) && length > this.limits.maxResponseBytes) {
-        await response.body?.cancel()
-        throw new WebError(`response exceeds the maximum of ${this.limits.maxResponseBytes} bytes`, 'WEB_FETCH_TOO_LARGE')
+        const tooLarge = new WebError(`response exceeds the maximum of ${this.limits.maxResponseBytes} bytes`, 'WEB_FETCH_TOO_LARGE')
+        if (response.body === null) throw tooLarge
+        return response.body.cancel().then(
+          () => { throw tooLarge },
+          (error: Thrown) => { throw error },
+        )
       }
     }
 
-    if (response.body === null) return { bytes: new Uint8Array(0), truncatedByBytes: false }
+    if (response.body === null) return Promise.resolve({ bytes: new Uint8Array(0), truncatedByBytes: false })
 
     const chunks: Uint8Array[] = []
     let total = 0
     let truncatedByBytes = false
     const reader = response.body.getReader({ mode: 'byob' })
-    try {
-      for (;;) {
-        const { done, value } = await reader.read(new Uint8Array(64 * 1024))
-        if (done) break
-        const remaining = this.limits.maxResponseBytes - total
-        // Only DROPPED bytes count as truncation: a chunk that exactly fills the
-        // remaining capacity keeps all its bytes and we read on to observe EOF,
-        // so an exactly-at-cap body is not falsely flagged truncated.
-        if (value.byteLength > remaining) {
-          chunks.push(value.subarray(0, remaining))
-          total += remaining
-          truncatedByBytes = true
-          break
-        }
-        chunks.push(value)
-        total += value.byteLength
-      }
-      if (truncatedByBytes) await reader.cancel()
-    } catch (error: unknown) {
-      throw translateAbortOrNetwork(error, signal)
-    } finally {
+    const finish = (): { bytes: Uint8Array; truncatedByBytes: boolean } => {
       reader.releaseLock()
+      const bytes = new Uint8Array(total)
+      let offset = 0
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset)
+        offset += chunk.byteLength
+      }
+      return { bytes, truncatedByBytes }
     }
-
-    const bytes = new Uint8Array(total)
-    let offset = 0
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset)
-      offset += chunk.byteLength
+    const claim = (error: Thrown): never => {
+      reader.releaseLock()
+      throw translateAbortOrNetwork(error, signal)
     }
-    return { bytes, truncatedByBytes }
+    const step = (): Promise<{ bytes: Uint8Array; truncatedByBytes: boolean }> =>
+      reader.read(new Uint8Array(64 * 1024)).then(
+        (read) => {
+          if (read.done) {
+            if (truncatedByBytes) return reader.cancel().then(finish, claim)
+            return finish()
+          }
+          const remaining = this.limits.maxResponseBytes - total
+          // Only DROPPED bytes count as truncation: a chunk that exactly fills the
+          // remaining capacity keeps all its bytes and we read on to observe EOF,
+          // so an exactly-at-cap body is not falsely flagged truncated.
+          if (read.value.byteLength > remaining) {
+            chunks.push(read.value.subarray(0, remaining))
+            total += remaining
+            truncatedByBytes = true
+            return reader.cancel().then(finish, claim)
+          }
+          chunks.push(read.value)
+          total += read.value.byteLength
+          return step()
+        },
+        claim,
+      )
+    return step()
   }
 }
 
@@ -227,8 +241,31 @@ function isRedirectStatus(status: number): boolean {
 function resolveRedirect(location: string, base: URL): URL {
   try {
     return new URL(location, base)
-  } catch (error: unknown) {
+  } catch (error) {
     throw new WebError(`invalid redirect Location "${location}"`, 'WEB_PROVIDER_ERROR', { cause: error })
+  }
+}
+
+/**
+ * Human text for a refused fetch or stream.
+ * @param reason - the refused value.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
   }
 }
 
@@ -246,5 +283,5 @@ function translateAbortOrNetwork(error: unknown, signal: AbortSignal): WebError 
   const timeout = timeoutOf(signal, 'WEB_FETCH_TIMEOUT')
   if (timeout !== undefined) return new WebError('web fetch timed out', 'WEB_FETCH_TIMEOUT', { cause: timeout })
   if (signal.aborted) return new WebError('web fetch aborted', 'WEB_ABORTED', { cause: error })
-  return new WebError(`web fetch failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+  return new WebError(`web fetch failed: ${thrownMessage(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
 }

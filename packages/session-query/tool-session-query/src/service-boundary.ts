@@ -16,6 +16,8 @@ interface ModelSafeServiceFailure {
   readonly message: string
 }
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const UNPRINTABLE_SERVICE_ERROR = '[unprintable session query failure]'
 
 const SAFE_SESSION_QUERY_FAILURES = {
@@ -96,21 +98,23 @@ function unauthorizedTarget(): HarnessError {
   )
 }
 
-async function call<Value>(
+function call<Value>(
   ctx: Context,
   signal: AbortSignal,
   operation: string,
   invoke: () => Promise<Value>,
 ): Promise<Value> {
   signal.throwIfAborted()
-  try {
-    const value = await invoke()
-    signal.throwIfAborted()
-    return value
-  } catch (error: unknown) {
-    signal.throwIfAborted()
-    throw sanitizeError(ctx, operation, error)
-  }
+  return invoke().then(
+    (value) => {
+      signal.throwIfAborted()
+      return value
+    },
+    (error: Thrown) => {
+      signal.throwIfAborted()
+      throw sanitizeError(ctx, operation, error)
+    },
+  )
 }
 
 function sanitizeError(

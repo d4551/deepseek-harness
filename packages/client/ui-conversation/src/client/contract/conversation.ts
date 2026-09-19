@@ -1,10 +1,6 @@
 import type { SessionEventLike } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-/* oxlint-disable typescript/no-duplicate-type-constituents, typescript/no-redundant-type-constituents --
- * The unaugmented declaration-merge maps intentionally resolve to never in the Runtime program;
- * installed business packages supply their concrete keys in consuming Client programs. */
-
 /** Definition-local identity and lifecycle role extracted from one event. */
 export interface ConversationMatchResult {
   readonly id: string
@@ -18,13 +14,13 @@ export interface ConversationTurnDataMap {}
 export interface ConversationStepDataMap {}
 
 /** Stable keyed reader for independently owned Location business values. */
-export interface ConversationLocationDataStore<DataMap extends object> {
+export interface ConversationLocationDataStore {
   /**
-   * Read one business value without exposing another owner's mutable State.
+   * Read one published Location value by its owning kind key.
    * @param key - declaration-merged business key.
-   * @returns latest immutable value, when its owning Context has published one.
+   * @returns latest stored value, when its owning Context has published one.
    */
-  get<Key extends keyof DataMap & string>(key: Key): Readonly<DataMap[Key]> | undefined
+  get(key: string): unknown
 }
 
 interface ConversationLocationDataValue {
@@ -35,30 +31,37 @@ interface ConversationLocationDataValue {
   readonly value: unknown
 }
 
-type RegisteredTurnData = {
-  [Key in keyof ConversationTurnDataMap & string]: {
-    readonly kind: 'turn'
-    readonly turn: number
-    readonly key: Key
-    readonly value: ConversationTurnDataMap[Key]
-  }
-}[keyof ConversationTurnDataMap & string]
+type RegisteredTurnData = [keyof ConversationTurnDataMap] extends [never]
+  ? ConversationLocationDataValue & { readonly kind: 'turn' }
+  : {
+    [Key in Extract<keyof ConversationTurnDataMap, string>]: {
+      readonly kind: 'turn'
+      readonly turn: number
+      readonly key: Key
+      readonly value: ConversationTurnDataMap[Key]
+    }
+  }[Extract<keyof ConversationTurnDataMap, string>]
 
-type RegisteredStepData = {
-  [Key in keyof ConversationStepDataMap & string]: {
-    readonly kind: 'step'
-    readonly turn: number
-    readonly step: number
-    readonly key: Key
-    readonly value: ConversationStepDataMap[Key]
-  }
-}[keyof ConversationStepDataMap & string]
+type RegisteredStepData = [keyof ConversationStepDataMap] extends [never]
+  ? ConversationLocationDataValue & { readonly kind: 'step' }
+  : {
+    [Key in Extract<keyof ConversationStepDataMap, string>]: {
+      readonly kind: 'step'
+      readonly turn: number
+      readonly step: number
+      readonly key: Key
+      readonly value: ConversationStepDataMap[Key]
+    }
+  }[Extract<keyof ConversationStepDataMap, string>]
 
 /** One Definition-owned value attached to an Engine-owned Turn or Step. */
-export type ConversationLocationData =
-  [keyof ConversationTurnDataMap | keyof ConversationStepDataMap] extends [never]
+export type ConversationLocationData = [keyof ConversationTurnDataMap] extends [never]
+  ? ([keyof ConversationStepDataMap] extends [never]
     ? ConversationLocationDataValue
-    : RegisteredTurnData | RegisteredStepData
+    : RegisteredStepData)
+  : ([keyof ConversationStepDataMap] extends [never]
+    ? RegisteredTurnData
+    : RegisteredTurnData | RegisteredStepData)
 
 /** Immutable resolved boundary for one Agent step. */
 export interface StepLocation {
@@ -68,7 +71,7 @@ export interface StepLocation {
   readonly end: SessionEvent<'step/end'> | undefined
   readonly status: 'open' | 'closed' | 'unknown'
   /** Stable reader for Step-scoped business values. */
-  readonly data: ConversationLocationDataStore<ConversationStepDataMap>
+  readonly data: ConversationLocationDataStore
 }
 
 /** Immutable resolved boundary for one Agent turn. */
@@ -79,7 +82,7 @@ export interface TurnLocation {
   readonly status: 'open' | 'closed' | 'unknown'
   readonly steps: readonly StepLocation[]
   /** Stable reader for Turn-scoped business values. */
-  readonly data: ConversationLocationDataStore<ConversationTurnDataMap>
+  readonly data: ConversationLocationDataStore
 }
 
 /** Engine-owned placement of one matched event in the Session hierarchy. */
@@ -121,9 +124,7 @@ export interface ConversationViewSnapshotMap {}
 /** Stable reader over the latest snapshot of every registered view target. */
 export interface ConversationViewSnapshotStore {
   /** @param target - registered view target. @returns its current snapshot. */
-  get<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
-    target: Target,
-  ): ConversationViewSnapshotMap[Target] | undefined
+  get(target: string): unknown
 }
 
 /** Immutable public view of an assembled business Context. */
@@ -138,12 +139,12 @@ export interface ConversationNodeContext<State = unknown> {
 }
 
 /** Read-only predecessor returned to a Definition's start function. */
-export interface ConversationPreviousContext<State = unknown> {
+export interface ConversationPreviousContext {
   readonly key: string
   readonly kind: string
   readonly id: string
   readonly startSeq: number
-  readonly state: Readonly<State>
+  readonly state: unknown
   readonly matches: readonly ConversationMatch[]
 }
 
@@ -155,7 +156,7 @@ export interface ConversationContextReader {
    * @param kind - Definition kind to query.
    * @returns the nearest predecessor, or undefined when absent in the current window.
    */
-  previous<State>(kind: string): ConversationPreviousContext<State> | undefined
+  previous(kind: string): ConversationPreviousContext | undefined
 }
 
 /** Requested cadence for materializing updated business State into view Nodes. */

@@ -11,6 +11,8 @@ import { DeepSeekSearchProvider } from '@deepseek-ai/dsh-web-search-deepseek'
 /** Construct the provider over a fixed options value; production passes a live thunk. */
 import type { DeepSeekSearchProviderOptions } from '@deepseek-ai/dsh-web-search-deepseek'
 
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
 const searchProvider = (options: DeepSeekSearchProviderOptions): DeepSeekSearchProvider =>
   new DeepSeekSearchProvider(() => options)
 
@@ -31,7 +33,7 @@ const targetServer = createServer((request, response) => {
   captureRequest(request).then((received) => {
     targetRequests.push(received)
     response.writeHead(204).end()
-  }, (error: unknown) => response.destroy(asError(error)))
+  }, (error: Thrown) => response.destroy(asError(error)))
 })
 
 const redirectServer = createServer((request, response) => {

@@ -94,6 +94,12 @@
     },
     {
       "path": "../../util/workspace-path"
+    },
+    {
+      "path": "../ui-workspace/tsconfig.capability.json"
+    },
+    {
+      "path": "../../util/thrown"
     }
   ],
   "exclude": [

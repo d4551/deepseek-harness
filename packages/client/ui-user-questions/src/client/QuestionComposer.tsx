@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import {
   Button, IconCheckOutline14, IconChevronDownOutline14, IconChevronLeftOutline14,
   IconChevronRightOutline14, IconChevronUpOutline14, IconCloseOutline16,
-  IconEditOutline16, MarkdownText,
+  IconEditOutline16, MarkdownText, useFocusWhen,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   planReviewOf,
@@ -13,6 +13,26 @@ import type { PendingQuestion } from './contract/slots.ts'
 import type { QuestionDraftAnswer, QuestionDraftProgress } from './draft-store.ts'
 import { PlanReviewPanel } from './PlanReviewPanel.tsx'
 import css from './QuestionComposer.module.css'
+
+import type { Thrown } from '@deepseek-ai/dsh-thrown'
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
 
 /**
  * Displayed feedback: validation feedback is stored as a dictionary KEY and
@@ -45,7 +65,7 @@ interface AnswerFieldProps {
   /** Whether a submission in flight has frozen the field. */
   disabled: boolean
   /** Whether this field takes focus on mount. */
-  autoFocus?: boolean
+  focusOnMount?: boolean
   /** Called when the field takes focus. */
   onFocus?: () => void
   /** Called with each edit of the draft. */
@@ -73,12 +93,13 @@ interface AnswerFieldProps {
 function AnswerField(props: AnswerFieldProps) {
   const composing = useRef(false)
   const compositionEndTimer = useRef<number | undefined>(undefined)
+  const fieldRef = useFocusWhen<HTMLTextAreaElement>(props.focusOnMount === true)
   useEffect(() => () => { window.clearTimeout(compositionEndTimer.current) }, [])
   return (
     <div className={clsx(css.field, props.variant === 'inline' ? css.customInline : css.customBlock)}>
       <div aria-hidden className={css.fieldMirror}>{`${props.value}\n`}</div>
       <textarea
-        autoFocus={props.autoFocus}
+        ref={fieldRef}
         className={css.fieldInput}
         value={props.value}
         disabled={props.disabled}
@@ -178,12 +199,13 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
   const cancelFlow = (): void => {
     setBusy('cancel')
     setError(null)
-    pending.cancel()
-      .then(() => { actions.clear(pending.key) })
-      .catch((cause: unknown) => {
+    pending.cancel().then(
+      () => { actions.clear(pending.key) },
+      (reason: Thrown) => {
         setBusy(null)
-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
-      })
+        setError({ text: thrownMessage(reason) })
+      },
+    )
   }
 
   const updateDraft = (
@@ -234,12 +256,13 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
     }
     setBusy('answer')
     setError(null)
-    pending.answer(answer)
-      .then(() => { actions.clear(pending.key) })
-      .catch((cause: unknown) => {
+    pending.answer(answer).then(
+      () => { actions.clear(pending.key) },
+      (reason: Thrown) => {
         setBusy(null)
-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
-      })
+        setError({ text: thrownMessage(reason) })
+      },
+    )
   }
 
   const continueFlow = (): void => {
@@ -396,7 +419,7 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
                   )
                   : (
                     <AnswerField
-                      autoFocus={!focusedQuestions.current.has(index)}
+                      focusOnMount={!focusedQuestions.current.has(index)}
                       variant="block"
                       value={draft.custom}
                       disabled={busy !== null}
@@ -427,9 +450,9 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
                   <IconChevronRightOutline14 />
                 </button>
               </div>
-              <div className={css.feedback} role="status">
+              <output className={css.feedback}>
                 {error === null ? null : 'key' in error ? t(error.key) : error.text}
-              </div>
+              </output>
               <div className={css.footerActions}>
                 <Button variant="outline" disabled={busy !== null} onClick={skipQuestion}>
                   {t('action.skip')}

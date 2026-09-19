@@ -9,7 +9,9 @@ import type {
 import type {
   ConversationNodeDefinition, ConversationViewDefinition,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ConversationNodeAssembler, inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import {
+  ConversationNodeAssembler, inspectRequestPrompt, requireConversationPromptSnapshot,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isChunkRow, packChunkRuns, type ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { registerTrajectoryAssistantDefinition } from '../src/client/trajectory-assistant-definition.ts'
@@ -17,7 +19,9 @@ import { registerTrajectoryCompactionDefinitions } from '../src/client/trajector
 import type { TrajectorySnapshot } from '../src/client/trajectory-contract.ts'
 import { registerTrajectoryMessageDefinitions } from '../src/client/trajectory-message-definitions.ts'
 import { registerTrajectoryRequestHeaderDefinition } from '../src/client/trajectory-request-header-definition.ts'
-import { trajectoryViewDefinition } from '../src/client/trajectory-snapshot-builder.ts'
+import {
+  requireTrajectorySnapshot, trajectoryViewDefinition,
+} from '../src/client/trajectory-snapshot-builder.ts'
 import { registerTrajectoryToolDefinition } from '../src/client/trajectory-tool-definition.ts'
 
 const DEFINITIONS: ConversationNodeDefinition[] = []
@@ -30,6 +34,7 @@ const registrationContext = {
       },
     },
     inspectRequestPrompt,
+    requireConversationPromptSnapshot,
   },
 } as unknown as Context
 
@@ -104,7 +109,7 @@ function assembler(events: readonly SessionEventLikeEntry[]): ConversationNodeAs
 function snapshot(value: ConversationNodeAssembler): TrajectorySnapshot {
   const current = value.get('trajectory')
   if (current === undefined) throw new Error('trajectory view was not registered')
-  return current
+  return requireTrajectorySnapshot(current)
 }
 
 function assistantMessage(id: string, text: string) {

@@ -51,7 +51,8 @@ export const SANDBOX_MODES: readonly SandboxMode[] = ['read-only', 'workspace-wr
  */
 export function effectiveSandboxMode(events: readonly SessionEvent[]): SandboxMode | undefined {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index] as SessionEvent
+    const event = events[index]
+    if (event === undefined) continue
     if (event.type === 'sandbox/mode') return event.data.mode
   }
   return undefined

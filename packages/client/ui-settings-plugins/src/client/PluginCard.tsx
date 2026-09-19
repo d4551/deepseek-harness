@@ -40,7 +40,7 @@ export interface PluginCardProps {
  */
 export function PluginCard(props: PluginCardProps) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLLIElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const saveStarted = useRef(false)
   const saveHadFocus = useRef(false)
@@ -67,7 +67,7 @@ export function PluginCard(props: PluginCardProps) {
   const title = props.t(props.titleKey)
   const blocked = !state.writable || !state.dirty || state.invalid || state.saving
   return (
-    <div role="listitem" ref={rootRef}>
+    <li ref={rootRef}>
       <SettingsDisclosure
         title={title}
         toggleLabel={`${props.t(open ? 'collapse' : 'expand')}: ${title}`}
@@ -82,13 +82,13 @@ export function PluginCard(props: PluginCardProps) {
       >
         <div ref={bodyRef}>
           <p>{props.t(props.descriptionKey)}</p>
-          {!state.writable ? <p role="status">{props.t('readOnly')}</p> : null}
+          {!state.writable ? <output>{props.t('readOnly')}</output> : null}
           {state.restartRequired
-            ? <p role="status">{props.t('appliesRestart')}</p>
+            ? <output>{props.t('appliesRestart')}</output>
             : null}
           {props.children}
           <div>
-            {state.failed ? <p role="status">{props.t('saveFailed')}</p> : null}
+            {state.failed ? <output>{props.t('saveFailed')}</output> : null}
             <SettingsActions
               discardLabel={props.t('discard')}
               saveLabel={props.t(state.saving ? 'saving' : 'save')}
@@ -103,6 +103,6 @@ export function PluginCard(props: PluginCardProps) {
           </div>
         </div>
       </SettingsDisclosure>
-    </div>
+    </li>
   )
 }

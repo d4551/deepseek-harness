@@ -31,6 +31,7 @@ export function OnboardingModal({
       title={title}
       dismissible={false}
       headless
+      initialFocus={focusTitle ? 'dialog' : 'field'}
       className={css.dialog}
     >
       <div className={css.content}>
