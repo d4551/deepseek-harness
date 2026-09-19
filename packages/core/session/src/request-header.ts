@@ -50,7 +50,10 @@ export function headerEquals(a: EpochHeader, b: EpochHeader): boolean {
   ) return false
   const at = a.tools ?? []
   const bt = b.tools ?? []
-  return at.length === bt.length && at.every((tool, i) => sameSchema(tool, bt[i] as ToolSchema))
+  return at.length === bt.length && at.every((tool, index) => {
+    const other = bt.at(index)
+    return other !== undefined && sameSchema(tool, other)
+  })
 }
 
 /**
