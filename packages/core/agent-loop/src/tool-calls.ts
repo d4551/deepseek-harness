@@ -16,6 +16,9 @@ import { assertNever, createToolResultMessage, type ToolCallBlock } from '@deeps
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
 import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {
   block: ToolCallBlock
@@ -119,7 +122,7 @@ function parseArguments(raw: string): unknown {
  * returns an aborted outcome. Scheduler failure drains dispatches without
  * committing synthetic recovery results.
  */
-async function runGroup(
+function runGroup(
   ctx: Context,
   turn: number,
   step: number,
@@ -172,7 +175,7 @@ async function runGroup(
             slots.set(index, { block: call.block, callSeq, exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' })
             return index
           },
-          (error: unknown) => {
+          (error: Thrown) => {
             schedulerFailure ??= { error }
             return index
           },
@@ -210,7 +213,7 @@ async function runGroup(
   // Ordered pre-execute may await; only dispatch/body overlaps. A scheduler
   // failure stops new dispatches and reaches the turn boundary after every
   // already-started dispatch settles.
-  try {
+  const runPool = async (): Promise<void> => {
     await fillPool()
     while (inFlight.size > 0) {
       const settledIndex = await Promise.race(inFlight.values())
@@ -223,20 +226,30 @@ async function runGroup(
       if (signal.aborted) aborted = true
       await fillPool()
     }
-  } catch (error: unknown) {
-    schedulerFailure ??= { error }
-    await Promise.allSettled(inFlight.values())
-    throw schedulerFailure.error
   }
 
-  if (aborted) {
-    // Started calls and accepted context settle first; every remaining model
-    // call then receives an ordered synthetic result before the turn aborts.
-    for (const call of group.slice(started)) appendSkippedToolCall(session, turn, step, call.block)
-    return { consumed: group.length, aborted: true, concluded }
-  }
-  if (committed !== started) throw new Error('tool-call scheduler: uncommitted settled calls')
-  return { consumed: started, aborted: false, concluded }
+  return runPool().then(
+    (): GroupOutcome => {
+      if (aborted) {
+        // Started calls and accepted context settle first; every remaining model
+        // call then receives an ordered synthetic result before the turn aborts.
+        for (const call of group.slice(started)) appendSkippedToolCall(session, turn, step, call.block)
+        return { consumed: group.length, aborted: true, concluded }
+      }
+      if (committed !== started) throw new Error('tool-call scheduler: uncommitted settled calls')
+      return { consumed: started, aborted: false, concluded }
+    },
+    (error: Thrown) => {
+      schedulerFailure ??= { error }
+      const failure = schedulerFailure
+      if (inFlight.size === 0) throw failure.error
+      return Promise.all(
+        [...inFlight.values()].map(pending => pending.then(() => undefined, (_error: Thrown) => undefined)),
+      ).then(() => {
+        throw failure.error
+      })
+    },
+  )
 }
 
 /** Append the durable call/result pair for a model call skipped after cancellation. */

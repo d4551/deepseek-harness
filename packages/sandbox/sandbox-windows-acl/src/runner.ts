@@ -54,6 +54,32 @@ import { win32 } from './ffi.ts'
 import { AclSandbox, assertTempRootOutsideWorkspace } from './index.ts'
 import { tempWriteSid, workspaceWriteSid } from './workspace-sid.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected runner step.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 const RUNNER_SIGNATURE = 'windows-acl-run'
 const RUNNER_FAILURE_EXIT = 127
 
@@ -220,9 +246,9 @@ main().then(
     // full 32-bit range, so no re-mapping is needed.
     process.exitCode = exitCode
   },
-  (error: unknown) => {
+  (error: Thrown) => {
     if (!(error instanceof RunnerFailure)) {
-      process.stderr.write(`${RUNNER_SIGNATURE}: ${error instanceof Error ? error.message : String(error)}\n`)
+      process.stderr.write(`${RUNNER_SIGNATURE}: ${thrownMessage(error)}\n`)
     }
     process.exitCode = RUNNER_FAILURE_EXIT
   },

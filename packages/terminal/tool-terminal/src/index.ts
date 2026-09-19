@@ -16,6 +16,32 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { boundTerminalText, renderList, renderRead, renderSend, renderSendRead, renderSpawn } from './render.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected terminal operation.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 declare module '@deepseek-ai/dsh-jobs' {
   interface JobKindMap {
     'pty-send': 'pty-send'
@@ -267,7 +293,7 @@ export function apply(ctx: Context, config: Config = {}): void {
               },
               done: operation.done.then(
                 result => ({ status: cancelRequested ? 'killed' as const : 'completed' as const, detail: sendDetail(result) }),
-                (error: unknown) => ({ status: 'failed' as const, detail: String(error) }),
+                (error: Thrown) => ({ status: 'failed' as const, detail: thrownMessage(error) }),
               ),
               readOutput: () => renderSendRead(operation.readOutput()),
             }

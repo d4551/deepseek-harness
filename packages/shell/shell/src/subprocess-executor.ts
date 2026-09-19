@@ -24,6 +24,32 @@ import { assertPositiveFinite, assertServiceableShellConfig } from './executor-c
 import type { ResolvedSubprocessShellConfig, SubprocessShellConfig } from './executor-config.ts'
 import type { CollectedOutput, ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from './types.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected spawn.
+ * @param reason - the Thrown the Promise rejected with.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Abort reason code for this executor's own deadline. Every dialect reports the
  * same `timedOut` fact from one implementation, so one code classifies them
@@ -268,10 +294,10 @@ export abstract class SubprocessShellExecutor<C extends SubprocessShellConfig = 
         proc.exitCode = outcome.exitCode
         proc.signal = outcome.signal
         this.confinement?.settle(proc, collected.stderr.readFrom(0).text, false)
-      }, (error: unknown) => {
+      }, (error: Thrown) => {
         // Background spawn failures settle as killed and surface through the read path.
         proc.status = 'killed'
-        spawnFailureNote = `spawn failed: ${String(error)}`
+        spawnFailureNote = `spawn failed: ${thrownMessage(error)}`
         this.confinement?.settle(proc, spawnFailureNote, true, error)
       }),
       readOutput: (): ShellProcessRead => {
