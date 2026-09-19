@@ -30,10 +30,10 @@ type Thrown = object | string | number | boolean | bigint | symbol | null | unde
 
 /**
  * Human text for a rejected PTY transport or send value.
- * @param reason - the Thrown the Promise rejected with.
+ * @param reason - a Promise reject value or a sync catch binding (unknown at the claim boundary).
  * @returns undefined/null literals; objects Object.prototype.toString.call(reason); primitives String(reason).
  */
-function thrownMessage(reason: Thrown): string {
+function thrownMessage(reason: unknown): string {
   if (reason === undefined) return 'undefined'
   if (typeof reason === 'object') {
     return reason === null ? 'null' : Object.prototype.toString.call(reason)
@@ -508,7 +508,7 @@ export class LocalPtySession implements TerminalBackendSession {
     this.settleActive('session_exit')
   }
 
-  private onTransportFailure(error: Thrown): void {
+  private onTransportFailure(error: unknown): void {
     const failure = error instanceof Error ? error : new Error(thrownMessage(error))
     this.transportFailure ??= failure
     this.statusValue = { kind: 'exited', exitCode: null, signal: null }
