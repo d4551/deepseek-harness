@@ -156,6 +156,32 @@ function invokeError(
   return error
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected host.call.
+ * @param reason - the Thrown the invoke path rejected with.
+ * @returns the message inserted into the teaching error.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Teaching text for a `host.call` the wire itself refused: the generated codec
  * rejected the argument before sending, or the result on the way back, or the
@@ -163,8 +189,8 @@ function invokeError(
  * not the call it belonged to, and the model authored both halves — so this adds
  * the call and the contract it has to satisfy.
  */
-function wireFailure(id: CordisDynamicPluginId, method: string, error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+function wireFailure(id: CordisDynamicPluginId, method: string, reason: Thrown): string {
+  const message = thrownMessage(reason)
   return `host.call("${method}") on ${id} did not complete: ${message}\n`
     + 'Both directions carry JSON only: pass plain JSON data as the argument — or omit it, and the handler receives '
     + `null — and answer from harness.handle("${method}", fn) with JSON (\`return null\` when there is nothing to report).`
@@ -214,7 +240,7 @@ export function apply(ctx: Context): void {
       // bare field name — this is the only place that still knows which call it
       // belonged to, so the teaching has to be added here.
       const answered = await ctx.remote.dynamicCordisRunner.invoke(pluginId, pluginRunId, method, args as JsonValue)
-        .catch((error: unknown) => { throw new Error(wireFailure(pluginId, method, error)) })
+        .then(undefined, (reason: Thrown) => { throw new Error(wireFailure(pluginId, method, reason)) })
       // Two failure layers, and they teach different things: the carrier's error
       // branch means the call never reached the host half, while the namespace's
       // own `ok: false` is that half answering with a refusal.
@@ -231,8 +257,8 @@ export function apply(ctx: Context): void {
         if (!result.ok) {
           console.error(`[cordis-client-runner] reporting a render failure of ${pluginId} failed:`, result.error)
         }
-      }, (error: unknown) => {
-        console.error(`[cordis-client-runner] reporting a render failure of ${pluginId} failed:`, error)
+      }, (reason: Thrown) => {
+        console.error(`[cordis-client-runner] reporting a render failure of ${pluginId} failed:`, reason)
       })
     },
     reportGuardFailure: (agentId, pluginId, pluginRunId, failure) => {
@@ -240,8 +266,8 @@ export function apply(ctx: Context): void {
         if (!result.ok) {
           console.error(`[cordis-client-runner] reporting a guard failure of ${pluginId} failed:`, result.error)
         }
-      }, (error: unknown) => {
-        console.error(`[cordis-client-runner] reporting a guard failure of ${pluginId} failed:`, error)
+      }, (reason: Thrown) => {
+        console.error(`[cordis-client-runner] reporting a guard failure of ${pluginId} failed:`, reason)
       })
     },
   })
@@ -301,8 +327,8 @@ export function apply(ctx: Context): void {
     runner.retract(retracted.pluginId, retracted.pluginRunId)
   })
   ctx.remote.$on('cordis/inspect-query', (request) => {
-    inspect.query(request).catch((error: unknown) => {
-      console.error(`[cordis-client-runner] inspect query ${request.provider}.${request.method} failed:`, error)
+    inspect.query(request).then(undefined, (reason: Thrown) => {
+      console.error(`[cordis-client-runner] inspect query ${request.provider}.${request.method} failed:`, reason)
     })
   })
   ctx.remote.$on('cordis/inspect-query-resolved', (resolved) => { inspect.close(resolved.requestId) })
