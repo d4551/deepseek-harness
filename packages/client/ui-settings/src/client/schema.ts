@@ -47,8 +47,9 @@ export class SettingsSchemaService extends Service {
    * @param serialized - serialized Schemastery node.
    * @returns live schema node.
    */
-  rehydrate(serialized: unknown): SchemaNode {
-    return new Schema(serialized as Schema)
+  rehydrate(serialized: unknown): SchemaNode | undefined {
+    if (typeof serialized !== 'object' || serialized === null) return undefined
+    return new Schema(serialized)
   }
 
   /**
@@ -58,12 +59,14 @@ export class SettingsSchemaService extends Service {
    * @returns validation failure text, or `undefined` when valid.
    */
   validate(schema: SchemaNode, draft: unknown): string | undefined {
-    try {
-      ;(schema as unknown as (value: unknown) => unknown)(draft)
-      return undefined
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error)
+    const standard = schema['~standard']
+    const result = standard.validate(draft)
+    if (typeof result === 'object' && result !== null && 'then' in result) {
+      return 'ui-settings: async schema validation is not supported'
     }
+    if (result.issues === undefined) return undefined
+    const [issue] = result.issues
+    return issue === undefined ? 'invalid settings draft' : issue.message
   }
 
   /**

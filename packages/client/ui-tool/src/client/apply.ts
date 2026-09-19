@@ -1,5 +1,5 @@
 /** Register the Tool call tree, details renderer, and built-in atomic views. */
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -23,7 +23,7 @@ export const inject = ['slots', 'connection']
  * @param ctx - Client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const connection = ctx.get('connection') as ConnectionHandle
+  const connection = ctx.connection
   const toolInject = () => ({ hooks: { connectionGeneration: connection.generation } })
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',

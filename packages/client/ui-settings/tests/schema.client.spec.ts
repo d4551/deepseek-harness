@@ -14,11 +14,9 @@ describe('SettingsSchemaService validation', () => {
     expect(service.validate(root, { name: 42 })).toContain('name')
   })
 
-  it('stringifies non-Error validation throws', () => {
-    const hostile = (() => {
-      throw 'plain-string failure'
-    }) as unknown as SchemaNode
-    expect(service.validate(hostile, {})).toBe('plain-string failure')
+  it('refuses a serialized envelope that is not an object', () => {
+    expect(service.rehydrate(null)).toBeUndefined()
+    expect(service.rehydrate('scalar')).toBeUndefined()
   })
 })
 

@@ -224,15 +224,11 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
     // Sections are plain objects by construction; schemastery alone would
     // resolve null or an array through object defaults instead of refusing.
     if (typeof view.value !== 'object' || view.value === null || Array.isArray(view.value)) return undefined
-    let failure: string | undefined
-    try {
-      failure = this.schema.validate(this.schema.rehydrate(view.schema), view.value)
-    } catch (_malformedSchemaEnvelope) {
-      // A schema envelope this client cannot rehydrate vouches for no section;
-      // the value is treated exactly like a schema-invalid one.
-      return undefined
-    }
-    return failure === undefined ? view.value as T : undefined
+    const schema = this.schema.rehydrate(view.schema)
+    if (schema === undefined) return undefined
+    const failure = this.schema.validate(schema, view.value)
+    if (failure !== undefined) return undefined
+    return view.value as T
   }
 }
 
