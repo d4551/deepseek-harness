@@ -30,6 +30,31 @@ import { sessionWorkspaceRoots } from '@deepseek-ai/dsh-session/workspace-roots'
 import type { SaveTextSpill, SpillRef } from '@deepseek-ai/dsh-spill'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 
+/** Values a Promise reject arm from ripgrep resolution, spawn completion, or formatted-result spill may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a rejected formatted-result spill.
+ * @param reason - the Thrown the spill path rejected with.
+ * @returns Error.message; primitive String; null/undefined literals; objects Object.prototype.toString.call(reason).
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /**
  * Default cap on the complete raw `rg` stdout the tools will parse (the
  * `rawOutputMaxBytes` config), matching Claude Code's ripgrep raw buffer.
@@ -232,10 +257,19 @@ export async function runRipgrep(
     }
     const cwd = exec.agent?.session.header.cwd
     const workdir = cwd ?? process.cwd()
+    const rgPath = await resolveRgPath().then(
+      undefined,
+      (error: Thrown) => {
+        if (watch.aborted()) {
+          throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
+        }
+        throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+      },
+    )
     let handle: SubprocessHandle
     try {
       handle = ctx.subprocess.spawn({
-        argv: [await resolveRgPath(), '--no-config', ...argv],
+        argv: [rgPath, '--no-config', ...argv],
         cwd: workdir,
         stdio: {
           stdin: 'ignore',
@@ -245,18 +279,18 @@ export async function runRipgrep(
         graceMs,
         signal: exec.signal,
       } satisfies SubprocessSpawnSpec)
-    } catch (error: unknown) {
+    } catch (error) {
       if (watch.aborted()) {
         throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
       }
       throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
     }
-    let outcome: SubprocessOutcome
-    try {
-      outcome = await handle.done
-    } catch (error: unknown) {
-      throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
-    }
+    const outcome: SubprocessOutcome = await handle.done.then(
+      undefined,
+      (error: Thrown) => {
+        throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+      },
+    )
     const stdout = handle.collected.stdout?.readFrom(0)
     const stderr = handle.collected.stderr?.readFrom(0)
     if (stdout === undefined || stderr === undefined) {
@@ -429,12 +463,13 @@ export async function trySaveFormattedResult(
     suggestedName,
     content,
   }
-  try {
-    return await spillStore.saveText(save)
-  } catch (error: unknown) {
-    // Best-effort: a storage failure must never fail the search or hide the
-    // inline result — the footer reports the unsaved remainder instead.
-    ctx.logger.warn(`tool-fs-search: saveText failed for ${exec.name}: ${String(error)}; complete result not saved`)
-    return undefined
-  }
+  return await spillStore.saveText(save).then(
+    undefined,
+    (error: Thrown) => {
+      // Best-effort: a storage failure must never fail the search or hide the
+      // inline result — the footer reports the unsaved remainder instead.
+      ctx.logger.warn(`tool-fs-search: saveText failed for ${exec.name}: ${thrownMessage(error)}; complete result not saved`)
+      return undefined
+    },
+  )
 }
