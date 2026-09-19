@@ -66,7 +66,9 @@ const weatherTool: ToolSchema = {
   },
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('llm-pi-ai e2e (real API)', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] adapter.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('llm-pi-ai e2e (real API)', () => {
   it.each([FLASH, PRO])('%s + provider-default reasoning: plain text generation', async (model) => {
     const ctx = await harness(model)
     const result = await assemble(ctx,{

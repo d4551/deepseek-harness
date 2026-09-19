@@ -32,7 +32,9 @@ function runRunner(args: string[], timeoutMs = 30_000) {
   })
 }
 
-describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
+const SKIP_WITHOUT_WIN32_PWSH = !isWin32 || !pwshAvailable()
+if (SKIP_WITHOUT_WIN32_PWSH) console.info('[skip] runner.spec.ts: non-Windows host or no usable pwsh; Win32 ACL runner stays off')
+describe.skipIf(SKIP_WITHOUT_WIN32_PWSH)('windows-acl runner', () => {
   let scratchRoot!: string
   let writableDir!: string
   let isolatedTemp!: string
@@ -377,7 +379,8 @@ describe.skipIf(!isWin32 || !pwshAvailable())('windows-acl runner', () => {
     // The committed suites never probed it — this pins the ambient boundary
     // end to end with the real restricted token.
     if (publicProbeDir === undefined) {
-      ctx.skip() // Public unavailable/unwritable on this host
+      console.info('[skip] ambient-writable escape regression: C:\\Users\\Public is unavailable or unwritable on this host')
+      ctx.skip()
       return
     }
     const probe = [

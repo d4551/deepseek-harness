@@ -22,7 +22,9 @@ const binScript = join(fixtureRoot, 'bin.ts')
 const configPath = join(fixtureRoot, 'cordis.yml')
 const tsconfigPath = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))
 
-describe.skipIf(!process.env.E2B_API_KEY)('E2B live Loader composition', () => {
+const SKIP_WITHOUT_E2B_API_KEY = !process.env.E2B_API_KEY
+if (SKIP_WITHOUT_E2B_API_KEY) console.info('[skip] composition.e2e.ts: E2B_API_KEY is unset; live E2B composition stays keyless')
+describe.skipIf(SKIP_WITHOUT_E2B_API_KEY)('E2B live Loader composition', () => {
   it('scrubs credentials before actual E2B command and PTY login shells', async () => {
     const apiKey = process.env.E2B_API_KEY
     if (apiKey === undefined) throw new Error('E2B_API_KEY disappeared before the PTY environment test')

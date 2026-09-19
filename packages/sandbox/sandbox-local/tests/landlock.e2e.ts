@@ -51,7 +51,9 @@ function runConfined(sandbox: LocalSandboxProvider, command: string, policy: San
   return { result, enforcement: confined.enforcement }
 }
 
-describe.skipIf(!landlockUsable)('sandbox-local: real Landlock confinement through the bundled launcher', () => {
+const SKIP_WITHOUT_LANDLOCK = !landlockUsable
+if (SKIP_WITHOUT_LANDLOCK) console.info('[skip] landlock.e2e.ts: Landlock is unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_LANDLOCK)('sandbox-local: real Landlock confinement through the bundled launcher', () => {
   it('read-only denies a write — the file must NOT exist, the wrap reports the probed enforcement', async () => {
     const workdir = await tempDir(tmpdir())
     const sandbox = await provider()

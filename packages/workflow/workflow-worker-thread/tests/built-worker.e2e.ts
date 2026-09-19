@@ -15,7 +15,9 @@ const run = promisify(execFile)
  * Keyless built-artifact guard: plain Node loads `lib/index.js` and its sibling
  * `lib/worker.cjs` without tsx. Skips until the build produces both bundles.
  */
-describe.skipIf(!existsSync(builtIndex) || !existsSync(builtWorker))('built worker entry (lib/worker.cjs)', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACT = !existsSync(builtIndex) || !existsSync(builtWorker)
+if (SKIP_WITHOUT_BUILT_ARTIFACT) console.info('[skip] built-worker.e2e.ts: built artifact is absent; run the package build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACT)('built worker entry (lib/worker.cjs)', () => {
   it('the built engine spawns its built worker under plain node and completes a run', async () => {
     // Keep the driver in-package so bare imports resolve its node_modules.
     const driver = join(packageRoot, `.built-worker-driver-${process.pid}.mjs`)

@@ -26,7 +26,9 @@ describe('quoteArg', () => {
   })
 })
 
-describe.skipIf(!isWin32)('CommandLineToArgvW round-trip', () => {
+const SKIP_WHEN_NOT_WIN32 = !isWin32
+if (SKIP_WHEN_NOT_WIN32) console.info('[skip] quote.spec.ts: non-Windows host; this exercises the Win32-only ACL surface')
+describe.skipIf(SKIP_WHEN_NOT_WIN32)('CommandLineToArgvW round-trip', () => {
   it('parses the shared command line back to the original argv', async () => {
     const { default: koffi } = await import('koffi')
     const PVOID = koffi.pointer('void')

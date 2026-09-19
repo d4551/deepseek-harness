@@ -44,7 +44,9 @@ afterEach(async () => {
   workdir = undefined
 })
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('coding task: fix a failing test via bash', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] coding-task.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('coding task: fix a failing test via bash', () => {
   it('repairs add.js so node add.test.js passes', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-coding-task-'))
     await writeFile(join(workdir, 'add.js'), BUGGY_ADD)

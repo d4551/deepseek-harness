@@ -79,7 +79,9 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-describe.skipIf(process.platform === 'win32')('semantic checkpoint hard-crash recovery', () => {
+const SKIP_ON_WIN32 = process.platform === 'win32'
+if (SKIP_ON_WIN32) console.info('[skip] crash-recovery.e2e.ts: Windows lacks this POSIX semantic; skipped on win32')
+describe.skipIf(SKIP_ON_WIN32)('semantic checkpoint hard-crash recovery', () => {
   it('persists the complete request before model dispatch', async () => {
     const crashed = await crashAt('request')
     expect(crashed.markerText).toBe('request-dispatched')

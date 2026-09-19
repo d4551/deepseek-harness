@@ -82,7 +82,9 @@ describe('tsdown client artifact', () => {
     return { handoff: handoff!, exports }
   }
 
-  it.skipIf(!requireBuiltPackages && code === undefined)('hands off with the manifest id and a DI-require factory', async () => {
+  const SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED = !requireBuiltPackages && code === undefined
+  if (SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED) console.info('[skip] client-bundle.client.spec.ts: built-package rehearsal is off and no artifact is present')
+  it.skipIf(SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED)('hands off with the manifest id and a DI-require factory', async () => {
     const { handoff, exports } = await loadArtifact()
     expect(handoff.id).toBe(PLUGIN_ID)
     expect(exports.apply).toBeTypeOf('function')
@@ -91,7 +93,9 @@ describe('tsdown client artifact', () => {
     ])
   })
 
-  it.skipIf(!requireBuiltPackages && code === undefined)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
+  const SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_2 = !requireBuiltPackages && code === undefined
+  if (SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_2) console.info('[skip] client-bundle.client.spec.ts: built-package rehearsal is off and no artifact is present')
+  it.skipIf(SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_2)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
     const { exports } = await loadArtifact()
     const ctx = new Context()
     const slots = new SlotRegistry(ctx)
@@ -125,7 +129,9 @@ describe('tsdown client artifact', () => {
     expect(views.entries()).toEqual([])
   })
 
-  it.skipIf(!requireBuiltPackages && code === undefined)('injects plugin-tagged module CSS during factory execution', async () => {
+  const SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_3 = !requireBuiltPackages && code === undefined
+  if (SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_3) console.info('[skip] client-bundle.client.spec.ts: built-package rehearsal is off and no artifact is present')
+  it.skipIf(SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED_3)('injects plugin-tagged module CSS during factory execution', async () => {
     await loadArtifact()
     const tags = dom!.window.document.querySelectorAll(`style[data-plugin=${JSON.stringify(PLUGIN_ID)}]`)
     expect(tags.length).toBeGreaterThan(0)

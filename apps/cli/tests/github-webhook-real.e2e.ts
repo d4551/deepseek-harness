@@ -381,7 +381,9 @@ async function sendGitHubDelivery(origin: string): Promise<Response> {
   })
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('GitHub webhook through the real dsh CLI and model', () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] github-webhook-real.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('GitHub webhook through the real dsh CLI and model', () => {
   it('creates, attaches, prompts, and completes a Workspace Session', async () => {
     expect(existsSync(BUILT_BIN), `missing built CLI ${BUILT_BIN}; run bun run build:official`).toBe(true)
     const root = await mkdtemp(join(tmpdir(), 'dsh-github-webhook-real-'))

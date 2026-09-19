@@ -104,7 +104,9 @@ describe('web e2e: CJK-adjacent Markdown strong emphasis', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('renders punctuation-terminated strong spans before adjacent CJK text', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] markdown-cjk-strong.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('renders punctuation-terminated strong spans before adjacent CJK text', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-cjk-strong'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

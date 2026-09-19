@@ -137,7 +137,9 @@ describe('readHostSource', () => {
   })
 
   // Windows has no filesystem FIFO; the directory case above pins non-regular rejection there.
-  it.skipIf(process.platform === 'win32')('rejects a FIFO with no writer without blocking in open', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] host.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('rejects a FIFO with no writer without blocking in open', async () => {
     const fifo = join(ws, 'pipe.ts')
     await execFileAsync('mkfifo', [fifo])
     using d = deadline(undefined, 1000, 'FIFO_READ_TIMEOUT')

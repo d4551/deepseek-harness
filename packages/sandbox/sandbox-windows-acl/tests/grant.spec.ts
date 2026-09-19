@@ -24,7 +24,9 @@ function icaclsText(path: string): string {
   return result.stdout
 }
 
-describe.skipIf(!isWin32)('AclWriteGrant (server-side materialization)', () => {
+const SKIP_WHEN_NOT_WIN32 = !isWin32
+if (SKIP_WHEN_NOT_WIN32) console.info('[skip] grant.spec.ts: non-Windows host; this exercises the Win32-only ACL surface')
+describe.skipIf(SKIP_WHEN_NOT_WIN32)('AclWriteGrant (server-side materialization)', () => {
   const scratchDirs: string[] = []
   afterEach(() => {
     for (const dir of scratchDirs.splice(0)) rmSync(dir, { recursive: true, force: true })

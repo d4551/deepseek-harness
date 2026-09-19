@@ -28,7 +28,9 @@ const requiredArtifacts = [
   'packages/typert/registry/lib/index.js',
 ].every(path => existsSync(artifact(path)))
 
-describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACTS = !requiredArtifacts
+if (SKIP_WITHOUT_BUILT_ARTIFACTS) console.info('[skip] built-lib.e2e.ts: built artifacts are absent; run the build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACTS)('Goal Remote built LIB chain', () => {
   it('runs root and Agent-scoped calls through generated bundles and real HTTP', async () => {
     const urls = Object.fromEntries(Object.entries({
       agent: 'packages/core/agent/lib/index.js',

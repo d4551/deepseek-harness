@@ -50,7 +50,9 @@ function runConfined(sandbox: LocalSandboxProvider, command: string, policy: San
   return { result, confined }
 }
 
-describe.skipIf(!seatbeltUsable)('sandbox-local: real Seatbelt confinement through sandbox-exec', () => {
+const SKIP_WITHOUT_SEATBELT = !seatbeltUsable
+if (SKIP_WITHOUT_SEATBELT) console.info('[skip] seatbelt.e2e.ts: Seatbelt (sandbox-exec) is unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_SEATBELT)('sandbox-local: real Seatbelt confinement through sandbox-exec', () => {
   it('read-only denies a write — the file must NOT exist, and the kernel speaks the advertised dialect', async () => {
     const workdir = await tempDir(tmpdir())
     const sandbox = await provider()

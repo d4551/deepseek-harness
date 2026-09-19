@@ -140,8 +140,12 @@ const weatherTool: ToolSchema = {
   },
 }
 
-describe.skipIf(!process.env.DEEPSEEK_API_KEY)('llm-deepseek e2e (real API)', () => {
-  it.skipIf(!VISION_E2E_ENABLED)('uses the built-in official route to upload, reference, and delete one image', async () => {
+const SKIP_WITHOUT_DEEPSEEK_API_KEY = !process.env.DEEPSEEK_API_KEY
+if (SKIP_WITHOUT_DEEPSEEK_API_KEY) console.info('[skip] adapter.e2e.ts: DEEPSEEK_API_KEY is unset; live-model e2e stays keyless')
+describe.skipIf(SKIP_WITHOUT_DEEPSEEK_API_KEY)('llm-deepseek e2e (real API)', () => {
+  const SKIP_WITHOUT_VISION_E2E = !VISION_E2E_ENABLED
+  if (SKIP_WITHOUT_VISION_E2E) console.info('[skip] adapter.e2e.ts: DEEPSEEK_VISION_E2E is not 1; pre-release vision smoke stays off')
+  it.skipIf(SKIP_WITHOUT_VISION_E2E)('uses the built-in official route to upload, reference, and delete one image', async () => {
     const key = process.env.DEEPSEEK_API_KEY
     if (key === undefined) throw new Error('e2e ran without DEEPSEEK_API_KEY')
     const baseURL = process.env.DEEPSEEK_BASE_URL ?? LlmDeepSeek.PUBLIC_BASE_URL

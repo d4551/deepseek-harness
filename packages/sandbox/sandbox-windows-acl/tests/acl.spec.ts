@@ -97,7 +97,9 @@ function readDirectAces(api: Win32Bindings, path: string): DirectAce[] {
   }
 }
 
-describe.skipIf(!isWin32)('ACL editing', () => {
+const SKIP_WHEN_NOT_WIN32 = !isWin32
+if (SKIP_WHEN_NOT_WIN32) console.info('[skip] acl.spec.ts: non-Windows host; this exercises the Win32-only ACL surface')
+describe.skipIf(SKIP_WHEN_NOT_WIN32)('ACL editing', () => {
   const scratchDirs: string[] = []
   afterEach(() => {
     for (const dir of scratchDirs.splice(0)) rmSync(dir, { recursive: true, force: true })

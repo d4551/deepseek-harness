@@ -99,7 +99,9 @@ function runBuiltWeb(cwd: string): Promise<{ stdout: string; stderr: string; cod
   })
 }
 
-describe.skipIf(!requireBuiltArtifacts)('built CLI lazy-search startup', () => {
+const SKIP_WITHOUT_BUILT_ARTIFACTS = !requireBuiltArtifacts
+if (SKIP_WITHOUT_BUILT_ARTIFACTS) console.info('[skip] lazy-search-startup.compat.spec.ts: built artifacts are absent; run the build to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_ARTIFACTS)('built CLI lazy-search startup', () => {
   it('boots and disposes the shipped composition with full-text search off by default', async () => {
     expect(existsSync(builtBin), `missing built CLI ${resolve(builtBin)}; run bun run build`).toBe(true)
     expect(existsSync(webDist), `missing Web dist ${resolve(webDist)}; run bun run build:web`).toBe(true)

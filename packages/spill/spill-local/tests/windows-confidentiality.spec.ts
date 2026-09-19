@@ -45,7 +45,9 @@ function expireEverything(): number {
   return Date.now() + 60_000
 }
 
-describe.skipIf(process.platform !== 'win32')('spill-local Windows root trust', () => {
+const SKIP_WHEN_NOT_WIN32 = process.platform !== 'win32'
+if (SKIP_WHEN_NOT_WIN32) console.info('[skip] windows-confidentiality.spec.ts: non-Windows host; this exercises the Win32-only surface')
+describe.skipIf(SKIP_WHEN_NOT_WIN32)('spill-local Windows root trust', () => {
   it('sweeps a root whose DACL admits nobody but its owner', async () => {
     const { root, chunk } = await rootWithStaleSession()
     const warnings: string[] = []

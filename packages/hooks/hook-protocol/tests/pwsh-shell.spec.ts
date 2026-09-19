@@ -55,7 +55,9 @@ async function pwshShell(): Promise<Context> {
   return ctx
 }
 
-describe.skipIf(skip)('a hook run through a pwsh ctx.shell', () => {
+const SKIP_WITHOUT_PWSH_ON_POSIX = skip
+if (SKIP_WITHOUT_PWSH_ON_POSIX) console.info('[skip] pwsh-shell.spec.ts: no usable pwsh on this POSIX host; pwsh-dialect coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH_ON_POSIX)('a hook run through a pwsh ctx.shell', () => {
   it('delivers the stdin payload and decodes the hook\'s structured stdout', async () => {
     const ctx = await pwshShell()
     const dir = tempDir()

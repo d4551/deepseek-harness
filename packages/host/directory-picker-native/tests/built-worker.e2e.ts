@@ -15,7 +15,9 @@ import type { Win32DialogWorkerMessage } from '../src/win32-dialog-worker.ts'
 
 const builtWorker = fileURLToPath(new URL('../lib/worker.cjs', import.meta.url))
 
-describe.skipIf(!existsSync(builtWorker) || process.platform === 'win32')('built dialog worker (lib/worker.cjs)', () => {
+const SKIP_WITHOUT_BUILT_WINDOWS_WORKER = !existsSync(builtWorker) || process.platform === 'win32'
+if (SKIP_WITHOUT_BUILT_WINDOWS_WORKER) console.info('[skip] built-worker.e2e.ts: built dialog worker is absent, or win32 (the worker targets the POSIX failure surface); build the package to exercise this path')
+describe.skipIf(SKIP_WITHOUT_BUILT_WINDOWS_WORKER)('built dialog worker (lib/worker.cjs)', () => {
   it('loads under plain node and reports the native-surface failure', async () => {
     const message = await new Promise<Win32DialogWorkerMessage>((resolve, reject) => {
       const child = spawn(process.execPath, [builtWorker], {

@@ -149,7 +149,9 @@ describe('helpers (pure)', () => {
   })
 })
 
-describe.skipIf(!pwshAvailable())('SandboxPwshExecutor', () => {
+const SKIP_WITHOUT_PWSH = !pwshAvailable()
+if (SKIP_WITHOUT_PWSH) console.info('[skip] sandbox.spec.ts: no usable pwsh on this host; pwsh coverage stays off')
+describe.skipIf(SKIP_WITHOUT_PWSH)('SandboxPwshExecutor', () => {
   // Denial device for the POSIX classification cases: a mode-0555 directory
   // INSIDE a temp scratch tree (the same device as bash-sandbox's suites) —
   // unit tests never attempt writes outside the system temp directory. On
@@ -213,7 +215,9 @@ describe.skipIf(!pwshAvailable())('SandboxPwshExecutor', () => {
   // POSIX-only: the denial device is a mode-0555 scratch dir. On win32 the
   // real-sandbox denial classification is covered by tests/acl.e2e.ts
   // (the ACL runner denies scratch paths — unit tests never leave temp).
-  it.skipIf(process.platform === 'win32')('classifies a failed write against the backend denial dialect', async () => {
+  const SKIP_ON_WIN32 = process.platform === 'win32'
+  if (SKIP_ON_WIN32) console.info('[skip] sandbox.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32)('classifies a failed write against the backend denial dialect', async () => {
     const { executor } = await setup()
     const result = await executor.run(executor.resolve({
       command: deniedWriteCommand,
@@ -288,7 +292,9 @@ describe.skipIf(!pwshAvailable())('SandboxPwshExecutor', () => {
 
   // POSIX-only denial device (mode-0555 scratch); win32 real-sandbox denial
   // coverage lives in tests/acl.e2e.ts.
-  it.skipIf(process.platform === 'win32')('background denied writes stamp denied facts at settlement', async () => {
+  const SKIP_ON_WIN32_2 = process.platform === 'win32'
+  if (SKIP_ON_WIN32_2) console.info('[skip] sandbox.spec.ts: Windows lacks this POSIX semantic; skipped on win32')
+  it.skipIf(SKIP_ON_WIN32_2)('background denied writes stamp denied facts at settlement', async () => {
     const { executor } = await setup()
     const denied = executor.start(executor.resolve({
       command: deniedWriteCommand,

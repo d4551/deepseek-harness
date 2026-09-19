@@ -36,7 +36,9 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true })
 })
 
-describe.skipIf(!built)('built lib real load path (plain node)', () => {
+const SKIP_WITHOUT_BUILT_LIB = !built
+if (SKIP_WITHOUT_BUILT_LIB) console.info('[skip] built-lib.e2e.ts: built lib artifact is absent; run the package build to exercise the load path')
+describe.skipIf(SKIP_WITHOUT_BUILT_LIB)('built lib real load path (plain node)', () => {
   it('runs a query through lib/index.js and disposes cleanly, framing over the base protocol', async () => {
     const location = JSON.stringify({ uri: pathToFileURL(join(ws, 'a.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } } })
     const script = `

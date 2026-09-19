@@ -80,7 +80,9 @@ async function fenceTree(block: ReturnType<Page['locator']>): Promise<FenceTree>
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: streaming code-fence highlighting', () => {
+const SKIP_IN_RECORD_MODE = MODE === 'record'
+if (SKIP_IN_RECORD_MODE) console.info('[skip] streaming-fence-highlight.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+describe.skipIf(SKIP_IN_RECORD_MODE)('web e2e: streaming code-fence highlighting', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

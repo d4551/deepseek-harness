@@ -35,7 +35,9 @@ async function hasPython3(): Promise<boolean> {
 
 const python3Available = await hasPython3()
 
-describe.skipIf(!python3Available)('protocol.py mirrors protocol.ts at runtime', () => {
+const SKIP_WITHOUT_PYTHON3 = !python3Available
+if (SKIP_WITHOUT_PYTHON3) console.info('[skip] protocol-mirror.e2e.ts: python3 is unavailable; protocol-mirror e2e stays off')
+describe.skipIf(SKIP_WITHOUT_PYTHON3)('protocol.py mirrors protocol.ts at runtime', () => {
   it('agrees on PROTOCOL_FD and the log truncation marker across byte budgets', async () => {
     const budgets = [1, 65536, 1048576]
     const probe = [

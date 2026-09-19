@@ -48,7 +48,9 @@ async function sandboxedBash(workspace: string, mode: 'read-only' | 'workspace-w
   return ctx.shell as SandboxBashExecutor
 }
 
-describe.skipIf(!bwrapUsable)('bash-sandbox: real bwrap confinement through ctx.shell', () => {
+const SKIP_WITHOUT_BWRAP = !bwrapUsable
+if (SKIP_WITHOUT_BWRAP) console.info('[skip] bwrap.e2e.ts: bwrap or user namespaces are unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_BWRAP)('bash-sandbox: real bwrap confinement through ctx.shell', () => {
   it('read-only denies a write — the file must NOT exist, and EROFS text classifies as a denial', async () => {
     const workdir = await tempDir(homedir())
     const bash = await sandboxedBash(workdir, 'read-only')

@@ -135,7 +135,9 @@ describe('web e2e: inline-code mentions of produced files', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('links the unique mention and leaves ambiguous and unknown code inert', async () => {
+  const SKIP_IN_RECORD_MODE = MODE === 'record'
+  if (SKIP_IN_RECORD_MODE) console.info('[skip] produced-file-mentions.e2e.ts: record mode refreshes fixtures; this replay-only assertion runs in replay/refresh')
+  it.skipIf(SKIP_IN_RECORD_MODE)('links the unique mention and leaves ambiguous and unknown code inert', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-produced-file-mentions'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

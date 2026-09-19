@@ -53,7 +53,9 @@ async function sandboxedBash(workspace: string, mode: 'read-only' | 'workspace-w
   return ctx.shell as SandboxBashExecutor
 }
 
-describe.skipIf(!landlockUsable)('bash-sandbox: real Landlock confinement through ctx.shell', () => {
+const SKIP_WITHOUT_LANDLOCK = !landlockUsable
+if (SKIP_WITHOUT_LANDLOCK) console.info('[skip] landlock.e2e.ts: Landlock is unavailable; confinement e2e stays off')
+describe.skipIf(SKIP_WITHOUT_LANDLOCK)('bash-sandbox: real Landlock confinement through ctx.shell', () => {
   it('read-only denies a write — the file must NOT exist, the result carries denial + enforcement facts', async () => {
     const workdir = await tempDir(tmpdir())
     const bash = await sandboxedBash(workdir, 'read-only')

@@ -29,7 +29,9 @@ await ctx.fiber.dispose();
 // report green because the bundle it was meant to exercise was never emitted.
 const requireBuiltPackages = process.env.DSH_REQUIRE_BUILT_PACKAGES === '1'
 
-describe.skipIf(!requireBuiltPackages && !existsSync(builtBundle))('SQLite built package', () => {
+const SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED = !requireBuiltPackages && !existsSync(builtBundle)
+if (SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED) console.info('[skip] built-package.spec.ts: built-package rehearsal is off and no artifact is present')
+describe.skipIf(SKIP_WHEN_BUILT_PACKAGES_NOT_REQUIRED)('SQLite built package', () => {
   it('loads packaged SQL resources from the published entry', async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, ['--input-type=module', '-e', probe], {
       cwd: repoRoot,
