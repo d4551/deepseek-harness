@@ -12,6 +12,9 @@ import type {
 } from '@deepseek-ai/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector, ProcessSnapshot } from './process-inspector.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -118,7 +121,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     if (this.cleanup !== undefined) return this.cleanup
     const cleanup = this.closeOnce()
     this.cleanup = cleanup
-    cleanup.catch(() => { this.cleanup = undefined })
+    cleanup.catch((_error: Thrown) => { this.cleanup = undefined })
     return cleanup
   }
 

@@ -29,6 +29,32 @@ import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 import { createWindowsProcessJob } from './windows-job.ts'
 import type { WindowsJobFactory, WindowsProcessJob } from './windows-job.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/**
+ * Human text for a leftover Thrown or catch-boundary value.
+ * @param reason - the Thrown, catch value, or abort reason.
+ * @returns the Error message, primitive text, or object tag.
+ */
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  switch (typeof reason) {
+    case 'string': return reason
+    case 'number':
+    case 'boolean':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return String(reason)
+    case 'undefined':
+      return 'undefined'
+    case 'object':
+      if (reason === null) return 'null'
+      return Object.prototype.toString.call(reason)
+  }
+}
+
 /** Node's Windows process launcher restores omitted environment entries from its parent. */
 export const LOCAL_ENVIRONMENT_ISOLATION_SUPPORTED = process.platform !== 'win32'
 
@@ -361,7 +387,7 @@ function windowsTreeControl(
   try {
     job = createJob(pid)
   } catch (error) {
-    warn(`subprocess-local: pid ${String(pid)} could not be placed in a Job object, falling back to taskkill: ${String(error)}`)
+    warn(`subprocess-local: pid ${String(pid)} could not be placed in a Job object, falling back to taskkill: ${thrownMessage(error)}`)
   }
   const fallbackTerminate = (): void => {
     const outcome = taskkill(pid)
@@ -374,7 +400,7 @@ function windowsTreeControl(
       try {
         job.terminate()
       } catch (error) {
-        warn(`subprocess-local: Job termination of pid ${String(pid)} failed, falling back to taskkill: ${String(error)}`)
+        warn(`subprocess-local: Job termination of pid ${String(pid)} failed, falling back to taskkill: ${thrownMessage(error)}`)
         fallbackTerminate()
       }
     },
@@ -383,7 +409,7 @@ function windowsTreeControl(
       try {
         return job.liveMemberCount()
       } catch (error) {
-        warn(`subprocess-local: Job liveness query for pid ${String(pid)} failed: ${String(error)}`)
+        warn(`subprocess-local: Job liveness query for pid ${String(pid)} failed: ${thrownMessage(error)}`)
         return undefined
       }
     },
@@ -393,7 +419,7 @@ function windowsTreeControl(
       try {
         closing?.close()
       } catch (error) {
-        warn(`subprocess-local: releasing the Job for pid ${String(pid)} failed: ${String(error)}`)
+        warn(`subprocess-local: releasing the Job for pid ${String(pid)} failed: ${thrownMessage(error)}`)
       }
     },
   }
@@ -449,7 +475,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const linuxGroupHasLiveMembers = internals.linuxProcessGroupHasLiveMembers ?? linuxProcessGroupHasLiveMembers
 
   if (spec.signal?.aborted) {
-    throw new Error(`aborted before spawn: ${String(spec.signal.reason ?? 'aborted')}`)
+    throw new Error(`aborted before spawn: ${thrownMessage(spec.signal.reason ?? 'aborted')}`)
   }
   const [program, ...args] = spec.argv
   if (program === undefined || program.length === 0) {
@@ -476,7 +502,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     detached: platform !== 'win32',
   })
 
-  let collectionFailure: Error | undefined
+  let collectionFailure: Thrown | undefined
   const collectStream = (mode: SubprocessOutputMode, stream: Readable | null, label: string): OutputCollector | undefined => {
     if (!isCollect(mode) || stream === null) return undefined
     const collector = new OutputCollector(mode.maxBytes, mode.spill?.maxBytes, label, spillDir)
@@ -484,7 +510,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       new Promise<void>((resolve) => {
         collector.push(chunk)
         resolve()
-      }).then(undefined, failCollection)
+      }).then(undefined, (error: Thrown) => { failCollection(error) })
     })
     stream.on('error', failCollection)
     return collector
@@ -582,7 +608,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
     kill('SIGKILL')
   }
 
-  function failCollection(error: Error): void {
+  function failCollection(error: Thrown): void {
     collectionFailure ??= error
     terminate()
     if (stdoutCollector !== undefined) child.stdout?.destroy()
