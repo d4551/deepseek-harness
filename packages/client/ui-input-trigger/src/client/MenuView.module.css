@@ -24,7 +24,6 @@
 }
 
 .viewport {
-  appearance: base-select;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -37,13 +36,27 @@
   color: var(--dsw-alias-label-primary);
   font: inherit;
   outline: none;
+  list-style: "";
 }
 
-.viewport option::checkmark {
-  display: none;
+.pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
 }
 
 .item {
+  box-sizing: border-box;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -54,7 +67,6 @@
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
-  list-style: none;
   font-size: var(--dsh-content-font-size);
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
@@ -224,7 +236,7 @@
   margin-bottom: 2px;
   border-bottom: 1px solid var(--dsw-alias-border-inverted);
 }
-/* Crumbs sit outside the listbox and take no keyboard highlight, so unlike
+/* Crumbs sit outside the candidate list and take no keyboard highlight, so unlike
    .item they carry their own :hover tint with nothing to compete with. */
 .crumb {
   flex: 0 1 auto;

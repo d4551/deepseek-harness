@@ -4,16 +4,12 @@
  * slot stays mounted); groups render in roster order under localized title
  * rows, pending groups as two skeleton rows, and a failed group as an alert
  * carrying the load failure's message plus its retry action; pointer picks
- * route back through the service (combobox pattern — focus never leaves the
- * textarea, so rows are mousedown-handled and the highlight is exposed via
- * aria-activedescendant on the listbox). A source publishing crumbs gets a
+ * route back through the service. Pointer presses retain composer focus;
+ * keyboard highlights are announced by a status region. A source publishing crumbs gets a
  * breadcrumb header pinned above the scrolling list.
  *
- * The scrolling candidate list is a native `<select size>` listbox opted into
- * `appearance: base-select` (MDN customizable select listboxes). Native option
- * elements carry the implicit option role, so oxlint prefer-tag-over-role does
- * not demand a dual widget, while Chrome 135+/145+ still renders icons,
- * descriptions, and the drill button inside each option.
+ * Candidate rows retain their icons, descriptions, and directory actions
+ * while the composer owns keyboard navigation.
  */
 import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import clsx from 'clsx'
@@ -37,33 +33,13 @@ function sourceTitle(t: MenuViewProps['t'], source: string): string {
 /** Design cap on the list height (figma SLASH 39:26572 MenuDropdown). */
 const MAX_HEIGHT = 320
 
-/** DOM id of one option row (the aria-activedescendant target). */
+/** DOM id of one candidate row for keyboard scrolling. */
 function optionId(source: string, index: number): string {
   return `dsh-slash-option-${source}-${index}`
 }
 
-/** Parse a native option value produced by {@link optionId}. */
-function parseOptionId(value: string): { source: string; index: number } | undefined {
-  const match = /^dsh-slash-option-(.+)-(\d+)$/.exec(value)
-  const source = match?.[1]
-  const indexText = match?.[2]
-  if (source === undefined || indexText === undefined) return undefined
-  return { source, index: Number(indexText) }
-}
-
 function readyCount(groups: ReadonlyArray<{ status: string; items: readonly unknown[] }>): number {
   return groups.reduce((count, group) => count + (group.status === 'ready' ? group.items.length : 0), 0)
-}
-
-function selectedValue(
-  highlight: { source: string; index: number } | null,
-  groups: ReadonlyArray<{ source: string; status: string; items: readonly unknown[] }>,
-): string {
-  if (highlight !== null) return optionId(highlight.source, highlight.index)
-  for (const group of groups) {
-    if (group.status === 'ready' && group.items.length > 0) return optionId(group.source, 0)
-  }
-  return ''
 }
 
 /**
@@ -86,8 +62,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
   // when the composer grows).
   const maxHeight = useAnchoredMaxHeight(listRef, MAX_HEIGHT, state)
   const highlight = state.open ? state.highlight : null
-  // Focus stays in the textarea (combobox pattern), so the browser never
-  // scrolls the active option into view on keyboard moves — do it here.
+  // Composer arrow keys move the highlight without moving DOM focus.
   useEffect(() => {
     if (highlight === null) return
     document.getElementById(optionId(highlight.source, highlight.index))
@@ -109,10 +84,13 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
   }, [state.open, onDismiss])
   if (!state.open) return null
   const optionCount = readyCount(state.groups)
+  const highlighted = highlight === null ? undefined
+    : state.groups.find(group => group.source === highlight.source)?.items[highlight.index]
   return (
-    // The listbox role sits on the scrolling viewport, not this shell: a
-    // breadcrumb header is not an option, and a listbox may not carry one.
     <div ref={listRef} className={css.menu} style={{ maxHeight }} data-trigger-menu="">
+      <output className="dsw-visually-hidden" aria-label={t('suggestions.aria')}>
+        {highlighted === undefined ? '' : [highlighted.name, highlighted.description].filter(Boolean).join(' ')}
+      </output>
       {state.groups.map((group) => {
         const trail = crumbs.get(group.source)
         return trail === undefined ? null : (
@@ -125,11 +103,10 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
                   className={clsx(css.crumb, crumb.current === true && css.crumbCurrent)}
                   aria-current={crumb.current === true ? 'location' : undefined}
                   disabled={crumb.current === true}
-                  // mousedown, not click: the composer keeps focus, same as a row.
                   onMouseDown={(ev) => {
                     ev.preventDefault()
-                    onCrumb(group.source, index)
                   }}
+                  onClick={() => { onCrumb(group.source, index) }}
                 >
                   {crumb.label}
                 </button>
@@ -138,29 +115,10 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
           </nav>
         )
       })}
-      {/* An empty listbox violates aria-required-children; with no ready
-          options the pending and failed blocks below carry the open state alone. */}
       {optionCount > 0 && (
-        <select
+        <menu
           className={css.viewport}
-          data-trigger-listbox=""
-          size={Math.max(2, optionCount)}
-          tabIndex={-1}
           aria-label={t('suggestions.aria')}
-          aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
-          value={selectedValue(highlight, state.groups)}
-          onMouseDown={(ev) => {
-            // Keep composer focus (combobox). Drill buttons handle their own mousedown.
-            if (ev.target instanceof HTMLButtonElement) return
-            ev.preventDefault()
-          }}
-          onChange={(ev) => {
-            const value = ev.currentTarget.value
-            if (value === '') return
-            const selected = parseOptionId(value)
-            if (selected === undefined) throw new Error(`slash option ${value} is missing`)
-            onHover(selected.source, selected.index)
-          }}
         >
           {state.groups.map((group) => {
             if (group.status !== 'ready' || group.items.length === 0) return null
@@ -170,47 +128,48 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
             const options = group.items.map((item, index) => {
               const active = highlight !== null && highlight.source === group.source && highlight.index === index
               return (
-                <option
+                <li
                   key={optionId(group.source, index)}
                   id={optionId(group.source, index)}
-                  value={optionId(group.source, index)}
                   className={clsx(css.item, active && css.active)}
                   data-icon={item.icon}
-                  aria-selected={active}
-                  onMouseDown={(ev) => {
-                    if (ev.target instanceof HTMLButtonElement) return
-                    ev.preventDefault()
-                    onPick(group.source, index)
-                  }}
-                  onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
+                  data-highlighted={active}
                 >
-                  {item.icon !== undefined && (
-                    <span className={css.itemIcon} aria-hidden>
-                      <ReferenceIcon kind={item.icon} size={16} />
-                    </span>
-                  )}
-                  <span className={css.itemName}>{item.name}</span>
-                  {item.description !== undefined && <span className={css.itemDescription}>{item.description}</span>}
+                  <button
+                    type="button"
+                    className={css.pick}
+                    onMouseDown={(ev) => { ev.preventDefault() }}
+                    onClick={() => { onPick(group.source, index) }}
+                    onFocus={() => { onHover(group.source, index) }}
+                    onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
+                  >
+                    {item.icon !== undefined && (
+                      <span className={css.itemIcon} aria-hidden>
+                        <ReferenceIcon kind={item.icon} size={16} />
+                      </span>
+                    )}
+                    <span className={css.itemName}>{item.name}</span>
+                    {item.description !== undefined && <span className={css.itemDescription}>{item.description}</span>}
+                  </button>
                   {item.drill === true && (
                     <span className={css.trailing}>
                       <span className={css.drillHintText} aria-hidden>{t('drill.hint')}</span>
                       <kbd className={css.drillHint} aria-hidden>{t('drill.key')}</kbd>
                       <button
                         type="button"
-                        tabIndex={-1}
                         aria-label={t('drill.aria')}
                         className={css.drill}
                         onMouseDown={(ev) => {
                           ev.preventDefault()
-                          ev.stopPropagation()
-                          onPick(group.source, index, 'drill')
                         }}
+                        onClick={() => { onPick(group.source, index, 'drill') }}
+                        onFocus={() => { onHover(group.source, index) }}
                       >
                         <IconChevronRightOutline14 />
                       </button>
                     </span>
                   )}
-                </option>
+                </li>
               )
             })
             if (sectioned) {
@@ -225,7 +184,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
               }
               return clusters.map(cluster => (
                 <Fragment key={`${group.source}:${cluster.label}`}>
-                  <div className={css.sectionTitle} role="presentation">{cluster.label}</div>
+                  <li className={css.sectionTitle} role="presentation">{cluster.label}</li>
                   {cluster.nodes}
                 </Fragment>
               ))
@@ -233,19 +192,14 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
             return (
               <Fragment key={group.source}>
                 {wrapTitle
-                  ? <div className={css.groupTitle} role="presentation" data-source={group.source}>{title}</div>
+                  ? <li className={css.groupTitle} role="presentation" data-source={group.source}>{title}</li>
                   : null}
                 {options}
               </Fragment>
             )
           })}
-        </select>
+        </menu>
       )}
-      {/* Pending skeletons and failure alerts sit OUTSIDE the listbox: neither
-          an output live region nor a role=alert is an allowed listbox child
-          (axe aria-required-children). Both carry real text, so a screen
-          reader hears the state a purely visual skeleton or an empty group
-          body would leave silent. */}
       {state.groups.map(group => group.status === 'ready'
         ? null
         : (
@@ -263,8 +217,8 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onRetry, onD
                     className={css.retry}
                     onMouseDown={(ev) => {
                       ev.preventDefault()
-                      onRetry(group.source)
                     }}
+                    onClick={() => { onRetry(group.source) }}
                   >
                     {t('retry')}
                   </button>

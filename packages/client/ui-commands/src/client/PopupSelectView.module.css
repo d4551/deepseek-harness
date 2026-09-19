@@ -32,7 +32,6 @@
 }
 
 .viewport {
-  appearance: base-select;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -45,13 +44,16 @@
   color: var(--dsw-alias-label-primary);
   font: inherit;
   outline: none;
+  list-style: "";
 }
 
-.viewport option::checkmark {
-  display: none;
+.viewport > li {
+  flex-shrink: 0;
 }
 
 .row {
+  box-sizing: border-box;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;

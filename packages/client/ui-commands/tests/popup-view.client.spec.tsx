@@ -60,8 +60,8 @@ function spec(overrides: Partial<PopupSpec<string>> = {}): PopupSpec<string> {
 }
 
 async function mountOpen(overrides: Partial<PopupSpec<string>> = {}, consumeResult = true) {
-  const consume = vi.fn((_segment: TokenSegment) => consumeResult)
-  const focusComposer = vi.fn()
+  const consume = vi.fn<(segment: TokenSegment) => boolean>(() => consumeResult)
+  const focusComposer = vi.fn<() => void>()
   const popup = new PopupSelectController<string>({ consume, focusComposer })
   const view = render(<main className="popup-composer-anchor"><PopupSelectView popup={popup} t={t} /></main>)
   await act(async () => {
@@ -76,6 +76,19 @@ function rowLabels(): string[] {
 }
 
 describe('PopupSelectView', () => {
+  it('keeps label and detail spacing inside the popup width', async () => {
+    const detail = 'Detailed description of the choice. '.repeat(40)
+    await mountOpen({ options: () => Promise.resolve([{ id: 'choice', label: 'Choice', detail }]) })
+    const label = screen.getByText('Choice').getBoundingClientRect()
+    const description = screen.getByText(detail.trim())
+    const row = screen.getByRole('option').getBoundingClientRect()
+    expect(label.width).toBeGreaterThan(0)
+    expect(description.getBoundingClientRect().left - label.right).toBeGreaterThanOrEqual(8)
+    expect(description.scrollWidth).toBeGreaterThan(description.clientWidth)
+    expect(getComputedStyle(description).textOverflow).toBe('ellipsis')
+    expect(description.getBoundingClientRect().right).toBeLessThanOrEqual(row.right)
+  })
+
   it('renders null while closed, opens with focus in the search input', async () => {
     const popup = new PopupSelectController<string>({ consume: () => true, focusComposer: () => {} })
     const view = render(<PopupSelectView popup={popup} t={t} />)
@@ -90,7 +103,7 @@ describe('PopupSelectView', () => {
   })
 
   it('typing filters rows locally and rebases the highlight', async () => {
-    const options = vi.fn(() => Promise.resolve(OPTIONS))
+    const options = vi.fn<PopupSpec<string>['options']>(() => Promise.resolve(OPTIONS))
     const { search } = await mountOpen({ options })
     act(() => { fireEvent.change(search, { target: { value: 'li' } }) })
     expect(rowLabels()).toEqual(['Light'])
@@ -169,7 +182,7 @@ describe('PopupSelectView', () => {
   })
 
   it('renders a gated option as an in-page modal and requires the checkbox before onSelect', async () => {
-    const onSelect = vi.fn()
+    const onSelect = vi.fn<PopupSpec<string>['onSelect']>()
     const { popup, consume } = await mountOpen({
       options: () => Promise.resolve([GATED]),
       onSelect,
@@ -201,7 +214,7 @@ describe('PopupSelectView', () => {
 
   it('submitting shows pending, locks the search input, and further Enter/click no-op', async () => {
     let release!: () => void
-    const onSelect = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
+    const onSelect = vi.fn<PopupSpec<string>['onSelect']>(() => new Promise<void>((resolve) => { release = resolve }))
     const { search, consume } = await mountOpen({ onSelect })
     await act(async () => { fireEvent.keyDown(search, { key: 'Enter' }) })
     expect(screen.queryByText('正在应用…')).not.toBeNull()
@@ -291,8 +304,8 @@ describe('popup select accessibility', () => {
   const MINIMUM_ACCESSIBILITY_SCORE = 100
 
   it('renders no accessibility violations while open', async () => {
-    const consume = vi.fn(() => true)
-    const popup = new PopupSelectController<string>({ consume, focusComposer: vi.fn() })
+    const consume = vi.fn<(segment: TokenSegment) => boolean>(() => true)
+    const popup = new PopupSelectController<string>({ consume, focusComposer: vi.fn<() => void>() })
     const { baseElement } = render(<main className="popup-composer-anchor"><PopupSelectView popup={popup} t={t} /></main>)
     await act(async () => {
       popup.open('theme', spec(), 'ctx-A', SEGMENT)

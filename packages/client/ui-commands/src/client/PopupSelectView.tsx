@@ -1,7 +1,7 @@
 /**
  * Official popupSelect shell: renders one session's PopupSelectController
  * store into the conversation.input.overlay anchor. Unlike the slash menu
- * (combobox — textarea keeps focus), this shell HOLDS focus while open: the
+ * (the textarea keeps focus), this shell HOLDS focus while open: the
  * inner search input takes focus, plain typing filters the loaded options
  * locally, Enter/↑↓ drive the filtered highlight (scrolled into view), Escape
  * dismisses back to the composer, and ←→ keep the search input's native
@@ -9,9 +9,7 @@
  * target takes focus). Closed state renders null; the overlay slot stays
  * mounted. The card height clamps to the space above the composer.
  *
- * Ready options render in a native `<select size>` listbox with
- * `appearance: base-select` so rows keep implicit option semantics while
- * still hosting label, detail, and the current-value check.
+ * Each selectable row presents its label, detail, and current-value check.
  */
 import { startTransition, useEffect, useRef } from 'react'
 import { useSyncExternalStore } from 'react'
@@ -55,7 +53,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   // the browser never scrolls the active row into view — do it here.
   useEffect(() => {
     if (active === null) return
-    cardRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+    cardRef.current?.querySelector('[data-highlighted="true"]')?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
   // Focus ownership: the search input grabs on open, and ANY outside
@@ -84,6 +82,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   const confirmation = state.confirming?.confirmation
 
   const onKeyDown = (ev: React.KeyboardEvent<HTMLDialogElement>): void => {
+    if (ev.key !== 'Escape' && ev.target !== searchRef.current) return
     // ArrowLeft/ArrowRight fall through on purpose: the search input keeps
     // its native caret movement.
     switch (ev.key) {
@@ -140,37 +139,33 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
           {state.submitting && <div className={css.status}>{t('status.applying')}</div>}
           {state.status === 'ready' && rows.length === 0 && <div className={css.status}>{t('status.empty')}</div>}
           {state.status === 'ready' && rows.length > 0 && (
-            <select
+            <menu
               className={css.viewport}
-              size={Math.max(2, rows.length)}
-              tabIndex={-1}
               aria-label={t('listbox.aria', { command: String(state.command) })}
-              value={rows[state.active]?.id ?? rows[0]?.id ?? ''}
-              onMouseDown={(ev) => { ev.preventDefault() }}
-              onChange={(ev) => {
-                const value = ev.currentTarget.value
-                if (value === '') return
-                const selected = rows.findIndex(option => option.id === value)
-                if (selected < 0) throw new Error(`popup option ${value} is missing`)
-                popup.highlight(selected)
-              }}
             >
               {rows.map((option, index) => (
-                <option
-                  key={option.id}
-                  value={option.id}
-                  aria-selected={index === state.active}
-                  className={clsx(css.row, index === state.active && css.rowActive)}
-                  onClick={() => { startTransition(() => popup.select(index)) }}
-                  onMouseEnter={() => { popup.highlight(index) }}
-                >
-                  <span className={css.label}>{option.label}</span>
-                  {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
-                  {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
-                </option>
+                <li key={option.id}>
+                  <button
+                    type="button"
+                    data-highlighted={index === state.active}
+                    aria-current={option.active === true ? 'true' : undefined}
+                    className={clsx(css.row, index === state.active && css.rowActive)}
+                    onMouseDown={(ev) => { ev.preventDefault() }}
+                    onClick={() => { startTransition(() => popup.select(index)) }}
+                    onMouseEnter={() => { popup.highlight(index) }}
+                    onFocus={() => { popup.highlight(index) }}
+                  >
+                    <span className={css.label}>{option.label}</span>
+                    {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
+                    {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
+                  </button>
+                </li>
               ))}
-            </select>
+            </menu>
           )}
+          <output className="dsw-visually-hidden" aria-label={t('listbox.aria', { command: String(state.command) })}>
+            {rows[state.active]?.label}
+          </output>
         </dialog>
       )}
       {confirmation !== undefined && (

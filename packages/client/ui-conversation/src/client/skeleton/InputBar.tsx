@@ -465,7 +465,6 @@ export function InputBar({
                 type="button"
                 className={css.add}
                 aria-label={t('input.commands')}
-                aria-haspopup="listbox"
                 aria-expanded={commandMenuOpen}
                 disabled={locked || toggleCommandMenu === undefined}
                 onMouseDown={keepFocus}

@@ -96,6 +96,28 @@ function titles(container: HTMLElement): string[] {
 }
 
 describe('MenuView', () => {
+  it('lays out labels and long descriptions separately within bounded rows', () => {
+    const description = 'A long description of the selected skill. '.repeat(40)
+    mount(openState({
+      groups: [{ source: 'skill', status: 'ready', items: [
+        { name: 'review', description },
+        { name: 'test', description: 'Run verification' },
+      ] }],
+      highlight: { source: 'skill', index: 0 },
+    }))
+    const label = screen.getByText('review').getBoundingClientRect()
+    const detail = screen.getByText(description.trim())
+    const options = screen.getAllByRole('option')
+    const first = options[0]!.getBoundingClientRect()
+    const second = options[1]!.getBoundingClientRect()
+    expect(first.height).toBeGreaterThanOrEqual(40)
+    expect(detail.getBoundingClientRect().left - label.right).toBeGreaterThanOrEqual(8)
+    expect(detail.scrollWidth).toBeGreaterThan(detail.clientWidth)
+    expect(getComputedStyle(detail).textOverflow).toBe('ellipsis')
+    expect(detail.getBoundingClientRect().right).toBeLessThanOrEqual(first.right)
+    expect(second.top).toBeGreaterThanOrEqual(first.bottom)
+  })
+
   it('renders null while closed and appears when the store opens', () => {
     const { menu, view } = mount(CLOSED)
     // The mount wrapper is <main>; "renders null" means it stays childless.
