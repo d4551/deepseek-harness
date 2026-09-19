@@ -1,5 +1,5 @@
 /** Per-Session target-neutral Conversation assembly. */
-import { Service, type Context } from '@deepseek-ai/cordis'
+import { FiberState, Service, type Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {
   ISessions, SessionBinding, SessionEventSource, SessionEventWindow,
@@ -122,10 +122,6 @@ class BoundConversation implements ConversationBinding {
   }
 }
 
-function unsetBindingDispose(): void {
-  throw new Error('uiConversation binding disposeScope used before assignment')
-}
-
 interface BindingRecord {
   readonly source: SessionBinding
   readonly binding: BoundConversation
@@ -179,6 +175,7 @@ export class UiConversation extends Service {
    * Resolve the Conversation binding for one Controller binding or Session id.
    * @param source - Session binding or identity.
    * @returns stable Conversation binding.
+   * @throws {Error} when the Session Controller binding's fiber is inactive.
    */
   binding(source: SessionBinding | SessionId): ConversationBinding {
     const sessionId = typeof source === 'string' ? source : source.sessionId
@@ -187,22 +184,35 @@ export class UiConversation extends Service {
     const current = this.bindings.get(owner.sessionId)
     if (current?.source === owner) return current.binding
     if (current !== undefined) this.drop(current, true)
+    const fiber = owner.ctx.fiber
+    if (fiber.uid === null || fiber.state === FiberState.UNLOADING) {
+      throw new Error(`uiConversation.binding: session "${owner.sessionId}" fiber is not active`)
+    }
+    const installed: { record: BindingRecord | undefined } = { record: undefined }
+    const disposeScope = owner.ctx.effect(
+      () => () => {
+        const current = installed.record
+        if (current === undefined) return
+        this.drop(current, false)
+      },
+      'ui-conversation binding',
+    )
     const binding = new BoundConversation(
       owner.eventSource,
       new ConversationNodeAssembler(this.events, this.views),
     )
-    const record: BindingRecord = { source: owner, binding, disposeScope: unsetBindingDispose }
-    this.bindings.set(owner.sessionId, record)
-    const disposeScope = owner.ctx.effect(
-      () => () => { this.drop(record, false) },
-      'ui-conversation binding',
-    )
-    record.disposeScope = () => {
-      const released = disposeScope()
-      if (released !== undefined) {
-        throw new TypeError('uiConversation binding disposeScope must complete synchronously')
-      }
+    const record: BindingRecord = {
+      source: owner,
+      binding,
+      disposeScope: () => {
+        const released = disposeScope()
+        if (released !== undefined) {
+          throw new TypeError('uiConversation binding disposeScope must complete synchronously')
+        }
+      },
     }
+    installed.record = record
+    this.bindings.set(owner.sessionId, record)
     return binding
   }
 
