@@ -25,7 +25,7 @@ export function OnboardingSurface({ label, children }: { label: string; children
   return createPortal((
     <div className={css.onboardingOverlay} role="presentation">
       <div className={css.onboardingMask} aria-hidden="true" />
-      <dialog className={css.onboardingStage} open aria-label={label}>{children}</dialog>
+      <dialog className={css.onboardingStage} open aria-modal="true" aria-label={label}>{children}</dialog>
     </div>
   ), document.body)
 }

@@ -15,7 +15,7 @@ const tails = new WeakMap<Agent, Promise<void>>()
 export async function runScheduleTransaction<T>(agent: Agent, operation: () => Promise<T>): Promise<T> {
   const prior = tails.get(agent) ?? Promise.resolve()
   const run = prior.then(operation)
-  const tail = run.then(() => undefined, (_error: Thrown) => {})
+  const tail = run.then(() => undefined, (_error: Thrown) => undefined)
   tails.set(agent, tail)
   try {
     return await run
