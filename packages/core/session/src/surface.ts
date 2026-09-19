@@ -292,14 +292,17 @@ function isDeepEqualJson(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
-    return a.every((item, i) => isDeepEqualJson(item, b[i]))
+    return a.every((item, index) => isDeepEqualJson(item, b.at(index)))
   }
   if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
   const aKeys = Object.keys(a)
   if (aKeys.length !== Object.keys(b).length) return false
-  const left: Record<string, unknown> = { ...a as Record<string, unknown> }
-  const right: Record<string, unknown> = { ...b as Record<string, unknown> }
-  return aKeys.every(key => Object.hasOwn(b, key) && isDeepEqualJson(left[key], right[key]))
+  return aKeys.every((key) => {
+    if (!Object.hasOwn(b, key)) return false
+    const left: unknown = Reflect.get(a, key)
+    const right: unknown = Reflect.get(b, key)
+    return isDeepEqualJson(left, right)
+  })
 }
 
 /** Restrict a tool-result replacement to one current result's content. */
