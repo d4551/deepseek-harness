@@ -16,6 +16,9 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+/** Values a Promise reject arm or rule refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Internal type erasure after public generic registration validates the provider kind. */
 interface AnyWebhookRule {
   readonly id: WebhookRuleId
@@ -164,13 +167,13 @@ export class WebhookRuntime extends Service {
           registration.controller.signal,
         )
       }
-    }).catch((error: unknown) => {
+    }).catch((reason: Thrown) => {
       const invocation = `webhook: provider=${JSON.stringify(delivery.kind)} source=${JSON.stringify(delivery.source)} `
         + `delivery=${JSON.stringify(delivery.deliveryId)} rule=${JSON.stringify(registration.rule.id)}`
       if (registration.controller.signal.aborted) {
-        this.selfCtx.logger.debug(`${invocation} stopped after disposal: ${errorChain(error)}`)
+        this.selfCtx.logger.debug(`${invocation} stopped after disposal: ${errorChain(reason)}`)
       } else {
-        this.selfCtx.logger.warn(`${invocation} failed: ${errorChain(error)}`)
+        this.selfCtx.logger.warn(`${invocation} failed: ${errorChain(reason)}`)
       }
     }).finally(() => {
       registration.active.delete(tracked)

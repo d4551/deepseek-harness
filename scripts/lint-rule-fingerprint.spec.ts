@@ -20,9 +20,7 @@ interface Profile {
 // The counts dropped by the eight `sonarjs/*` rules the TypeScript 7 lint
 // toolchain cannot load; the Agent Note names their replacement coverage.
 // Commit 79711728bcfe9a8a084f4af246612ec0652490fb enabled no-void in all
-// three profiles. typescript/use-unknown-in-catch-callback-variable is absent:
-// it requires `: unknown` on Promise reject arms, which first-party source
-// must not declare.
+// three profiles.
 const profiles = {
   source: {
     count: 119,
