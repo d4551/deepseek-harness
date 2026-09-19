@@ -116,7 +116,7 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
   if (signal === undefined) return operation
   return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => {
-      operation.catch(() => {
+      operation.catch((_reason: Thrown) => {
         // Abandoned read: its handle is being closed by the aborting caller,
         // and the abort reason already carried the outcome.
       })
@@ -141,13 +141,13 @@ export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefi
 }
 
 /** The thrown value as an Error (wire/abort reasons may be anything). */
-function asError(reason: unknown): Error {
+function asError(reason: Thrown): Error {
   return reason instanceof Error ? reason : new Error(String(reason))
 }
 
 /* v8 ignore start -- a close failure of an abandoned handle has no consumer, and forcing one needs a filesystem torn down mid-request. */
 /** Swallow the close failure of a handle its caller already departed. */
-function swallowCloseFailure(): void {}
+function swallowCloseFailure(_reason: Thrown): void {}
 /* v8 ignore stop */
 
 /** Message text of an unknown thrown value. */
@@ -253,7 +253,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
         // race against opendir's own rejection has nothing to close, and
         // the close's own failure is swallowed — the request already
         // returned, so a cleanup error has no consumer.)
-        opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
+        opening.then(dir => dir.close().catch(swallowCloseFailure), (_reason: Thrown) => {
           // Already rejected: raceAbort surfaced or swallowed it.
         })
         throw reason
@@ -282,7 +282,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
           await closing
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // An abort is the caller's own reason, not an unreadable directory.
       signal?.throwIfAborted()
       throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${messageOf(error)}`)
