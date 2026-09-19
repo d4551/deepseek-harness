@@ -167,7 +167,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   )
   const [expectedRevision, setExpectedRevision] = useState(() => namespace.revision)
   const root = useMemo(() => schema.rehydrate(namespace.schema), [namespace.schema, schema])
-  const node = useMemo(() => schema.nodeAtPath(root, settingsPath), [root, schema, settingsPath])
+  const node = useMemo(
+    () => root === undefined ? undefined : schema.nodeAtPath(root, settingsPath),
+    [root, schema, settingsPath],
+  )
   const fallback = schema.getPath(namespace.value, settingsPath)
   const disabled = props.readOnly || busy
   const layout = layoutOf(namespace.ns)
@@ -327,7 +330,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
    */
   const inheritedModels = (): unknown => {
     const pinned = schema.getPath(namespace.base, [...settingsPath, 'models'])
-    return pinned ?? schema.nodeAtPath(root, [...settingsPath, 'models'])?.meta.default
+    return pinned ?? (root === undefined ? undefined : schema.nodeAtPath(root, [...settingsPath, 'models'])?.meta.default)
   }
 
   /**

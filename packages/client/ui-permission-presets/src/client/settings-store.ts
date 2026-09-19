@@ -97,7 +97,9 @@ function permissionDefaultClaim(
 ): PermissionDefaultClaim {
   const currentValue = defaultPresetOf(view.value)
   if (currentValue === undefined) return { error: 'permission settings has no defaultPreset value' }
-  const node = schema.nodeAtPath(schema.rehydrate(view.schema), ['defaultPreset'])
+  const hydrated = schema.rehydrate(view.schema)
+  if (hydrated === undefined) return { error: 'permission settings schema envelope is not an object' }
+  const node = schema.nodeAtPath(hydrated, ['defaultPreset'])
   if (node === undefined) return { error: 'permission settings schema has no defaultPreset field' }
   const options = schemaChoicesOf(node).flatMap(choiceOptionOf)
   if (options.length === 0 || !options.some(option => option.id === currentValue)) {

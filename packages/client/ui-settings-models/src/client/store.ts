@@ -146,7 +146,9 @@ export function protocolChoices(
   schema: SettingsSchemaOperations,
 ): string[] {
   if (namespace === undefined) return []
-  const node = schema.nodeAtPath(schema.rehydrate(namespace.schema), ['providers', PROBE_ROUTE, 'api'])
+  const hydrated = schema.rehydrate(namespace.schema)
+  if (hydrated === undefined) return []
+  const node = schema.nodeAtPath(hydrated, ['providers', PROBE_ROUTE, 'api'])
   if (node === undefined || node.type !== 'union' || node.list === undefined) return []
   return node.list.flatMap(entry => typeof entry.value === 'string' ? [entry.value] : [])
 }
