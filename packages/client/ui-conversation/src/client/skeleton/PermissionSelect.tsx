@@ -15,7 +15,9 @@ const FULL_ACCESS = 'danger-full-access'
 
 const shieldOutline = 'M8.20554 0.899994L14.7901 3.36857V7.01026C14.7901 12 11.0466 14.2103 8.20554 15.3C5.36446 14.2103 1.62012 12 1.62012 7.01026V3.36857L8.20554 0.899994Z'
 
-const permissionGlyphs = {
+type PermissionGlyphId = 'read-only' | 'workspace-write' | typeof FULL_ACCESS
+
+const permissionGlyphs: Record<PermissionGlyphId, ReactNode> = {
   'read-only': (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
       <path d={shieldOutline} stroke="currentColor" strokeWidth="1.31831" strokeLinejoin="round" />
@@ -38,11 +40,14 @@ const permissionGlyphs = {
       <path d="M9.10094 9.8114V11.5H7.59888V9.8114H9.10094Z" fill="currentColor" />
     </svg>
   ),
-} as Record<string, ReactNode>
+}
 
 /** Glyph for a permission option value; host-configured names outside the design set get none. */
 function permissionGlyph(value: string): ReactNode | undefined {
-  return permissionGlyphs[value]
+  if (value === 'read-only' || value === 'workspace-write' || value === FULL_ACCESS) {
+    return permissionGlyphs[value]
+  }
+  return undefined
 }
 
 /**

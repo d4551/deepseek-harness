@@ -12,7 +12,7 @@ import type { TodoItem } from '@deepseek-ai/dsh-tool-todo/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { TodoDockProps } from '../src/client/skeleton/TodoPanel.tsx'
-import { TodoDock, TodoPanel, todoDockEntry } from '../src/client/skeleton/TodoPanel.tsx'
+import { requireTodoStatus, TodoDock, TodoPanel, todoDockEntry } from '../src/client/skeleton/TodoPanel.tsx'
 import { NS, zh } from '../src/client/locales.ts'
 
 const t: TodoDockProps['t'] = makeTranslate(zh, commonZh)
@@ -101,6 +101,13 @@ describe('TodoPanel', () => {
     expect(screen.getByText('1 已完成')).toBeTruthy()
     expect(screen.queryByText(/进行中|待处理/)).toBeNull()
   })
+
+  it('refuses a status that is not a portable todo lifecycle', () => {
+    expect(requireTodoStatus('pending')).toBe('pending')
+    expect(requireTodoStatus('in_progress')).toBe('in_progress')
+    expect(requireTodoStatus('completed')).toBe('completed')
+    expect(() => requireTodoStatus('blocked')).toThrow('unreachable todo status: blocked')
+  })
 })
 
 /** Dock props stub: the adapter reads the 'todos' projection only; the rest of the owner share is unused. */
@@ -126,8 +133,10 @@ describe('TodoDock', () => {
   it('registers before the goal and queue entries', () => {
     expect(todoDockEntry.name).toBe('conversation-todo-dock')
     expect(todoDockEntry.inject).toEqual(['slots'])
-    const register = vi.fn(() => () => undefined)
-    const inject = vi.fn((_name: string, callback: () => () => void) => callback())
+    const register = vi.fn<() => () => void>(() => () => undefined)
+    const inject = vi.fn<(name: string, callback: () => () => void) => void>(
+      (_name, callback) => { callback() },
+    )
     todoDockEntry.apply({ slots: { inject, register } } as never)
     expect(inject).toHaveBeenCalledWith('conversation.input.dock', expect.any(Function))
     expect(register).toHaveBeenCalledWith({ name: 'conversation.input.dock', id: 'todo', order: 0, locale: NS }, TodoDock)

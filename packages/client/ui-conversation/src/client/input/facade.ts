@@ -473,7 +473,7 @@ export class SessionInputShell implements SessionInput {
     // Leading-trigger contract: only whitespace may precede the span; the
     // whitespace prefix is dropped so the claimed watch (startsWith) holds.
     if (this.projection.detectText.slice(0, span.start).trim() !== '') return false
-    let applied = false as boolean
+    let applied = false
     this.applyEdit(() => {
       applied = $replaceDetectSpanWithText({ start: 0, end: span.end }, claim.token)
     })

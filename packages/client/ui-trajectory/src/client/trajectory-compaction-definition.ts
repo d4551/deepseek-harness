@@ -3,6 +3,7 @@ import type {
   ConversationMatch, ConversationNodeDefinition, RequestView,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-compaction/types'
+import { readCompactCheckpointSource } from '@deepseek-ai/dsh-compaction/checkpoint'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 
 interface CompactionState {
@@ -16,15 +17,7 @@ function checkpointId(
   event: Parameters<ConversationNodeDefinition['match']>[0],
 ): string | undefined {
   if (event.type !== 'user/message') return undefined
-  const source = event.data.source as unknown as {
-    readonly kind?: unknown
-    readonly plugin?: unknown
-    readonly compactionId?: unknown
-  }
-  return source.kind === 'plugin' && source.plugin === 'compact'
-    && typeof source.compactionId === 'string' && source.compactionId !== ''
-    ? source.compactionId
-    : undefined
+  return readCompactCheckpointSource(event.data.source)?.compactionId
 }
 
 function eventCompactionId(
