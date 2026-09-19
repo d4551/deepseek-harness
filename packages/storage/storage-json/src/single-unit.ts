@@ -17,6 +17,14 @@ import { parse, serialize } from './format.ts'
 import type { UnitState } from './format.ts'
 import { JsonUnitLifecycle } from './unit-lifecycle.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+/** Whether a claim-boundary value reports a missing path. */
+function isENOENT(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+}
+
 /**
  * Open (load or lazily create) one `single`-layout unit under `root`: the
  * unit file is `<root>/<name>.json`.
@@ -25,28 +33,24 @@ import { JsonUnitLifecycle } from './unit-lifecycle.ts'
  * @param onClose - Backend callback releasing the unit's open-slot.
  * @returns the opened unit.
  */
-export async function openSingleUnit(
+export function openSingleUnit(
   descriptor: KvUnitDescriptor,
   root: string,
   onClose: () => void,
 ): Promise<KvUnit> {
   const path = join(root, `${descriptor.name}.json`)
-  let text: string | undefined
-  try {
-    text = await readFile(path, 'utf8')
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    // Missing file = empty unit; materialization defers to the first write.
-  }
-  const state: UnitState =
-    text === undefined
-      ? {
+  return readFile(path, 'utf8').then(
+    text => new SingleJsonUnit(descriptor, path, parse(text, descriptor), onClose),
+    (error: Thrown) => {
+      if (!isENOENT(error)) throw error
+      // Missing file = empty unit; materialization defers to the first write.
+      return new SingleJsonUnit(descriptor, path, {
         version: descriptor.version,
         global: null,
         tables: new Map(descriptor.tables.map(table => [table, new Map<string, unknown>()])),
-      }
-      : parse(text, descriptor)
-  return new SingleJsonUnit(descriptor, path, state, onClose)
+      }, onClose)
+    },
+  )
 }
 
 class SingleJsonUnit extends JsonUnitLifecycle implements KvUnit {

@@ -15,6 +15,9 @@ import { openSingleUnit } from './single-unit.ts'
 import { openPerRecordUnit } from './per-record-unit.ts'
 import { ensureDurableDirectory } from './durable-directory.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Cordis plugin name. */
 export const name = 'storage-json'
 /** The hub must exist before the backend can register. */
@@ -87,8 +90,19 @@ export class JsonStorageBackend implements StorageBackend {
 
   async close(): Promise<void> {
     this.closed = true
-    await Promise.allSettled([...this.opening.values()])
-    for (const unit of [...this.open.values()]) {
+    const pending = [...this.opening.values()]
+    if (pending.length > 0) {
+      await new Promise<void>((resolve) => {
+        let remaining = pending.length
+        const settled = (_value: Thrown): void => {
+          remaining -= 1
+          if (remaining === 0) resolve()
+        }
+        for (const opening of pending) opening.then(settled, settled)
+      })
+    }
+    const units = [...this.open.values()]
+    for (const unit of units) {
       await unit.close()
     }
   }

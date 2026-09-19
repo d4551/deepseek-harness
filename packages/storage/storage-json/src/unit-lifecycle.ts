@@ -9,6 +9,9 @@
 import { StorageError } from '@deepseek-ai/dsh-storage'
 import type { KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Open-slot lifecycle for one opened JSON unit, whatever its layout writes. */
 export abstract class JsonUnitLifecycle {
   private closed = false
@@ -27,12 +30,26 @@ export abstract class JsonUnitLifecycle {
   /** Drain in-flight writes and release the unit. Idempotent. */
   async close(): Promise<void> {
     if (this.closed) {
-      await Promise.allSettled(this.inFlight)
+      await this.drainInFlight()
       return
     }
     this.closed = true
-    await Promise.allSettled(this.inFlight)
+    await this.drainInFlight()
     this.onClose()
+  }
+
+  /** Await every in-flight write without adopting the first rejection. */
+  private async drainInFlight(): Promise<void> {
+    const pending = [...this.inFlight]
+    if (pending.length === 0) return
+    await new Promise<void>((resolve) => {
+      let remaining = pending.length
+      const settled = (_value: unknown): void => {
+        remaining -= 1
+        if (remaining === 0) resolve()
+      }
+      for (const write of pending) write.then(settled, (error: Thrown) => { settled(error) })
+    })
   }
 
   /** Reject work on a unit whose open-slot was already released. */

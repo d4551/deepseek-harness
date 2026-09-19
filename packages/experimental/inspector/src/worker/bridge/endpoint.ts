@@ -15,6 +15,9 @@ import type { InspectorQueryRouter } from '../inspection/query-router.ts'
 import type { InspectorRealmRegistry } from '../inspection/realm-store.ts'
 import type { InspectorSourceRegistry, SourceConnection } from './hub.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Bound endpoint information returned to the Host controller. */
 export interface InspectorEndpointInfo {
   readonly host: string
@@ -52,23 +55,28 @@ export class InspectorEndpoint {
     while (true) {
       const server = this.createServer()
       this.server = server
-      try {
-        const address = await listen(server, candidate, this.config.host)
-        server.on('error', () => {
-          // An established server error is connection-local or reported by
-          // the operating system; active sockets retain their own handlers.
-        })
-        return { host: this.config.host, port: address.port, targetId: this.config.targetId }
-      } catch (error) {
-        this.server = undefined
-        if (!isAddressInUse(error) || candidate === 0) throw error
-        if (candidate === 65_535) {
-          throw new Error(`inspector: no available port from ${String(this.config.startPort)} through 65535`, {
-            cause: error,
-          })
-        }
+      const address = await listen(server, candidate, this.config.host).then(
+        undefined,
+        (error: Thrown) => {
+          this.server = undefined
+          if (!isAddressInUse(error) || candidate === 0) throw error
+          if (candidate === 65_535) {
+            throw new Error(`inspector: no available port from ${String(this.config.startPort)} through 65535`, {
+              cause: error,
+            })
+          }
+          return undefined
+        },
+      )
+      if (address === undefined) {
         candidate += 1
+        continue
       }
+      server.on('error', () => {
+        // An established server error is connection-local or reported by
+        // the operating system; active sockets retain their own handlers.
+      })
+      return { host: this.config.host, port: address.port, targetId: this.config.targetId }
     }
   }
 

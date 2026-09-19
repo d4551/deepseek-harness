@@ -18,6 +18,9 @@ import type {
 import { INSPECTOR_PROTOCOL_VERSION } from '../../shared/bridge/version.ts'
 import { executeInspectorQuery } from './cordis-query.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Carrier operations owned by one Worker query peer. */
 export interface InspectorQueryPeerTransport {
   /** Send one bounded Worker response. */
@@ -86,7 +89,7 @@ export class InspectorQueryRouter {
 
   /** Revoke every peer during Worker shutdown. */
   close(): void {
-    for (const peer of [...this.peers]) peer.close()
+    for (const peer of Array.from(this.peers)) peer.close()
     this.activeBySource.clear()
   }
 }
@@ -158,10 +161,9 @@ export class InspectorQueryPeer {
       return true
     }
     this.inFlight.set(frame.requestId, accepted)
-    const executionFailed = (error: unknown): void => {
+    this.execute(frame, accepted).then(undefined, (error: Thrown) => {
       this.rejectTransport(1011, renderError(error).message)
-    }
-    this.execute(frame, accepted).then(undefined, executionFailed)
+    })
     return true
   }
 
@@ -174,28 +176,37 @@ export class InspectorQueryPeer {
     this.unregister()
   }
 
-  private async execute(frame: InspectorQueryRequestFrame, accepted: AcceptedGeneration): Promise<void> {
-    try {
-      const result = await executeInspectorQuery(this.reader, frame.query)
-      if (!this.canReply(frame, accepted)) return
-      const response: InspectorQueryResponseFrame = {
-        v: INSPECTOR_PROTOCOL_VERSION,
-        t: 'query/response',
-        sourceId: frame.sourceId,
-        generation: frame.generation,
-        requestId: frame.requestId,
-        outcome: { ok: true, result },
-      }
-      if (jsonByteLength(response as unknown as InspectorJsonValue) > this.maxFrameBytes) {
-        this.sendFailure(frame, 'result-too-large', `Inspector query result exceeds ${String(this.maxFrameBytes)} bytes`)
-        return
-      }
-      this.deliver(response)
-    } catch (error) {
-      if (this.canReply(frame, accepted)) this.sendFailure(frame, 'internal-error', renderError(error).message)
-    } finally {
+  private execute(frame: InspectorQueryRequestFrame, accepted: AcceptedGeneration): Promise<void> {
+    const release = (): void => {
       if (this.inFlight.get(frame.requestId) === accepted) this.inFlight.delete(frame.requestId)
     }
+    return executeInspectorQuery(this.reader, frame.query).then(
+      (result) => {
+        if (!this.canReply(frame, accepted)) return
+        const response: InspectorQueryResponseFrame = {
+          v: INSPECTOR_PROTOCOL_VERSION,
+          t: 'query/response',
+          sourceId: frame.sourceId,
+          generation: frame.generation,
+          requestId: frame.requestId,
+          outcome: { ok: true, result },
+        }
+        if (jsonByteLength(response as unknown as InspectorJsonValue) > this.maxFrameBytes) {
+          this.sendFailure(frame, 'result-too-large', `Inspector query result exceeds ${String(this.maxFrameBytes)} bytes`)
+          return
+        }
+        this.deliver(response)
+      },
+      (error: Thrown) => {
+        if (this.canReply(frame, accepted)) this.sendFailure(frame, 'internal-error', renderError(error).message)
+      },
+    ).then(
+      () => { release() },
+      (error: Thrown) => {
+        release()
+        throw error
+      },
+    )
   }
 
   private rejectMalformed(value: unknown, error: Error): void {

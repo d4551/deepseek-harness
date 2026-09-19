@@ -293,46 +293,49 @@ export class ClientInspectorSource extends InspectorSourceConnection {
     this.runtimeRequests.clear()
   }
 
-  private async executeSourceRequest(
+  private executeSourceRequest(
     socket: WebSocket,
     generation: InspectorSourceGeneration,
     frame: ClientSourceRequestFrame,
   ): Promise<void> {
-    let outcome: ClientSourceResponseFrame['outcome']
-    try {
-      if (this.sourceCatalog === undefined) {
-        throw new ClientSourceCatalogError('invalid-request', 'Client source catalog is unavailable')
-      }
-      outcome = { ok: true, result: await this.sourceCatalog.execute(frame.command, this.bootstrap.maxClientSourceBytes) }
-    } catch (error) {
-      outcome = {
+    const catalog = this.sourceCatalog
+    const outcome = catalog === undefined
+      ? Promise.resolve<ClientSourceResponseFrame['outcome']>({
         ok: false,
-        error: {
-          code: error instanceof ClientSourceCatalogError ? error.code : 'internal-error',
-          message: renderError(error).slice(0, 2_048),
-        },
-      }
-    }
-    let response: ClientSourceResponseFrame = {
-      v: INSPECTOR_PROTOCOL_VERSION,
-      t: 'client-sources/response',
-      sourceId: this.realmSource.sourceId,
-      generation,
-      sessionId: frame.sessionId,
-      requestId: frame.requestId,
-      outcome,
-    }
-    if (!isJsonValue(response) || jsonByteLength(response) > this.bootstrap.maxFrameBytes) {
-      response = {
-        ...response,
-        outcome: {
+        error: { code: 'invalid-request', message: 'Client source catalog is unavailable' },
+      })
+      : catalog.execute(frame.command, this.bootstrap.maxClientSourceBytes).then(
+        (result): ClientSourceResponseFrame['outcome'] => ({ ok: true, result }),
+        (error: Thrown): ClientSourceResponseFrame['outcome'] => ({
           ok: false,
-          error: { code: 'result-too-large', message: 'Client source result exceeds the source-frame byte limit' },
-        },
+          error: {
+            code: error instanceof ClientSourceCatalogError ? error.code : 'internal-error',
+            message: renderError(error).slice(0, 2_048),
+          },
+        }),
+      )
+    return outcome.then((resolved) => {
+      let response: ClientSourceResponseFrame = {
+        v: INSPECTOR_PROTOCOL_VERSION,
+        t: 'client-sources/response',
+        sourceId: this.realmSource.sourceId,
+        generation,
+        sessionId: frame.sessionId,
+        requestId: frame.requestId,
+        outcome: resolved,
       }
-    }
-    if (this.closed || this.socket !== socket || this.generation !== generation || socket.readyState !== WebSocket.OPEN) return
-    socket.send(JSON.stringify(response))
+      if (!isJsonValue(response) || jsonByteLength(response) > this.bootstrap.maxFrameBytes) {
+        response = {
+          ...response,
+          outcome: {
+            ok: false,
+            error: { code: 'result-too-large', message: 'Client source result exceeds the source-frame byte limit' },
+          },
+        }
+      }
+      if (this.closed || this.socket !== socket || this.generation !== generation || socket.readyState !== WebSocket.OPEN) return
+      socket.send(JSON.stringify(response))
+    })
   }
 
 }

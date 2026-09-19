@@ -302,17 +302,13 @@ function paginate(
   const end = Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1)
   let count = 0
   let cut = 0
-  for (let index = end - 1; index >= 0; index--) {
-    const event = events[index]
-    if (event === undefined) continue
+  for (const event of events.slice(0, end).toReversed()) {
     if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
     count++
-    const sources = Reflect.get(event, 'sourceEventSeqs')
+    const sources = event.sourceEventSeqs
     let groupStart = event.seq
-    if (Array.isArray(sources)) {
-      for (const source of sources) {
-        if (typeof source === 'number') groupStart = Math.min(groupStart, source)
-      }
+    if (sources !== undefined) {
+      for (const source of sources) groupStart = Math.min(groupStart, source)
     }
     if (count >= maxMessages) {
       cut = groupStart

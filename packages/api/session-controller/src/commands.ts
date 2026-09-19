@@ -359,10 +359,7 @@ export class SessionCommandController {
     const admit = async (): Promise<SessionPromptValue> => {
       if (hasImage) {
         const current = this.agents.selectionFor(agent).current
-        const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model).then(
-          undefined,
-          (error: Thrown) => mapPromptFailure(error),
-        )
+        const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
         if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
           reject(
             'attachment-error',
@@ -371,16 +368,14 @@ export class SessionCommandController {
           )
         }
       }
-      return await durablePromptContent(this.ctx, request.content).then(
-        (content) => {
-          const message: UserMessage = createUserMessage({ content, source })
-          if (request.mode === 'steer') agent.steer(message)
-          else agent.followup(message)
-          return { accepted: true }
-        },
-      ).then(undefined, (error: Thrown) => mapPromptFailure(error))
+      const content = await durablePromptContent(this.ctx, request.content)
+      const message: UserMessage = createUserMessage({ content, source })
+      if (request.mode === 'steer') agent.steer(message)
+      else agent.followup(message)
+      return { accepted: true }
     }
-    return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
+    return (hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit())
+      .then(undefined, (error: Thrown) => mapPromptFailure(error))
   }
 
   /**

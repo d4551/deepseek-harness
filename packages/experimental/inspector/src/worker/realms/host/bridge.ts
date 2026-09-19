@@ -3,6 +3,9 @@
 import { Session } from 'node:inspector'
 import type { NativeProtocolNotification } from '../../../shared/cdp/realm.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Notification emitted by Node's native inspector session. */
 export type HostInspectorNotification = NativeProtocolNotification
 
@@ -41,7 +44,7 @@ export class HostInspectorSession {
   constructor(private readonly contextName: string) {
     this.session.on('inspectorNotification', (message) => {
       const rewritten = this.rewriteContextName(message)
-      for (const listener of [...this.listeners]) {
+      for (const listener of Array.from(this.listeners)) {
         try {
           listener(rewritten)
         } catch {
@@ -175,14 +178,14 @@ export class HostNotificationChannel<Event> {
     this.delivery = this.delivery.then(async () => {
       const event = await this.project(message)
       if (event === undefined) return
-      for (const listener of [...this.listeners]) {
+      for (const listener of Array.from(this.listeners)) {
         try {
           listener(event)
         } catch {
           // One notification consumer cannot prevent delivery to its siblings.
         }
       }
-    }).catch(() => {
+    }).then(undefined, (_error: Thrown) => {
       // Malformed optional native notifications do not interrupt request handling.
     })
   }
