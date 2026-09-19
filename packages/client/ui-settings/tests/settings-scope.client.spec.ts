@@ -299,9 +299,11 @@ describe('SettingsScopeController', () => {
       .mockResolvedValueOnce(described({ preference: 'light' }, 3))
       .mockResolvedValueOnce(described({ preference: 'dark' }, 4))
       .mockResolvedValueOnce(described({ preference: 'system' }, 5))
+      .mockResolvedValueOnce(described({ preference: 'light' }, 6))
     const mutate = vi.fn<SettingsRemote['mutate']>()
       .mockResolvedValueOnce(1 as never)
       .mockResolvedValueOnce({ ok: 'yes' } as never)
+      .mockResolvedValueOnce({ ok: true } as never)
       .mockResolvedValueOnce({ ok: true, value: { ns: 'ui-test' } } as never)
     const { mirror, scope } = derivedScope({ describe: describeCall, mutate })
     await mirror.load()
@@ -311,7 +313,9 @@ describe('SettingsScopeController', () => {
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'dark' }, revision: 4 })
     await scope.set('preference', 'dark')
     expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'system' }, revision: 5 })
-    expect(describeCall).toHaveBeenCalledTimes(4)
+    await scope.set('preference', 'dark')
+    expect(scope.getSnapshot()).toMatchObject({ value: { preference: 'light' }, revision: 6 })
+    expect(describeCall).toHaveBeenCalledTimes(5)
   })
 
   it('recovers the latest write when mutate is not thenable', async () => {

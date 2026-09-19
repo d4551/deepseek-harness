@@ -96,6 +96,7 @@ describe('SettingsDescribeMirror', () => {
   it('records a describe settlement that is not a settings view', async () => {
     const describeCall = vi.fn<() => Thrown>()
       .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true, value: null })
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({ ok: false, error: { message: 4 } })
@@ -103,6 +104,8 @@ describe('SettingsDescribeMirror', () => {
     const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
     await mirror.load()
     expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '1' })
+    await mirror.load()
+    expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
     await mirror.load()
     expect(mirror.getSnapshot()).toMatchObject({ status: 'idle', error: '[object Object]' })
     await mirror.load()

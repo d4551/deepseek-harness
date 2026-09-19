@@ -7,6 +7,22 @@ import { FakeGenerationSource } from './fake-generation.client.ts'
 
 const FAST = { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 }
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function observeLoop(loop: Promise<void>): Promise<Thrown> {
+  return loop.then(
+    () => {
+      throw new Error('connection loop settled')
+    },
+    (reason: Thrown) => reason,
+  )
+}
+
+function requireAggregateError(reason: Thrown): AggregateError {
+  if (reason instanceof AggregateError) return reason
+  throw new Error(`expected AggregateError, received ${String(reason)}`)
+}
+
 describe('connection lifecycle', () => {
   it('announces connected with the Host facts from generation readiness', async () => {
     const source = new FakeGenerationSource()
@@ -52,12 +68,13 @@ describe('connection lifecycle', () => {
       },
     }, FAST)
     const loop = controller.start()
+    const observed = observeLoop(loop)
     await vi.waitFor(() => { expect(connected).toBe(1) })
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
     expect(controller.start()).toBe(loop)
     await new Promise(resolve => setTimeout(resolve, 40))
     expect(source.activeCount).toBe(0)
-    await expect(loop).rejects.toThrow('connection loop failed')
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
     await expect(controller.stop()).rejects.toThrow('connection loop failed')
   })
 
@@ -71,10 +88,49 @@ describe('connection lifecycle', () => {
       },
     }, FAST)
     const loop = controller.start()
+    const observed = observeLoop(loop)
     await vi.waitFor(() => { expect(states).toEqual(['connected']) })
     await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
-    await expect(loop).rejects.toThrow('connection loop failed')
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
     await expect(controller.stop()).rejects.toThrow('connection loop failed')
+  })
+
+  it('lets a connected state sink abort then throw without a second abort', async () => {
+    const source = new FakeGenerationSource()
+    const states: ConnectionState[] = []
+    let stopping: Promise<void> | undefined
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        states.push(state)
+        stopping = controller.stop()
+        throw new Error('state sink bug after stop')
+      },
+    }, FAST)
+    const loop = controller.start()
+    const observed = observeLoop(loop)
+    await vi.waitFor(() => { expect(states).toEqual(['connected']) })
+    await vi.waitFor(() => { expect(source.activeCount).toBe(0) })
+    expect(requireAggregateError(await observed).message).toBe('connection loop failed')
+    await expect(stopping).rejects.toThrow('connection loop failed')
+  })
+
+  it('skips backoff when stop lands on the reconnecting sink', async () => {
+    const source = new FakeGenerationSource()
+    source.holdReady = true
+    let stopping: Promise<void> | undefined
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const controller = new ConnectionController(source.source, {
+      onStateChange: (state) => {
+        if (state === 'reconnecting') stopping = controller.stop()
+      },
+    }, FAST)
+    const loop = controller.start()
+    await vi.waitFor(() => { expect(source.activeCount).toBe(1) })
+    source.end()
+    await vi.waitFor(() => { expect(stopping).toBeDefined() })
+    await stopping
+    await loop
+    warnSpy.mockRestore()
   })
 
   it('holds onConnected until the incremental source reports ready', async () => {
