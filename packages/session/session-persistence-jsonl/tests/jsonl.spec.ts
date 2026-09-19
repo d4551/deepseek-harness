@@ -37,6 +37,14 @@ const dirs: string[] = []
 
 type MutableSessionHeader = { -readonly [K in keyof SessionHeader]: SessionHeader[K] }
 
+function storedType(event: object): unknown {
+  return Reflect.get(event, 'type')
+}
+
+function storedSeq(event: object): unknown {
+  return Reflect.get(event, 'seq')
+}
+
 /** Test-only mutable view used to verify that backends detach returned/caller metadata. */
 function mutableHeader(header: SessionHeader): MutableSessionHeader {
   return header
@@ -301,7 +309,7 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     expect(raw!.content).toBe(await readFile(rawLogPath(root, '/work', m.id), 'utf8'))
     expect(raw!.content.split('\n')[0]).toBe(JSON.stringify(toHeaderLine(m)))
     const scanned = scanLog(Buffer.from(raw!.content))
-    expect(scanned.events.map(event => event.type)).toEqual(oneTurnLog().map(event => event.type))
+    expect(scanned.events.map(storedType)).toEqual(oneTurnLog().map(event => event.type))
   })
 
   it('readRaw is undefined for an absent session', async () => {
@@ -963,7 +971,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     // No committed turn/end, so the gap is a tolerated crash boundary: scanLog PRESERVES the
     // contiguous prefix (turn/start seq 0) — real interrupted-turn work, not discarded — and
     // stops at the gap. `loadCore`, not this scanner, later closes the orphaned turn.
-    expect(scanLog(Buffer.from(log)).events.map(e => e.seq)).toEqual([0])
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0])
   })
 
   it('rejects a seq gap BEFORE a later committed turn/end (committed data damaged)', () => {
@@ -1010,7 +1018,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     ].join('\n') + '\n'
     // The contiguous prefix (turn/start seq 0) is preserved; the corrupt
     // fragment after it is the tolerated crash boundary.
-    expect(scanLog(Buffer.from(log)).events.map(e => e.seq)).toEqual([0])
+    expect(scanLog(Buffer.from(log)).events.map(storedSeq)).toEqual([0])
   })
 
   it('tolerates a seq gap AFTER a turn/end (uncommitted tail)', () => {
@@ -1021,7 +1029,7 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
       JSON.stringify({ type: 'step/start', seq: 9, time: 3, data: { turn: 2, step: 1 } }), // gap in uncommitted tail
     ].join('\n') + '\n'
     const { events } = scanLog(Buffer.from(log))
-    expect(events.map(e => e.seq)).toEqual([0, 1]) // tail dropped
+    expect(events.map(storedSeq)).toEqual([0, 1]) // tail dropped
   })
 })
 
@@ -1143,7 +1151,7 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
       JSON.stringify({ type: 'turn/end', seq: 4, time: 5, data: { turn: 1, reason: { kind: 'completed' } } }),
     ].join('\n') + '\n'
     const { events } = scanLog(Buffer.from(logText))
-    expect(events.map(e => e.seq)).toEqual([0, 1, 2, 3, 4])
+    expect(events.map(storedSeq)).toEqual([0, 1, 2, 3, 4])
     expect(events[2]).toEqual({ type: 'assistant/chunk', seq: 2, time: 3, data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'b' } } })
   })
 
@@ -1165,7 +1173,7 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
       JSON.stringify({ type: 'text-chunks', seq0: 2, time0: 2, data: { turn: 1, step: 1, index: 0, dt: [1, 1], texts: ['a', 'b', 'c'] } }),
     ].join('\n') + '\n'
     const scanned = scanLog(Buffer.from(logText))
-    expect(scanned.events.map(e => e.seq)).toEqual([0])
+    expect(scanned.events.map(storedSeq)).toEqual([0])
     // committedBytes stays on the line boundary BEFORE the dropped row.
     const headerAndTurn = logText.split('\n').slice(0, 2).join('\n') + '\n'
     expect(scanned.committedBytes).toBe(Buffer.byteLength(headerAndTurn, 'utf8'))

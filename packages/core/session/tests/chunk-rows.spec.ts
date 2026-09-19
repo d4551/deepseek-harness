@@ -23,8 +23,8 @@ function deltaRun(kind: 'text-delta' | 'reasoning-delta', count: number, seq0 = 
     chunkEvent(seq0 + k, 1000 + 10 * k, { type: kind, index, text: `t${k}` }))
 }
 
-/** Decode a packed record list back to a flat event list. */
-function decodeAll(records: readonly StorageRecord[]): SessionEvent[] {
+/** Decode a packed record list back to a flat record list. */
+function decodeAll(records: readonly StorageRecord[]): unknown[] {
   return records.flatMap(record => decodeStorageRecord(JSON.parse(JSON.stringify(record))))
 }
 
@@ -64,7 +64,13 @@ describe('packChunkRuns', () => {
     expect(Object.hasOwn((packed[0] as ChunkRow).data, 'name')).toBe(false)
     const decoded = decodeAll(packed)
     expect(decoded).toStrictEqual(events)
-    expect(decoded.every(e => !Object.hasOwn((e.data as { chunk: object }).chunk, 'name'))).toBe(true)
+    expect(decoded.every((item) => {
+      if (typeof item !== 'object' || item === null) return false
+      const data = Reflect.get(item, 'data')
+      if (typeof data !== 'object' || data === null) return false
+      const chunk = Reflect.get(data, 'chunk')
+      return typeof chunk === 'object' && chunk !== null && !Object.hasOwn(chunk, 'name')
+    })).toBe(true)
   })
 
   it('leaves runs shorter than three events verbatim', () => {
