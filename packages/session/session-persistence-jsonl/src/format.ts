@@ -89,23 +89,28 @@ export function fromHeaderLine(line: HeaderLine): SessionHeader {
 
 /** Type guard: a parsed first line is a well-formed session header. */
 function isHeaderLine(value: unknown): value is HeaderLine {
+  if (typeof value !== 'object' || value === null) return false
+  const type: unknown = Reflect.get(value, 'type')
+  const version: unknown = Reflect.get(value, 'version')
+  const id: unknown = Reflect.get(value, 'id')
+  const createdAt: unknown = Reflect.get(value, 'createdAt')
+  const delegationDepth: unknown = Reflect.get(value, 'delegationDepth')
+  const origin: unknown = Reflect.get(value, 'origin')
+  const agentPreset: unknown = Reflect.get(value, 'agentPreset')
   return (
-    typeof value === 'object' && value !== null
-    && (value as { type?: unknown }).type === 'session'
-    && typeof (value as { version?: unknown }).version === 'number'
-    && typeof (value as { id?: unknown }).id === 'string'
-    && typeof (value as { createdAt?: unknown }).createdAt === 'number'
-    && Number.isSafeInteger((value as { createdAt: number }).createdAt)
-    && (value as { createdAt: number }).createdAt >= 0
-    && !Object.is((value as { createdAt: number }).createdAt, -0)
-    && typeof (value as { delegationDepth?: unknown }).delegationDepth === 'number'
-    && Number.isSafeInteger((value as { delegationDepth: number }).delegationDepth)
-    && (value as { delegationDepth: number }).delegationDepth >= 0
-    && !Object.is((value as { delegationDepth: number }).delegationDepth, -0)
-    && ((value as { origin?: unknown }).origin === undefined
-      || (value as { origin?: unknown }).origin === 'subagent')
-    && ((value as { agentPreset?: unknown }).agentPreset === undefined
-      || typeof (value as { agentPreset?: unknown }).agentPreset === 'string')
+    type === 'session'
+    && typeof version === 'number'
+    && typeof id === 'string'
+    && typeof createdAt === 'number'
+    && Number.isSafeInteger(createdAt)
+    && createdAt >= 0
+    && !Object.is(createdAt, -0)
+    && typeof delegationDepth === 'number'
+    && Number.isSafeInteger(delegationDepth)
+    && delegationDepth >= 0
+    && !Object.is(delegationDepth, -0)
+    && (origin === undefined || origin === 'subagent')
+    && (agentPreset === undefined || typeof agentPreset === 'string')
   )
 }
 
@@ -279,7 +284,8 @@ interface SessionLogScan {
  */
 function refuseForeignFormatVersion(parsed: unknown): void {
   if (typeof parsed !== 'object' || parsed === null) return
-  const { version, id } = parsed as { version?: unknown; id?: unknown }
+  const version: unknown = Reflect.get(parsed, 'version')
+  const id: unknown = Reflect.get(parsed, 'id')
   if (typeof version !== 'number' || version === SESSION_FORMAT_VERSION) return
   throw new SessionFormatUnsupportedError(
     sessionFormatVersionRefusal(typeof id === 'string' ? id : String(id), version),

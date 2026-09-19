@@ -10,6 +10,7 @@
 
 import {
   buildChunkRow,
+  chunkRowLength,
   decodeChunkStorageRecord,
   expandChunkRow,
   malformedChunkRow,
@@ -45,27 +46,28 @@ function emitBoundedRun(out: StorageRecord[], kind: DeltaChunkKind, completeRun:
       continue
     }
     high -= 1
-    let accepted = 0
     let acceptedRow: ChunkRow | undefined
     while (low <= high) {
       const middle = Math.floor((low + high) / 2)
       const candidate = buildChunkRow(kind, completeRun.slice(offset, offset + middle))
       if (packedDataBytes(candidate) <= MAX_PACKED_DATA_BYTES) {
-        accepted = middle
         acceptedRow = candidate
         low = middle + 1
       } else {
         high = middle - 1
       }
     }
-    if (accepted === 0) {
-      out.push(completeRun[offset] as DeltaChunkEvent)
+    if (acceptedRow === undefined) {
+      const first = completeRun.at(offset)
+      if (first === undefined) {
+        throw new TypeError('bounded encoder offset left the run')
+      }
+      out.push(first)
       offset += 1
       continue
     }
-    /* v8 ignore next -- accepted is set only with its same-branch candidate. */
-    out.push(acceptedRow ?? malformedChunkRow(kind, 'bounded encoder lost its accepted row'))
-    offset += accepted
+    out.push(acceptedRow)
+    offset += chunkRowLength(acceptedRow)
   }
   out.push(...completeRun.slice(offset))
 }

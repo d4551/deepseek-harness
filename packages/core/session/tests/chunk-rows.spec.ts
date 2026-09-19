@@ -273,6 +273,26 @@ describe('buildChunkRow', () => {
     expect(() => buildChunkRow('tool-call-delta', [text])).toThrow(/tool-call-delta/)
   })
 
+  it('refuses a claimed tool-call run that mixes in a later text delta', () => {
+    const call: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 0,
+      time: 1,
+      data: {
+        turn: 1,
+        step: 1,
+        chunk: { type: 'tool-call-delta', index: 0, id: ToolCallId('c1'), argumentsDelta: 'a' },
+      },
+    }
+    const text: DeltaChunkEvent = {
+      type: 'assistant/chunk',
+      seq: 1,
+      time: 2,
+      data: { turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'b' } },
+    }
+    expect(() => buildChunkRow('tool-call-delta', [call, text])).toThrow(/tool-call-delta/)
+  })
+
   it('refuses a run with a missing member', () => {
     const first: DeltaChunkEvent = {
       type: 'assistant/chunk',
