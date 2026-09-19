@@ -1,6 +1,9 @@
 import type { HighlighterCore } from 'shiki/core'
 import type { LangModule } from './highlight-grammars.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 type GrammarLoadState =
   | { status: 'loading'; completion: Promise<void> }
   | { status: 'failed'; error: Error }
@@ -42,16 +45,17 @@ export class GrammarLoads {
         throw new Error(`Loaded syntax grammar does not register "${resolved}"`)
       }
     })
-    const completion = Promise.allSettled([operation]).then(([result]) => {
-      if (result.status === 'rejected') {
-        const error = new Error(`Could not load syntax grammar "${resolved}"`, { cause: result.reason })
-        this.states.set(resolved, { status: 'failed', error })
-        queueMicrotask(() => { this.observer.failed(error) })
-      } else {
+    const completion = operation.then(
+      () => {
         this.states.set(resolved, { status: 'ready' })
         queueMicrotask(() => { this.observer.loaded() })
-      }
-    })
+      },
+      (reason: Thrown) => {
+        const error = new Error(`Could not load syntax grammar "${resolved}"`, { cause: reason })
+        this.states.set(resolved, { status: 'failed', error })
+        queueMicrotask(() => { this.observer.failed(error) })
+      },
+    )
     this.states.set(resolved, { status: 'loading', completion })
     return false
   }

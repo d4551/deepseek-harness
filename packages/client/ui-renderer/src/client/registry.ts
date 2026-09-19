@@ -64,12 +64,13 @@ interface StoreAxisRecord {
 /** One synchronous effect installed while an injected slot declaration is live. */
 type SlotInjectionEffect = (() => void) | Iterable<() => void, void, void>
 
-type ListenerFailure = object | string | number | boolean | bigint | symbol | null | undefined
+/** Values a Promise reject arm or listener refusal may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 function observeListenerInvocation(
   invoke: () => unknown,
-  onThrow: (reason: ListenerFailure) => void,
-  onReject: (reason: ListenerFailure) => void,
+  onThrow: (reason: Thrown) => void,
+  onReject: (reason: Thrown) => void,
 ): void {
   let finishedSynchronously = false
   new Promise((resolve: (value: unknown) => void) => {
@@ -77,14 +78,14 @@ function observeListenerInvocation(
     finishedSynchronously = true
   }).then(
     () => undefined,
-    (reason: ListenerFailure) => {
+    (reason: Thrown) => {
       if (finishedSynchronously) onReject(reason)
       else onThrow(reason)
     },
   )
 }
 
-function reportDisposeFailure(dispose: () => unknown, log: (error: ListenerFailure) => void): () => void {
+function reportDisposeFailure(dispose: () => unknown, log: (error: Thrown) => void): () => void {
   return () => {
     Promise.resolve(dispose()).then(() => undefined, log)
   }
@@ -212,7 +213,7 @@ export class SlotRegistry extends Service {
         activeEpoch = epoch
       }
 
-      const failSetup = (reason: ListenerFailure): void => {
+      const failSetup = (reason: Thrown): void => {
         stop()
         if (reason instanceof CordisError && reason.code === 'INACTIVE_EFFECT') return
         const failure = reason instanceof Error ? reason : new Error(String(reason))

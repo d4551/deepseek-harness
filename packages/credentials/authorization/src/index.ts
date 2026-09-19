@@ -40,7 +40,7 @@ export type {
   AuthorizationPromptOption, AuthorizationSettlement, AuthorizationStatus,
 } from './types.ts'
 
-/** Values a Promise reject arm from flow disposal, settled listeners, or prompt decline may deliver. */
+/** Values a Promise reject arm from flow disposal, settled listeners, prompt decline, or withdrawn-flow drain may deliver. */
 type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 declare module '@deepseek-ai/cordis' {
@@ -406,20 +406,30 @@ export class AuthorizationService extends Service {
           throw error
         }),
       })
-      try {
-        if (await Promise.race([running.then(() => 'ran' as const), withdrawn]) === 'withdrawn') {
-          // Nothing awaits the orphan any more, so its eventual failure has to be
-          // marked handled or it would take down the process.
-          running.catch(() => { this.ctx.logger.debug('authorization: withdrawn flow failed after the fact') })
-          return { status: 'cancelled' }
-        }
-      } catch (error) {
-        // A withdrawn attempt and a declined prompt are outcomes, not
-        // failures: the human said no, or closed the page. Anything else is
-        // the flow failing and belongs to the caller, cause chain intact.
-        if (signal.aborted || observed.declined) return { status: 'cancelled' }
+      const drained = Promise.allSettled([running]).then(([settled]) => {
+        if (settled.status === 'fulfilled') return 'ran' as const
+        const error: Thrown = settled.reason
         throw error
+      })
+      const raced = await Promise.race([drained, withdrawn]).then(
+        undefined,
+        (error: Thrown) => {
+          // A withdrawn attempt and a declined prompt are outcomes, not
+          // failures: the human said no, or closed the page. Anything else is
+          // the flow failing and belongs to the caller, cause chain intact.
+          if (signal.aborted || observed.declined) return 'cancelled' as const
+          throw error
+        },
+      )
+      if (raced === 'withdrawn') {
+        // Nothing awaits the orphan any more, so its eventual failure has to be
+        // marked handled or it would take down the process.
+        drained.then(undefined, (_error: Thrown) => {
+          this.ctx.logger.debug('authorization: withdrawn flow failed after the fact')
+        })
+        return { status: 'cancelled' }
       }
+      if (raced === 'cancelled') return { status: 'cancelled' }
     } finally {
       unwatch()
     }

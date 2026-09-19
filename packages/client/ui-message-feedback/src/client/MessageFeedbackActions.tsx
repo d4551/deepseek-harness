@@ -21,6 +21,9 @@ import type { MessageFeedbackRating } from '@deepseek-ai/dsh-message-feedback/ty
 import type { MessageFeedbackActionProps } from './slots.ts'
 import css from './MessageFeedbackActions.module.css'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Safe distance kept between the panel and the viewport edges (the Menu portal margin). */
 const PANEL_MARGIN = 12
 
@@ -35,6 +38,7 @@ const PANEL_GAP = 4
  * portal-open beneath the trigger while it is open.
  */
 export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearNote, useFeedback, t }: MessageFeedbackActionProps) {
+  const reportThrown: (error: Thrown) => void = reportError
   const item = useFeedback(view => view.items.get(messageId))
   const loadFailed = useFeedback(view => view.status === 'error')
   const rating = item?.rating
@@ -56,7 +60,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
   const seed = useCallback(() => {
     if (seeded.current) return
     seeded.current = true
-    ensure().then(undefined, reportError)
+    ensure().then(undefined, reportThrown)
   }, [ensure])
 
   const alive = useRef(true)
@@ -92,7 +96,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
     // click that lands before the first list read still toggles the stored
     // value instead of this render's empty view.
     closeNote()
-    toggle(messageId, next).then(settleRating, reportError)
+    toggle(messageId, next).then(settleRating, reportThrown)
   }, [closeNote, messageId, settleRating, toggle])
 
   // The rating is a parameter because only the note editor's render site can
@@ -150,7 +154,7 @@ export function MessageFeedbackActions({ messageId, ensure, rate, toggle, clearN
       if (generation === noteGeneration.current || !noteOpenRef.current) {
         setNoteFailure(errorCopy(result))
       }
-    }, reportError)
+    }, reportThrown)
   }, [clearNote, draft, errorCopy, item?.note, messageId, noteOpenRef, rate])
 
   // The trigger toggles: while closed it opens the popover (seeding the draft

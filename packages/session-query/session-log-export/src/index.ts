@@ -5,7 +5,6 @@ import Schema from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
   flushLiveSessionLog,
@@ -15,6 +14,9 @@ import {
   type SessionLogCompressionLevel,
   type SessionLogExportReady,
 } from './archive.ts'
+
+/** Values a Promise reject arm from root flush or raw-artifact read may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
 
 export {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
@@ -132,31 +134,32 @@ async function sessionLogExportResponse(
     attachments: deps.attachments,
     sessions: deps.sessions,
   }
-  let root: SessionRawArtifact | undefined
-  try {
-    await flushLiveSessionLog(deps, sessionId, request.signal)
-    root = await deps.sessionPersistence.readRaw(sessionId, request.signal)
-    request.signal.throwIfAborted()
-  } catch {
-    request.signal.throwIfAborted()
-    return new Response('session log export failed to prepare the stored artifact', { status: 500 })
-  }
-  if (root === undefined) return new Response('session not found', { status: 404 })
-  const response = new Response(
-    streamSessionLogZip(
-      ready,
-      root,
-      sessionId,
-      descendantsValue === 'true',
-      compressionLevel,
-      request.signal,
-    ),
-    {
-      headers: {
-        'content-type': 'application/zip',
-        'content-disposition': `attachment; filename="${sessionLogZipFilename(sessionId)}"`,
-      },
+  return flushLiveSessionLog(deps, sessionId, request.signal).then(
+    () => ready.sessionPersistence.readRaw(sessionId, request.signal),
+  ).then(
+    (root) => {
+      request.signal.throwIfAborted()
+      if (root === undefined) return new Response('session not found', { status: 404 })
+      return new Response(
+        streamSessionLogZip(
+          ready,
+          root,
+          sessionId,
+          descendantsValue === 'true',
+          compressionLevel,
+          request.signal,
+        ),
+        {
+          headers: {
+            'content-type': 'application/zip',
+            'content-disposition': `attachment; filename="${sessionLogZipFilename(sessionId)}"`,
+          },
+        },
+      )
+    },
+    (_error: Thrown) => {
+      request.signal.throwIfAborted()
+      return new Response('session log export failed to prepare the stored artifact', { status: 500 })
     },
   )
-  return response
 }

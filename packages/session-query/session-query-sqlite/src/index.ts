@@ -382,17 +382,24 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     const gate = new Promise<void>((resolve) => { release = resolve })
     const prior = this._tail
     this._tail = prior.then(() => gate)
-    return waitWithAbort(prior, signal).then(async () => {
+    return waitWithAbort(prior, signal).then(() => {
       if (this._isClosed()) {
         release()
         throw indexClosed()
       }
-      try {
-        assertNotAborted(signal)
-        return await operation()
-      } finally {
-        release()
-      }
+      return (signal?.aborted === true
+        ? Promise.reject(new SessionQueryError('session-search aborted', 'SESSION_QUERY_ABORTED'))
+        : operation()
+      ).then(
+        (value) => {
+          release()
+          return value
+        },
+        (error: Thrown) => {
+          release()
+          throw error
+        },
+      )
     }, (error: Thrown) => {
       release()
       throw error
@@ -464,7 +471,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
           this._replaceLiveSession(entry, generation, persisted)
         }
         db.exec('COMMIT')
-      } catch (error: unknown) {
+      } catch (error) {
         /* v8 ignore next -- a BEGIN failure has no transaction to roll back; the common wrapper still reports it. */
         if (began) {
           /* v8 ignore next 5 -- ROLLBACK failure requires a SQLite double fault; the original failure remains actionable. */
@@ -518,12 +525,21 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         }
         const loadFrom = (
           observed: Map<SessionId, ObservedPersistedSession>,
-          entries: ObservedPersistedSession[],
-          index: number,
+          remaining: ObservedPersistedSession[],
         ): Promise<Map<SessionId, ObservedPersistedSession> | 'retry'> => {
-          for (let offset = index; offset < entries.length; offset += 1) {
-            const entry = entries[offset]
-            if (entry === undefined) continue
+          for (;;) {
+            const entry = remaining[0]
+            if (entry === undefined) {
+              assertNotAborted(signal)
+              return persistence.listSnapshots(signal).then((afterSnapshots) => {
+                assertNotAborted(signal)
+                const after = materializePersistenceSnapshots(afterSnapshots)
+                if (!samePersistenceSnapshots(observed, after)) return 'retry'
+                if (this._persistenceBinding !== persistenceBinding) return 'retry'
+                return observed
+              }, observationFailure)
+            }
+            remaining = remaining.slice(1)
             if (canReuseIndexed && indexed.get(entry.header.id)?.revision === entry.revision) continue
             // Skip work already shadowed by a live owner. `inspect()` is
             // non-mutating, so an owner attaching after this check cannot cause
@@ -535,22 +551,14 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
               assertNotAborted(signal)
               assertSessionHeadersCompatible(entry.header, loaded.meta)
               entry.loaded = observeSession(loaded.meta, loaded.events)
-              return loadFrom(observed, entries, offset + 1)
+              return loadFrom(observed, remaining)
             }, observationFailure)
           }
-          assertNotAborted(signal)
-          return persistence.listSnapshots(signal).then((afterSnapshots) => {
-            assertNotAborted(signal)
-            const after = materializePersistenceSnapshots(afterSnapshots)
-            if (!samePersistenceSnapshots(observed, after)) return 'retry'
-            if (this._persistenceBinding !== persistenceBinding) return 'retry'
-            return observed
-          }, observationFailure)
         }
         const outcome = await persistence.listSnapshots(signal).then((before) => {
           assertNotAborted(signal)
           const observed = materializePersistenceSnapshots(before)
-          return loadFrom(observed, [...observed.values()], 0)
+          return loadFrom(observed, [...observed.values()])
         }, observationFailure)
         if (outcome === 'retry') continue
         persisted = outcome

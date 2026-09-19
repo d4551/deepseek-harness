@@ -97,6 +97,9 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * English is both the locale the UI opens in when the browser names no registered
  * language (and for non-browser runs), and the dictionary consulted after the
@@ -240,7 +243,8 @@ export class LocaleRuntime {
     if (match === undefined) throw new Error(`locale "${id}" is not registered`)
     this.preference = match.id
     if (this.snapshot.active !== match.id) this.publish(match.id, true)
-    this.host?.set(LOCALE_PREFERENCE_FIELD, match.id).catch(this.ctx.logger().error)
+    const reportPreferenceFailure: (error: Thrown) => void = this.ctx.logger().error
+    this.host?.set(LOCALE_PREFERENCE_FIELD, match.id).then(undefined, reportPreferenceFailure)
   }
 
   /**

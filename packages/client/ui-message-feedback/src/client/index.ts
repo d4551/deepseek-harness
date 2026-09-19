@@ -30,6 +30,9 @@ export type {
 export type { MessageFeedbackActionProps, MessageFeedbackInjected } from './slots.ts'
 export type { MessageFeedbackKey } from './locales.ts'
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** Dictionary namespace owned by this plugin. */
 const NS = 'feedback'
 
@@ -58,7 +61,10 @@ export function apply(ctx: ClientContext): void {
   // stays cold until something asks for it.
   ctx.on('connection/reset', () => {
     for (const controller of controllers.values()) {
-      if (controller.getSnapshot().status !== 'cold') controller.resync().catch(ctx.logger().error)
+      if (controller.getSnapshot().status !== 'cold') {
+        const reportResyncFailure: (error: Thrown) => void = ctx.logger().error
+        controller.resync().then(undefined, reportResyncFailure)
+      }
     }
   })
 

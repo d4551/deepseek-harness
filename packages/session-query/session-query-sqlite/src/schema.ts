@@ -53,7 +53,7 @@ export async function openSearchDatabase(path: string, journalMode: JournalMode)
     ensurePersistentSchema(db)
     ensureTemporarySchema(db)
     return db
-  } catch (error: unknown) {
+  } catch (error) {
     db.close()
     throw error
   }

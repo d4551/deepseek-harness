@@ -10,6 +10,9 @@ import type { ProjectionSnapshot } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError } from './config.ts'
 
+/** Values a Promise reject arm from persistence borrow or observation mapping may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /** One exact immutable Session cut retained for the caller's read lifetime. */
 export interface SessionObservation extends Disposable {
   /** Whether the cut came from an attached Session or a retained preparation. */
@@ -62,25 +65,25 @@ export class SessionObservationReader {
       const persistence = this.ctx.get('sessionPersistence')
       if (persistence === undefined) throw notFound(sessionId)
 
-      let borrowed: BorrowedSessionSource
-      try {
-        borrowed = await persistence.borrowSession(sessionId, signal)
-      } catch (error: unknown) {
-        throwIfObservationAborted(signal)
-        if (hasErrorName(error, 'SessionPersistenceNotFoundError')) throw notFound(sessionId, error)
-        if (hasErrorName(error, 'SessionPersistenceCorruptionError')) {
+      const borrowed = await persistence.borrowSession(sessionId, signal).then(
+        undefined,
+        (error: Thrown) => {
+          throwIfObservationAborted(signal)
+          if (hasErrorName(error, 'SessionPersistenceNotFoundError')) throw notFound(sessionId, error)
+          if (hasErrorName(error, 'SessionPersistenceCorruptionError')) {
+            throw new SessionQueryError(
+              `stored session "${sessionId}" is corrupt: ${error.message}`,
+              'SESSION_QUERY_CORRUPT_SESSION',
+              { cause: error },
+            )
+          }
           throw new SessionQueryError(
-            `stored session "${sessionId}" is corrupt: ${error.message}`,
-            'SESSION_QUERY_CORRUPT_SESSION',
+            `failed to observe session "${sessionId}": ${errorMessage(error)}`,
+            'SESSION_QUERY_PERSISTENCE_FAILED',
             { cause: error },
           )
-        }
-        throw new SessionQueryError(
-          `failed to observe session "${sessionId}": ${errorMessage(error)}`,
-          'SESSION_QUERY_PERSISTENCE_FAILED',
-          { cause: error },
-        )
-      }
+        },
+      )
 
       try {
         throwIfObservationAborted(signal)
@@ -109,7 +112,7 @@ export class SessionObservationReader {
           projections = projectionMode === 'none'
             ? undefined
             : this.preparedProjections(prepared, events)
-        } catch (error: unknown) {
+        } catch (error) {
           throw new SessionQueryError(
             `failed to project session "${sessionId}": ${errorMessage(error)}`,
             'SESSION_QUERY_CORRUPT_SESSION',
@@ -140,7 +143,7 @@ export class SessionObservationReader {
           }
         }
         return lease()
-      } catch (error: unknown) {
+      } catch (error) {
         borrowed[Symbol.dispose]()
         throw error
       }

@@ -1,6 +1,9 @@
 // Host clipboard write shared by Web UI copy controls. Success feedback stays
 // with each control; this helper only reports whether the host accepted a write.
 
+/** Values a Promise reject arm may deliver. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
 /**
  * Walk own and prototype properties and return the value as `unknown`.
  * Lib DOM getters are typed `any`; the brand happens after an own-property gate.
@@ -40,7 +43,7 @@ export function writeClipboard(text: string): Promise<boolean> {
   if (typeof writeText !== 'function') return Promise.resolve(false)
   const written: unknown = Reflect.apply(writeText, clipboard, [text])
   if (written instanceof Promise) {
-    return written.then(() => true, () => false)
+    return written.then(() => true, (_error: Thrown) => false)
   }
   return Promise.reject(new TypeError('clipboard.writeText must return a Promise'))
 }
