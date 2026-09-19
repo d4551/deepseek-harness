@@ -14,6 +14,12 @@ import type { QuestionDraftAnswer, QuestionDraftProgress } from './draft-store.t
 import { PlanReviewPanel } from './PlanReviewPanel.tsx'
 import css from './QuestionComposer.module.css'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /**
  * Displayed feedback: validation feedback is stored as a dictionary KEY and
  * translated at render, so already-shown feedback follows a locale switch;
@@ -181,10 +187,9 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
     setError(null)
     pending.cancel().then(
       () => { actions.clear(pending.key) },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('question cancel rejected with a non-Error')
+      (reason: Thrown) => {
         setBusy(null)
-        setError({ text: reason.message })
+        setError({ text: thrownMessage(reason) })
       },
     )
   }
@@ -239,10 +244,9 @@ function QuestionFlow({ pending, t, useStore, actions }: QuestionFlowProps) {
     setError(null)
     pending.answer(answer).then(
       () => { actions.clear(pending.key) },
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('question answer rejected with a non-Error')
+      (reason: Thrown) => {
         setBusy(null)
-        setError({ text: reason.message })
+        setError({ text: thrownMessage(reason) })
       },
     )
   }

@@ -398,6 +398,27 @@ describe('QueueDock', () => {
     expect(getByText('pending steer')).toBeTruthy()
   })
 
+  it('keeps the row and reports a non-Error steer refusal', async () => {
+    const snap = snapshotWith([row('i-steer-plain', 'pending steer')])
+    const source = liveSession(snap)
+    const notify = vi.fn<(level: 'info' | 'error', text: string) => void>()
+    const updateQueue = vi.fn<(itemId: QueueItemId, action: QueueAction) => Promise<void>>(
+      () => Promise.reject('plain refusal'),
+    )
+    const { getByLabelText, getByText } = render(
+      <QueueDock {...kitFor(snap, { updateQueue, notify })} useSession={source.useSession} />,
+    )
+
+    fireEvent.click(getByLabelText('插话发送'))
+    await waitFor(() => {
+      expect(notify).toHaveBeenCalledWith(
+        'error',
+        '插话发送失败，请重试。: plain refusal',
+      )
+    })
+    expect(getByText('pending steer')).toBeTruthy()
+  })
+
   it('keeps the row and surfaces a notice when an operation loses the claim race', async () => {
     const snap = snapshotWith([row('i-race', 'pending')])
     const source = liveSession(snap)

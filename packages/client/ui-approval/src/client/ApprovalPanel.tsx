@@ -4,6 +4,12 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ApprovalComposerProps, PendingApproval } from './contract/slots.ts'
 import css from './ApprovalPanel.module.css'
 
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
 /**
  * Render one pending approval and its optional Tool-owned detail.
  * @param props - selector-matched request and standard Slot props.
@@ -28,11 +34,10 @@ function ApprovalFlow({ pending, detail, t }: {
     setAnswered(true)
     setAnswerError(null)
     pending.answer(outcome).then(
-      () => {},
-      (reason: unknown) => {
-        if (!(reason instanceof Error)) throw new TypeError('approval answer rejected with a non-Error')
+      undefined,
+      (reason: Thrown) => {
         setAnswered(false)
-        setAnswerError(reason.message)
+        setAnswerError(thrownMessage(reason))
       },
     )
   }

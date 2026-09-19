@@ -60,8 +60,7 @@ export function QueueDock({ useSession, updateQueue, notify, t }: QueueDockProps
       setBusy(current => current === itemId ? null : current)
     }
     const reportFailure = (reason: QueueActionFailure): false => {
-      if (!(reason instanceof Error)) throw new TypeError('queue mutation rejected with a non-Error')
-      notify('error', `${failure}: ${reason.message}`)
+      notify('error', `${failure}: ${reason instanceof Error ? reason.message : String(reason)}`)
       clearBusy()
       return false
     }

@@ -50,6 +50,7 @@ export function HoverCard({
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [copied, setCopied] = useState(false)
+  const copyFlightRef = useRef(Promise.resolve())
 
   const clearCopied = useCallback(() => {
     if (copyTimerRef.current !== null) {
@@ -146,10 +147,7 @@ export function HoverCard({
   }
 
   const queueCopy = (text: string): void => {
-    copy(text).then(() => undefined, (reason: unknown) => {
-      if (!(reason instanceof Error)) throw new TypeError('clipboard copy rejected with a non-Error')
-      throw reason
-    })
+    copyFlightRef.current = copy(text)
   }
 
   const copyable = copyText !== undefined
