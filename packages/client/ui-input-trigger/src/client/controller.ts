@@ -472,14 +472,12 @@ export class InputTriggerController {
     generation: number,
     signal: AbortSignal,
   ): void {
-    const started = new Promise<readonly InputTriggerCandidate[]>((resolve) => {
-      resolve(source.candidates(this.project(), {
-        query: hit.query,
-        quoted: hit.quoted,
-        position: hit.position,
-        drilled: this.drilled,
-        signal,
-      }))
+    const started = source.candidates(this.project(), {
+      query: hit.query,
+      quoted: hit.quoted,
+      position: hit.position,
+      drilled: this.drilled,
+      signal,
     }).then(
       (items) => {
         if (this.candidateFlight === started) this.candidateFlight = null

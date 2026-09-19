@@ -150,9 +150,7 @@ export class PopupSelectController<TCtx = unknown> {
 
   /** Run the one options fetch of a binding; settlement rights die with the binding. */
   private load(binding: OpenBinding<TCtx>): void {
-    const started = new Promise<readonly SelectOption[]>((resolve) => {
-      resolve(binding.spec.options(binding.context, binding.abort.signal))
-    }).then(
+    const started = binding.spec.options(binding.context, binding.abort.signal).then(
       (options) => {
         if (this.flight === started) this.flight = null
         if (this.binding !== binding) return
