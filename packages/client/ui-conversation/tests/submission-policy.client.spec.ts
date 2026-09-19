@@ -75,4 +75,30 @@ describe('ComposerSubmissionPolicy', () => {
       expect(policy.writeError.getSnapshot()).toBe('mirror fold failed')
     })
   })
+
+  it('retries a failed persist of the same behavior and clears writeError on Host adopt', async () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    host.set.mockRejectedValueOnce(new Error('mirror fold failed'))
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setBusyEnter(requireBusyEnterBehavior('steer'))
+    await expect(policy.hostWrite).rejects.toThrow('mirror fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('mirror fold failed')
+    })
+    host.set.mockResolvedValueOnce(undefined)
+    policy.setBusyEnter(requireBusyEnterBehavior('steer'))
+    expect(host.set).toHaveBeenCalledTimes(2)
+    await policy.hostWrite
+    expect(policy.writeError.getSnapshot()).toBeNull()
+
+    host.set.mockRejectedValueOnce(new Error('second fold failed'))
+    policy.setBusyEnter(requireBusyEnterBehavior('queue'))
+    await expect(policy.hostWrite).rejects.toThrow('second fold failed')
+    await vi.waitFor(() => {
+      expect(policy.writeError.getSnapshot()).toBe('second fold failed')
+    })
+    host.publish({ status: 'ready', value: { busyEnter: 'queue' }, revision: 3, writable: true })
+    expect(policy.busyEnter.getSnapshot()).toBe('queue')
+    expect(policy.writeError.getSnapshot()).toBeNull()
+  })
 })

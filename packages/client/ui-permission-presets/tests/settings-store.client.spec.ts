@@ -178,6 +178,16 @@ describe('permission settings store', () => {
     await failing.load()
     await failing.select('workspace-write')
     expect(failing.store.getSnapshot()).toMatchObject({ status: 'error', error: 'stale' })
+
+    const throwing = permissionController({
+      describe: () => Promise.resolve(ok({
+        writable: true, hasDocument: false, namespaces: [view('read-only')],
+      })),
+      mutate: () => Promise.reject(new Error('transport down')),
+    }).controller
+    await throwing.load()
+    await expect(throwing.select('workspace-write')).rejects.toThrow('transport down')
+    expect(throwing.store.getSnapshot()).toMatchObject({ status: 'error', error: 'transport down' })
   })
 
   it('refuses writes without a writable view and surfaces read failures', async () => {

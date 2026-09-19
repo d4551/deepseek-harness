@@ -17,6 +17,14 @@ import type {
 /** Permission's settings namespace on the host wire. */
 export const PERMISSION_SETTINGS_NS = 'permission'
 
+/** Values a throw or Promise rejection can carry. */
+type Thrown = object | string | number | boolean | bigint | symbol | null | undefined
+
+function thrownMessage(reason: Thrown): string {
+  if (reason instanceof Error) return reason.message
+  return String(reason)
+}
+
 /** One selectable new-session default. */
 export interface PermissionDefaultOption {
   /** Preset key written to Settings. */
@@ -178,11 +186,19 @@ export class PermissionPresetSettingsController {
         this.saving = false
       },
     }
-    const response = await this.api.settings.mutate(
+    const flight = this.api.settings.mutate(
       PERMISSION_SETTINGS_NS,
       [{ op: 'set', path: ['defaultPreset'], value: preset }],
       view.revision,
     )
+    flight.then(
+      undefined,
+      (error: Thrown) => {
+        if (this.disposed) return
+        this.fail(thrownMessage(error))
+      },
+    )
+    const response = await flight
     if (this.disposed) return
     if (!response.ok) {
       this.fail(response.error.message)

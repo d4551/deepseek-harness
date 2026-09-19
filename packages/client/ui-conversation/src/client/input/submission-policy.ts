@@ -75,8 +75,10 @@ export class ComposerSubmissionPolicy {
    * @param behavior - Queue or Steer.
    */
   setBusyEnter(behavior: BusyEnterBehavior): void {
-    if (this.busyEnter.getSnapshot() === behavior) return
-    this.busyEnter.set(behavior)
+    const current = this.busyEnter.getSnapshot()
+    const persistFailed = this.writeError.getSnapshot() !== null
+    if (current === behavior && !persistFailed) return
+    if (current !== behavior) this.busyEnter.set(behavior)
     this.writeError.set(null)
     if (this.host === undefined) return
     const flight = this.host.set(BUSY_ENTER_FIELD, behavior)
@@ -98,7 +100,10 @@ export class ComposerSubmissionPolicy {
    */
   private adopt(host: SettingsScope<ConversationSettings>): void {
     const section = host.getSnapshot().value
-    if (section === undefined || this.busyEnter.getSnapshot() === section.busyEnter) return
-    this.busyEnter.set(section.busyEnter)
+    if (section === undefined) return
+    if (this.busyEnter.getSnapshot() !== section.busyEnter) {
+      this.busyEnter.set(section.busyEnter)
+    }
+    this.writeError.set(null)
   }
 }
