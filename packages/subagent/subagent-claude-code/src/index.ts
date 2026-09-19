@@ -93,7 +93,7 @@ class ClaudeCodeProvider implements SubagentProvider {
         undefined,
         parentCwd,
       )
-    } catch (error: unknown) {
+    } catch (error) {
       if (request.signal.aborted) {
         throw new Error(
           'subagent-claude-code: request was aborted before SDK startup',

@@ -268,14 +268,14 @@ export async function disposeClaudeCodeChild(
   const failures: Error[] = []
   try {
     query?.close()
-  } catch (error: unknown) {
+  } catch (error) {
     failures.push(toError(error))
   }
 
   child.terminate()
   try {
     await child.waitForExit()
-  } catch (error: unknown) {
+  } catch (error) {
     failures.push(toError(error))
   }
   const outcome = await child.done
@@ -435,7 +435,7 @@ export async function startClaudeCodeRun(
     if (controller.signal.aborted) {
       throw new Error('subagent-claude-code: request was aborted before SDK startup')
     }
-  } catch (error: unknown) {
+  } catch (error) {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = controller.signal.aborted
     // Let child.done publish a concurrently observed exit before classification.
@@ -455,14 +455,14 @@ export async function startClaudeCodeRun(
       let closeError: Error | undefined
       try {
         query?.close()
-      } catch (disposeError: unknown) {
+      } catch (disposeError) {
         closeError = toError(disposeError)
       }
 
       let spawnError = toError(error)
       try {
         await child.done
-      } catch (childError: unknown) {
+      } catch (childError) {
         spawnError = toError(childError)
       }
 
@@ -489,7 +489,7 @@ export async function startClaudeCodeRun(
     if (child !== undefined) {
       try {
         await disposeClaudeCodeChild(query, child)
-      } catch (disposeError: unknown) {
+      } catch (disposeError) {
         const failure = startupFailure()
         const cleanupFailure = toError(disposeError)
         const aggregate = new AggregateError(
@@ -502,7 +502,7 @@ export async function startClaudeCodeRun(
     } else if (query !== undefined) {
       try {
         query.close()
-      } catch (disposeError: unknown) {
+      } catch (disposeError) {
         const failure = startupFailure()
         const cleanupFailure = new ClaudeCodeFailure({
           stage: 'teardown',
@@ -540,7 +540,7 @@ export async function startClaudeCodeRun(
         }, () => {
           receivedResult = true
         })
-      } catch (error: unknown) {
+      } catch (error) {
         const processOutcome = managedProcess?.outcome
         let facts: ClaudeCodeFailureFacts
         if (error instanceof ClaudeCodeFailure) {
@@ -582,7 +582,7 @@ export async function startClaudeCodeRun(
     teardown: async () => {
       try {
         await disposeClaudeCodeChild(publishedQuery, publishedChild)
-      } catch (error: unknown) {
+      } catch (error) {
         const failure = toError(error)
         reportFailure(failure)
         throw failure
