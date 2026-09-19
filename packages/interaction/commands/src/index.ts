@@ -406,7 +406,9 @@ export class CommandRuntime extends TypertRemoteService {
       }),
       signal,
     ).then(
-      value => settle(normalizeResult(parsed.name, value)),
+      value => normalizeResult(parsed.name, value),
+    ).then(
+      result => settle(result),
       (error: Thrown) => {
         this.settleThrown(agent.session, parsed.name, commandId, error)
         throw error

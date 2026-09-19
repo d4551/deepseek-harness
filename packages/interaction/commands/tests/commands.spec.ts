@@ -459,6 +459,10 @@ describe('CommandRuntime', () => {
       handler: () => output as never,
     })
     await expect(ctx.commands.execute(agent, '/broken', [], new AbortController().signal)).rejects.toThrow(expected)
+    expect(lifecycleOf(agent)).toMatchObject([
+      { type: 'command/run', data: { name: 'broken' } },
+      { type: 'command/done', data: { kind: 'error', text: expect.stringMatching(expected) } },
+    ])
   })
 })
 
