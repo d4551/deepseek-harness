@@ -102,10 +102,10 @@ export function installReportTool(
         return { messageId }
       },
     }))
-  } catch (error: unknown) {
+  } catch (error) {
     try {
       disposeSection()
-    } catch (rollbackError: unknown) {
+    } catch (rollbackError) {
       throw new AggregateError(
         [error, rollbackError],
         'failed to register the report tool and roll back its prompt guidance',
@@ -118,7 +118,7 @@ export function installReportTool(
     for (const dispose of [disposeTool, disposeSection]) {
       try {
         dispose()
-      } catch (error: unknown) {
+      } catch (error) {
         failures.push(error)
       }
     }
