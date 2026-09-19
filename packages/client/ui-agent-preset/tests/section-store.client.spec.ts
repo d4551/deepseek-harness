@@ -43,6 +43,12 @@ interface FakeOptions {
   hasDocument?: boolean
   /** Reject the opener capability read, as a dead transport does. */
   throwCapability?: boolean
+  /** Answer the opener capability with `ok: false`. */
+  failCapability?: string
+  /** Answer the opener capability with JSON null. */
+  nullCapability?: boolean
+  /** Hold `copy` until this resolves, to cancel the dialog mid-flight. */
+  holdCopy?: Promise<void>
   /** Hold `remove` until this resolves, to observe the in-flight state. */
   holdRemove?: Promise<void>
 }
@@ -96,14 +102,15 @@ function fakeRemote(
       // Arity is checked against the declaration, not against which arguments
       // carry a value, so a short call rejects instead of answering. Reject
       // one here too: the real face would, and a lenient double hid it once.
-      copy: (...args: [from: string, id: string, name?: string]) => {
+      copy: async (...args: [from: string, id: string, name?: string]) => {
         if (args.length !== 3) {
           return Promise.reject(new Error(`client api: agentPresets/copy expected 3 argument(s), got ${String(args.length)}`))
         }
         const [from, id, name] = args
         record('copy', { from, id, ...name === undefined ? {} : { name } })
+        await options.holdCopy
         if (options.throwCopy === true) return Promise.reject(new Error('socket closed'))
-        if (options.failCopy !== undefined) return remoteFail(options.failCopy)
+        if (options.failCopy !== undefined) return await remoteFail(options.failCopy)
         const source = presets.get(from)
         /* v8 ignore next -- every test copies a source the fake store holds */
         if (source === undefined) return remoteFail(`unknown preset ${from}`)
@@ -125,9 +132,10 @@ function fakeRemote(
     settings: {
       canOpenAgentPresetDirectory: () => {
         record('canOpenAgentPresetDirectory', {})
-        return options.throwCapability === true
-          ? Promise.reject(new Error('socket closed'))
-          : remoteOk(options.hasDocument ?? true)
+        if (options.throwCapability === true) return Promise.reject(new Error('socket closed'))
+        if (options.failCapability !== undefined) return remoteFail(options.failCapability)
+        if (options.nullCapability === true) return Promise.resolve(null)
+        return remoteOk(options.hasDocument ?? true)
       },
       update: (ns: string, patch: { default?: string }) => {
         record('settings.update', { ns, patch })
@@ -186,6 +194,16 @@ describe('loading the roster', () => {
     expect(state.status).toBe('ready')
     expect(state.hasDocument).toBe(false)
     expect(state.rows.map((row: PresetRow) => row.id)).toEqual(['standard', 'mine'])
+  })
+
+  it('treats a refused or null opener answer as no desktop', async () => {
+    for (const options of [{ failCapability: 'no opener' }, { nullCapability: true }]) {
+      const { controller } = harness(options)
+      await controller.load()
+      const state = controller.store.getSnapshot()
+      expect(state.status).toBe('ready')
+      expect(state.hasDocument).toBe(false)
+    }
   })
 
   it('maps the roster onto rows with the capability flags', async () => {
@@ -388,15 +406,17 @@ describe('submitting a copy', () => {
   })
 
   it('reports roster convergence failure after the copy dialog has closed', async () => {
-    const controller = new AgentPresetSectionController(fakeRemote(seed(), { id: 'standard' }),
-      () => Promise.reject(new Error('sibling roster unavailable')))
-    await controller.load()
-    controller.beginCopy('standard')
-    controller.setCopyId('my-copy')
-    await controller.confirmCopy()
-    expect(controller.store.getSnapshot().copy).toBeNull()
-    expect(controller.store.getSnapshot().error).toBe('sibling roster unavailable')
-    expect(controller.store.getSnapshot().rows.map(row => row.id)).toContain('my-copy')
+    for (const reason of [new Error('sibling roster unavailable'), 'sibling roster unavailable']) {
+      const controller = new AgentPresetSectionController(fakeRemote(seed(), { id: 'standard' }),
+        () => Promise.reject(reason))
+      await controller.load()
+      controller.beginCopy('standard')
+      controller.setCopyId('my-copy')
+      await controller.confirmCopy()
+      expect(controller.store.getSnapshot().copy).toBeNull()
+      expect(controller.store.getSnapshot().error).toBe('sibling roster unavailable')
+      expect(controller.store.getSnapshot().rows.map(row => row.id)).toContain('my-copy')
+    }
   })
 
   it('copies, re-reads the roster, announces the change, and opens the files', async () => {
@@ -465,6 +485,23 @@ describe('submitting a copy', () => {
     await controller.confirmCopy()
 
     expect(copyOf(controller).error).toContain('socket closed')
+  })
+
+  it('reports a rejected copy on the page when the dialog was closed mid-flight', async () => {
+    let release = (): void => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const { controller } = harness({ holdCopy: gate, throwCopy: true })
+    await controller.load()
+    controller.beginCopy('standard')
+    controller.setCopyId('my-copy')
+    const pending = controller.confirmCopy()
+    await Promise.resolve()
+    expect(controller.store.getSnapshot().copy?.saving).toBe(true)
+    controller.cancelCopy()
+    expect(controller.store.getSnapshot().copy).toBeNull()
+    release()
+    await pending
+    expect(controller.store.getSnapshot().error).toBe('socket closed')
   })
 
   it('refuses to submit while blocked or already saving', async () => {

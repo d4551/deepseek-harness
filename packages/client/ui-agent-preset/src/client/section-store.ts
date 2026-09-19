@@ -293,7 +293,15 @@ export class AgentPresetSectionController {
         }
         this.set({ copy: null })
         await this.load()
-        await this.rosterChanged?.()
+        const announced = this.rosterChanged?.()
+        if (typeof announced === 'object' && announced !== null) {
+          await announced.then(
+            () => undefined,
+            (reason: Thrown) => {
+              this.set({ error: thrownMessage(reason) })
+            },
+          )
+        }
         await this.openLocation(draft.id)
       },
       (reason: Thrown) => {
