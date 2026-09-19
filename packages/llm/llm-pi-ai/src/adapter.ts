@@ -72,6 +72,9 @@ function streamBoundaryFailure(
   streamIdleTimeoutMs: number,
   callerSignal: AbortSignal | undefined,
 ): never {
+  if (error instanceof LlmError && (error.code === 'TIMEOUT' || error.code === 'ABORTED')) {
+    throw error
+  }
   if (timeoutOf(watchdogSignal, 'LLM_STREAM_IDLE_TIMEOUT') !== undefined) {
     throw new LlmError(`pi-ai stream idle timeout after ${streamIdleTimeoutMs}ms`, 'TIMEOUT', { cause: error })
   }
